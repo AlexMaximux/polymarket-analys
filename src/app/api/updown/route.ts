@@ -160,15 +160,18 @@ export async function GET(request: Request) {
 
   // ---- Opening prices: Polymarket's official values (Chainlink TWAP / boundary) from event pages;
   //      fallback: Binance 1m kline opens. St = Binance ticker (live). ----
-  const [s0pm, sapm, s0b, sab, stRaw] = await Promise.all([
+  const [s0pm, sapm, sa5pm, s0b, sab, sa5b, stRaw] = await Promise.all([
     m1h ? polymarketOpenPrice(m1h.slug) : Promise.resolve(null),
     m15 ? polymarketOpenPrice(m15.slug) : Promise.resolve(null),
+    m5 ? polymarketOpenPrice(m5.slug) : Promise.resolve(null),
     binanceKline(cfg.binance, hourStartSec),
     binanceKline(cfg.binance, win15Sec),
+    binanceKline(cfg.binance, win5Sec),
     j(`https://api.binance.com/api/v3/ticker/price?symbol=${cfg.binance}`, 5000),
   ]);
   const s0 = s0pm ?? s0b;
   const sa = sapm ?? sab;
+  const sa5 = sa5pm ?? sa5b;
   const st = stRaw?.price ? parseFloat(stRaw.price) : null;
 
   // ---- CLOB midpoints (true live market prices) ----
@@ -184,17 +187,24 @@ export async function GET(request: Request) {
   if (m15) { m15.live = mid15Up ?? (mid15Dn != null ? 1 - mid15Dn : null); m15.liveDown = mid15Dn ?? (mid15Up != null ? 1 - mid15Up : null); }
   if (m5) { m5.live = mid5Up ?? (mid5Dn != null ? 1 - mid5Dn : null); m5.liveDown = mid5Dn ?? (mid5Up != null ? 1 - mid5Up : null); }
 
-  // ---- Fair value model ----
+  // ---- Fair value models (same drift-extraction, calibrated on 15m and 5m markets separately) ----
   const p15 = m15?.live ?? m15?.up ?? null;
+  const p5 = m5?.live ?? m5?.up ?? null;
   let model: any = null;
-  if (s0 && st && p15 && p15 > 0.001 && p15 < 0.999) {
-    const sigmaM = sigma1h / Math.sqrt(60);
-    const a = 15 * Math.floor(t / 15);
-    const q = t - a;
-    const tau15 = 15 - q;
-    const tau60 = 60 - t;
-    const xt = Math.log(st / s0);
-    const y = sa ? Math.log(st / sa) : xt;
+  let model5: any = null;
+  const sigmaM = sigma1h / Math.sqrt(60);
+  const a = 15 * Math.floor(t / 15);
+  const q = t - a;
+  const tau15 = 15 - q;
+  const tau60 = 60 - t;
+  const xt = s0 && st ? Math.log(st / s0) : null;
+  const y = xt != null && sa && st != null ? Math.log(st / sa) : null;
+  const a5 = 5 * Math.floor(t / 5);
+  const q5 = t - a5;
+  const tau5 = 5 - q5;
+  const y5 = xt != null && sa5 && st != null ? Math.log(st / sa5) : null;
+
+  if (s0 && st && p15 && p15 > 0.001 && p15 < 0.999 && xt != null && y != null) {
     const z15 = normInv(p15);
     const mu = tau15 > 0.01 ? (z15 * sigmaM * Math.sqrt(tau15) - y) / tau15 : 0;
     const fair = normCdf((xt + mu * tau60) / (sigmaM * Math.sqrt(tau60)));
@@ -207,10 +217,23 @@ export async function GET(request: Request) {
     };
   }
 
+  // 5m-calibrated variant: drift implied by the live 5-minute market
+  if (s0 && st && p5 && p5 > 0.001 && p5 < 0.999 && xt != null && y5 != null) {
+    const z5 = normInv(p5);
+    const mu5 = tau5 > 0.01 ? (z5 * sigmaM * Math.sqrt(tau5) - y5) / tau5 : 0;
+    const fair5 = normCdf((xt + mu5 * tau60) / (sigmaM * Math.sqrt(tau60)));
+    model5 = {
+      a5, q5, tau5, y5, p5, z5, mu5,
+      sa5,
+      fairUp: fair5, fairDown: 1 - fair5,
+      edge: m1h?.live != null ? fair5 - (m1h.live as number) : null,
+    };
+  }
+
   return NextResponse.json({
     coin: coinKey, label: cfg.label, binanceSymbol: cfg.binance,
     openSources: { s0: s0pm ? 'polymarket-chainlink' : 'binance', sa: sapm ? 'polymarket-chainlink' : 'binance' },
     serverTime: nowSec, t, hourStartSec, win15Sec, win5Sec, next15Sec, next5Sec,
-    m1h, m15, m5, n15, n5, model,
+    m1h, m15, m5, n15, n5, model, model5, sa5,
   });
 }

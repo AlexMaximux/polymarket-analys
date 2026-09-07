@@ -63,6 +63,7 @@ export default function UpDownPage() {
   }, [load, auto]);
 
   const m = data?.model;
+  const m5model = data?.model5;
   const m1h: MarketRow | null = data?.m1h;
   const m15: MarketRow | null = data?.m15;
   const m5: MarketRow | null = data?.m5;
@@ -230,7 +231,47 @@ export default function UpDownPage() {
         )}
       </div>
 
-      {/* debug snapshot table */}
+            {/* 5m-calibrated model panel */}
+      {m5model ? (
+        <div className="bg-[#111827] border border-slate-800/50 rounded-2xl p-6 shadow-sm">
+          <div className="flex items-center gap-2 mb-4">
+            <Activity className="w-5 h-5 text-[#FBBF24]" />
+            <h2 className="text-lg font-medium text-white">Fair Value Model — 1H Up <span className="text-xs text-slate-500">(calibrated on the 5-minute market)</span></h2>
+          </div>
+          <div className="grid md:grid-cols-3 gap-4">
+            <div className="bg-[#0B1120] rounded-xl p-4 border border-slate-800/60">
+              <p className="text-[10px] uppercase text-slate-500 mb-1">Model fair value (Up) — 5m calib</p>
+              <p className="text-3xl font-bold text-[#FBBF24] tabular-nums">{(m5model.fairUp * 100).toFixed(1)}¢</p>
+            </div>
+            <div className="bg-[#0B1120] rounded-xl p-4 border border-slate-800/60">
+              <p className="text-[10px] uppercase text-slate-500 mb-1">Market price (Up)</p>
+              <p className="text-3xl font-bold text-white tabular-nums">{market1h != null ? (market1h * 100).toFixed(1) + "¢" : "—"}</p>
+            </div>
+            <div className={`bg-[#0B1120] rounded-xl p-4 border ${m5model.edge != null && Math.abs(m5model.edge) > 0.03 ? (m5model.edge > 0 ? "border-[#34D399]/40" : "border-[#FB7185]/40") : "border-slate-800/60"}`}>
+              <p className="text-[10px] uppercase text-slate-500 mb-1">Edge (fair − market)</p>
+              <p className={`text-3xl font-bold tabular-nums ${m5model.edge == null ? "text-slate-500" : m5model.edge > 0.03 ? "text-[#34D399]" : m5model.edge < -0.03 ? "text-[#FB7185]" : "text-slate-300"}`}>
+                {m5model.edge == null ? "—" : (m5model.edge > 0 ? "+" : "") + (m5model.edge * 100).toFixed(1) + "¢"}
+              </p>
+            </div>
+          </div>
+          <div className="overflow-x-auto mt-4">
+            <table className="w-full text-left text-xs whitespace-nowrap">
+              <tbody className="divide-y divide-slate-800/40 text-slate-300 tabular-nums">
+                <tr><td className="py-1.5 pr-4">a₅ (5m block start)</td><td className="py-1.5 pr-4">:{String(Math.floor(m5model.a5)).padStart(2, "0")}</td><td className="py-1.5 pr-4">Sₐ₅ (block open)</td><td className="py-1.5">${m5model.sa5?.toLocaleString()}</td></tr>
+                <tr><td className="py-1.5 pr-4">q₅ (into block)</td><td className="py-1.5 pr-4">{m5model.q5.toFixed(2)}</td><td className="py-1.5 pr-4">y₅ = ln(Sₜ/Sₐ₅)</td><td>{m5model.y5.toFixed(5)}</td></tr>
+                <tr><td className="py-1.5 pr-4">τ₅ remaining</td><td className="py-1.5 pr-4">{m5model.tau5.toFixed(2)} min</td><td className="py-1.5 pr-4">p₅ (live 5m Up)</td><td>{(m5model.p5 * 100).toFixed(1)}¢</td></tr>
+                <tr><td className="py-1.5 pr-4">z₅ = Φ⁻¹(p₅)</td><td className="py-1.5 pr-4">{m5model.z5.toFixed(4)}</td><td className="py-1.5 pr-4">μ₅ (implied drift)</td><td className={m5model.mu5 >= 0 ? "text-[#34D399]" : "text-[#FB7185]"}>{m5model.mu5.toFixed(6)}/min</td></tr>
+                <tr><td className="py-1.5 pr-4">τ₆₀ remaining</td><td className="py-1.5 pr-4">{m?.tau60?.toFixed(2) ?? "—"} min</td><td className="py-1.5 pr-4">xₜ = ln(Sₜ/S₀)</td><td>{m?.xt?.toFixed(5) ?? "—"}</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p className="text-[11px] text-slate-500 mt-3">
+            Same formula as the 15m panel, but μ extracted from the live 5¢ market: μ₅ = (z₅·σₘ·√τ₅ − y₅) / τ₅ · fair = Φ((xₜ + μ₅·τ₆₀)/(σₘ·√τ₆₀))
+          </p>
+        </div>
+      ) : null}
+
+{/* debug snapshot table */}
       <div className="bg-[#111827] border border-slate-800/50 rounded-2xl p-5 shadow-sm">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-medium text-slate-300 uppercase tracking-wider">Model Inputs — Snapshot</h3>
