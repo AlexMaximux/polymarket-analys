@@ -38,19 +38,22 @@ type SortState = { col: string; dir: 1 | -1 };
 const flip = (s: SortState, col: string): SortState =>
   s.col === col ? { col, dir: (s.dir === 1 ? -1 : 1) } : { col, dir: -1 };
 
-function Section({ id, title, count, open, onToggle, subtitle, accent, icon, children }: {
+function Section({ id, title, count, open, onToggle, subtitle, accent, icon, actions, children }: {
   id: string; title: string; count?: number; open: boolean; onToggle: () => void;
-  subtitle?: string; accent?: string; icon: React.ReactNode; children: React.ReactNode;
+  subtitle?: string; accent?: string; icon: React.ReactNode; actions?: React.ReactNode; children: React.ReactNode;
 }) {
   return (
     <div>
-      <button onClick={onToggle} className="w-full flex items-center gap-2 text-left group">
-        <ChevronRight className={`w-4 h-4 text-slate-500 transition-transform ${open ? "rotate-90" : ""}`} />
-        <span className={`text-lg font-medium flex items-center gap-2 ${open ? "text-white" : "text-slate-300"}`}>
-          {icon} {title}{count != null && ` (${count})`}
-        </span>
-        {subtitle && <span className="text-xs font-normal text-slate-500 hidden md:inline">— {subtitle}</span>}
-      </button>
+      <div className="flex items-center gap-2">
+        <button onClick={onToggle} className="flex-1 flex items-center gap-2 text-left group min-w-0">
+          <ChevronRight className={`w-4 h-4 text-slate-500 transition-transform shrink-0 ${open ? "rotate-90" : ""}`} />
+          <span className={`text-lg font-medium flex items-center gap-2 ${open ? "text-white" : "text-slate-300"}`}>
+            {icon} {title}{count != null && ` (${count})`}
+          </span>
+          {subtitle && <span className="text-xs font-normal text-slate-500 hidden md:inline truncate">— {subtitle}</span>}
+        </button>
+        {actions && <div className="shrink-0 flex items-center gap-2">{actions}</div>}
+      </div>
       {open && <div className="mt-4 space-y-4">{children}</div>}
     </div>
   );
@@ -421,7 +424,11 @@ export default function UserProfile() {
       <Section id="closed" title="Closed Positions History" count={closedTotals.count}
         open={sections.closed} onToggle={() => toggleSection("closed")}
         subtitle="every fully-exited market incl. sold & redeemed (same accounting as polymarket.com) · click headers to sort"
-        icon={<HistoryIcon className="w-5 h-5 text-[#38BDF8]" />}>
+        icon={<HistoryIcon className="w-5 h-5 text-[#38BDF8]" />}
+        actions={<>
+          <ExportBtn kind="closed" format="csv" label="Closed Positions History" />
+          <ExportBtn kind="closed" format="pdf" label="Closed Positions History" />
+        </>}>
         <div className="bg-[#111827] border border-slate-800/50 rounded-2xl overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm whitespace-nowrap">
@@ -479,7 +486,11 @@ export default function UserProfile() {
       <Section id="trades" title="Trade History" count={tradesData?.totals?.count ?? 0}
         open={sections.trades} onToggle={() => toggleSection("trades")}
         subtitle="full history live from Polymarket (not crawler cache) · click headers to sort"
-        icon={<Activity className="w-5 h-5 text-slate-400" />}>
+        icon={<Activity className="w-5 h-5 text-slate-400" />}
+        actions={<>
+          <ExportBtn kind="trades" format="csv" label="Trade History" />
+          <ExportBtn kind="trades" format="pdf" label="Trade History" />
+        </>}>
         <div className="bg-[#111827] border border-slate-800/50 rounded-2xl overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm whitespace-nowrap">
