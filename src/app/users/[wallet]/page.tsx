@@ -110,7 +110,7 @@ export default function UserProfile() {
   // ---- Risk assessment: totals across all three tables ----
   const totalPositions = (closedTotals.count || 0) + resolved.length + positions.length;
   const closedWins = closedTotals.wins || 0;
-  const closedLosses = (closedTotals.count || 0) - closedWins;
+  const closedLosses = closedTotals.losses != null ? closedTotals.losses : (closedTotals.count || 0) - closedWins;
   const resolvedWins = resolved.filter((p: any) => (parseFloat(p.cashPnl) || 0) > 0.01).length;
   const resolvedLosses = resolved.length - resolvedWins;
   const totalWins = closedWins + resolvedWins;
@@ -423,7 +423,7 @@ export default function UserProfile() {
       {/* ---------- Closed history ---------- */}
       <Section id="closed" title="Closed Positions History" count={closedTotals.count}
         open={sections.closed} onToggle={() => toggleSection("closed")}
-        subtitle="every fully-exited market incl. sold & redeemed (same accounting as polymarket.com) · click headers to sort"
+        subtitle={closedTotals.truncated ? "most recent 2000 closed markets (Polymarket API cap) — newest first · click headers to sort" : "every fully-exited market (same source as polymarket.com RESULT list) · click headers to sort"}
         icon={<HistoryIcon className="w-5 h-5 text-[#38BDF8]" />}
         actions={<>
           <ExportBtn kind="closed" format="csv" label="Closed Positions History" />
@@ -450,16 +450,16 @@ export default function UserProfile() {
                     <tr key={`${p.conditionId}-${p.outcome}-${i}`} className="hover:bg-[#1E2939]/80 transition-colors">
                       <td className="px-5 py-4 max-w-[220px] truncate text-slate-200" title={p.title}>{p.title}</td>
                       <td className="px-5 py-4">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wide border ${p.won ? "bg-[#34D399]/10 text-[#34D399] border-[#34D399]/20" : "bg-[#FB7185]/10 text-[#FB7185] border-[#FB7185]/20"}`}>
-                          {p.won ? "Won" : "Lost"} · {p.outcome}
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wide border ${p.pnl > 0.01 ? "bg-[#34D399]/10 text-[#34D399] border-[#34D399]/20" : p.pnl < -0.01 ? "bg-[#FB7185]/10 text-[#FB7185] border-[#FB7185]/20" : "bg-slate-500/10 text-slate-400 border-slate-500/20"}`}>
+                          {p.result === "WON" ? "Won" : p.result === "LOST" ? "Lost" : "Flat"} · {p.outcome}
                         </span>
                       </td>
-                      <td className="px-5 py-4 text-right tabular-nums text-slate-400">${p.invested.toFixed(2)}</td>
-                      <td className="px-5 py-4 text-right tabular-nums text-slate-400">${p.returned.toFixed(2)}</td>
-                      <td className={`px-5 py-4 text-right tabular-nums font-bold ${p.pnl >= 0 ? 'text-[#34D399]' : 'text-[#FB7185]'}`}>
-                        {p.pnl >= 0 ? '+' : ''}${p.pnl.toFixed(2)}
+                      <td className="px-5 py-4 text-right tabular-nums text-slate-400">${(p.invested ?? 0).toFixed(2)}</td>
+                      <td className="px-5 py-4 text-right tabular-nums text-slate-400">${(p.gotBack ?? 0).toFixed(2)}</td>
+                      <td className={`px-5 py-4 text-right tabular-nums font-bold ${(p.pnl ?? 0) >= 0 ? 'text-[#34D399]' : 'text-[#FB7185]'}`}>
+                        {(p.pnl ?? 0) >= 0 ? '+' : ''}${(p.pnl ?? 0).toFixed(2)}
                       </td>
-                      <td className="px-5 py-4 text-right tabular-nums text-slate-500">${p.totalTraded.toFixed(2)}</td>
+                      <td className="px-5 py-4 text-right tabular-nums text-slate-500">${(((p.invested ?? 0)) + ((p.gotBack ?? 0))).toFixed(2)}</td>
                     </tr>
                   ))
                 )}

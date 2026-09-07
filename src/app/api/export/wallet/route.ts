@@ -96,23 +96,41 @@ export async function POST(request: Request) {
   const stamp = new Date().toISOString().slice(0, 10);
   const fname = `${kind}-${short(wallet).replace('\u2026', '-')}-${stamp}`;
 
-  const markets = new Map<string, { title: string; invested: number; returned: number; firstTs: number; lastTs: number }>();
-  for (const r of ledger) {
-    const cid = r.conditionId;
-    if (!cid) continue;
-    let m = markets.get(cid);
-    if (!m) {
-      m = { title: r.title || '', invested: 0, returned: 0, firstTs: r.timestamp || 0, lastTs: r.timestamp || 0 };
-      markets.set(cid, m);
+  let closedList: { conditionId: string; title: string; invested: number; returned: number; pnl: number; lastTs: number }[] = [];
+  if (kind === 'closed') {
+    // source = Polymarket's own closed-positions API (full lifetime, site's RESULT list source)
+    for (let page = 0; page < 40; page++) {
+      const res = await fetch(`https://data-api.polymarket.com/closed-positions?user=${wallet}&limit=50&sortBy=TIMESTAMP&sortDirection=DESC&offset=${page * 50}`);
+      if (!res.ok) break;
+      const chunk: any[] = await res.json();
+      if (!Array.isArray(chunk) || chunk.length === 0) break;
+      for (const r of chunk) {
+        const avg = Number(r.avgPrice) || 0, bought = Number(r.totalBought) || 0;
+        const invested = avg * bought;
+        const pnl = Number(r.realizedPnl) || 0;
+        closedList.push({ conditionId: r.conditionId, title: r.title || '', invested, returned: invested + pnl, pnl, lastTs: r.timestamp || 0 });
+      }
+      if (chunk.length < 50) break;
     }
-    const usd = Number(r.usdcSize) || 0;
-    if (r.type === 'TRADE' && r.side === 'BUY') m.invested += usd; else m.returned += usd;
-    m.firstTs = Math.min(m.firstTs, r.timestamp || m.firstTs);
-    m.lastTs = Math.max(m.lastTs, r.timestamp || 0);
+  } else {
+    const markets = new Map<string, { title: string; invested: number; returned: number; firstTs: number; lastTs: number }>();
+    for (const r of ledger) {
+      const cid = r.conditionId;
+      if (!cid) continue;
+      let m = markets.get(cid);
+      if (!m) {
+        m = { title: r.title || '', invested: 0, returned: 0, firstTs: r.timestamp || 0, lastTs: r.timestamp || 0 };
+        markets.set(cid, m);
+      }
+      const usdv = Number(r.usdcSize) || 0;
+      if (r.type === 'TRADE' && r.side === 'BUY') m.invested += usdv; else m.returned += usdv;
+      m.firstTs = Math.min(m.firstTs, r.timestamp || m.firstTs);
+      m.lastTs = Math.max(m.lastTs, r.timestamp || 0);
+    }
+    closedList = [...markets.entries()]
+      .map(([conditionId, m]) => ({ conditionId, title: m.title, invested: m.invested, returned: m.returned, pnl: m.returned - m.invested, lastTs: m.lastTs }))
+      .sort((a, b) => b.lastTs - a.lastTs);
   }
-  const closedList = [...markets.entries()]
-    .map(([conditionId, m]) => ({ conditionId, title: m.title, invested: m.invested, returned: m.returned, pnl: m.returned - m.invested, lastTs: m.lastTs }))
-    .sort((a, b) => b.lastTs - a.lastTs);
   const totInvested = closedList.reduce((s, m) => s + m.invested, 0);
   const totReturned = closedList.reduce((s, m) => s + m.returned, 0);
   const totWins = closedList.filter((m) => m.pnl > 0.01).length;

@@ -3,94 +3,95 @@ import { NextResponse } from 'next/server';
 export const revalidate = 300; // Cache for 5 mins
 
 /**
- * SITE-STYLE closed positions history (like polymarket.com @user?tab=positions RESULT list).
- * The /positions endpoint only returns positions CURRENTLY HELD — anything exited via
- * SELL or REDEEM disappears from it. The site's history comes from replaying the full
- * activity ledger, which is what we do here:
+ * SITE-SOURCE closed positions history — now backed by Polymarket's OWN
+ * /closed-positions endpoint (the same source the polymarket.com profile
+ * "RESULT" list uses), instead of replaying the activity ledger.
  *
- *   per (market, outcome):
- *     invested = Σ BUY usdcSize
- *     returned = Σ SELL usdcSize + Σ REDEEM usdcSize
- *     pnl      = returned - invested            (= site's "AMOUNT WON")
- *     totalTraded = invested + returned         (= site's "TOTAL TRADED")
- *   closed when boughtShares - soldShares - redeemedShares <= 0
+ * Why: the /activity ledger is hard-capped at 5500 rows per wallet by the
+ * data-api ("max historical activity offset of 5000 exceeded"), so for very
+ * active wallets the replay only covered the last few days and the count was
+ * far below what the site shows. /closed-positions has the full lifetime,
+ * one row per (asset = market×outcome):
+ *   avgPrice, totalBought, realizedPnl, curPrice, title, outcome, endDate, timestamp
+ *
+ * invested = avgPrice × totalBought
+ * gotBack  = invested + realizedPnl
+ *
+ * Pagination: the endpoint serves max 50/page and truncates at 2000 rows
+ * (40 pages) — enough to cover what the site itself displays (e.g. 1672 for
+ * the biggest whale we test with).
  */
+interface ClosedRow {
+  conditionId: string;
+  title: string;
+  outcome: string;
+  avgPrice: number;
+  totalBought: number;
+  realizedPnl: number;
+  curPrice: number;
+  endDate?: string;
+  timestamp: number;
+  slug?: string;
+  eventSlug?: string;
+}
+
 export async function GET(request: Request, { params }: { params: Promise<{ wallet: string }> }) {
   const { wallet } = await params;
   const { searchParams } = new URL(request.url);
-  const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 200);
   const sort = searchParams.get('sort') || 'won'; // 'won' | 'recent'
 
   try {
-    // fetch full activity ledger (paged)
-    const rows: any[] = [];
-    for (let page = 0; page < 8; page++) {
+    const rows: ClosedRow[] = [];
+    for (let page = 0; page < 40; page++) {
       const res = await fetch(
-        `https://data-api.polymarket.com/activity?user=${wallet}&limit=500&offset=${page * 500}`,
+        `https://data-api.polymarket.com/closed-positions?user=${wallet}&limit=50&sortBy=TIMESTAMP&sortDirection=DESC&offset=${page * 50}`,
         { next: { revalidate: 300 } }
       );
-      if (!res.ok) throw new Error(`activity ${res.status}`);
+      if (!res.ok) throw new Error(`closed-positions ${res.status}`);
       const chunk: any[] = await res.json();
       if (!Array.isArray(chunk) || chunk.length === 0) break;
       rows.push(...chunk);
-      if (chunk.length < 500) break;
+      if (chunk.length < 50) break;
     }
 
-    // group per (market, outcome) — same granularity as the site's list
-    const groups = new Map<string, any>();
-    for (const a of rows) {
-      if (a.type !== 'TRADE' && a.type !== 'REDEEM') continue;
-      const key = `${a.conditionId}|${a.outcome ?? ''}`;
-      let g = groups.get(key);
-      if (!g) {
-        g = {
-          conditionId: a.conditionId,
-          title: a.title,
-          outcome: a.outcome,
-          eventSlug: a.eventSlug || a.slug,
-          boughtShares: 0, invested: 0,
-          soldShares: 0, soldUsd: 0,
-          redeemedShares: 0, redeemUsd: 0,
-          lastTs: 0,
-        };
-        groups.set(key, g);
-      }
-      const sz = Number(a.size) || 0;
-      const usd = Number(a.usdcSize) || 0;
-      if (a.type === 'TRADE') {
-        if (a.side === 'BUY') { g.boughtShares += sz; g.invested += usd; }
-        else { g.soldShares += sz; g.soldUsd += usd; }
-      } else {
-        g.redeemedShares += sz; g.redeemUsd += usd;
-      }
-      g.lastTs = Math.max(g.lastTs, a.timestamp || 0);
-    }
-
-    const closed: any[] = [];
-    for (const g of groups.values()) {
-      const held = g.boughtShares - g.soldShares - g.redeemedShares;
-      if (held > 0.5) continue; // still open (handled by /positions)
-      g.returned = g.soldUsd + g.redeemUsd;
-      g.pnl = g.returned - g.invested;
-      g.totalTraded = g.invested + g.returned;
-      g.won = g.pnl > 0.01;
-      closed.push(g);
-    }
-
-    closed.sort((a, b) =>
-      sort === 'recent' ? b.lastTs - a.lastTs : b.pnl - a.pnl
-    );
+    const mapped = rows.map((r) => {
+      const avg = Number(r.avgPrice) || 0;
+      const bought = Number(r.totalBought) || 0;
+      const invested = avg * bought;
+      const pnl = Number(r.realizedPnl) || 0;
+      return {
+        conditionId: r.conditionId,
+        title: r.title || '',
+        outcome: r.outcome || '',
+        slug: r.slug || r.eventSlug || '',
+        endDate: r.endDate || '',
+        settledTs: r.timestamp || 0,
+        avgPrice: avg,
+        shares: bought,
+        invested,
+        gotBack: invested + pnl,
+        pnl,
+        result: pnl > 0.01 ? 'WON' : pnl < -0.01 ? 'LOST' : 'FLAT',
+      };
+    });
 
     const totals = {
-      invested: closed.reduce((s, g) => s + g.invested, 0),
-      returned: closed.reduce((s, g) => s + g.returned, 0),
-      pnl: closed.reduce((s, g) => s + g.pnl, 0),
-      count: closed.length,
-      wins: closed.filter(g => g.pnl > 0.01).length,
+      count: mapped.length,
+      wins: mapped.filter((m) => m.pnl > 0.01).length,
+      losses: mapped.filter((m) => m.pnl < -0.01).length,
+      invested: mapped.reduce((s, m) => s + m.invested, 0),
+      gotBack: mapped.reduce((s, m) => s + m.gotBack, 0),
+      pnl: mapped.reduce((s, m) => s + m.pnl, 0),
+      truncated: rows.length >= 2000, // endpoint cap reached — there are more
     };
 
-    return NextResponse.json({ closed: closed.slice(0, limit), totals });
-  } catch (error) {
-    return NextResponse.json({ closed: [], totals: { invested: 0, returned: 0, pnl: 0, count: 0, wins: 0 }, error: 'closed fetch failed' }, { status: 502 });
+    const sorted =
+      sort === 'recent'
+        ? [...mapped].sort((a, b) => b.settledTs - a.settledTs)
+        : [...mapped].sort((a, b) => b.pnl - a.pnl);
+
+    return NextResponse.json({ totals, closed: sorted });
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message || 'closed-positions failed', totals: { count: 0, wins: 0, losses: 0, invested: 0, gotBack: 0, pnl: 0, truncated: false }, closed: [] }, { status: 200 });
   }
 }
