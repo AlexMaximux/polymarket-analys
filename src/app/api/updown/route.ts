@@ -99,6 +99,27 @@ async function clobMid(token: string): Promise<number | null> {
   return d?.mid ? parseFloat(d.mid) : null;
 }
 
+// Polymarket's UI displays the market's official opening price (Chainlink TWAP for 15m/5m,
+// exact boundary price for 1h). It's embedded in the event page's dehydrated react-query as
+// "openPrice". This is the SAME number the site shows the user (e.g. 79,214.50 for a 15m window).
+async function polymarketOpenPrice(slug: string): Promise<number | null> {
+  if (!slug) return null;
+  try {
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), 9000);
+    const res = await fetch(`https://polymarket.com/event/${slug}`, {
+      signal: ctl.signal,
+      cache: 'no-store',
+      headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36' },
+    });
+    clearTimeout(t);
+    if (!res.ok) return null;
+    const html = await res.text();
+    const m = html.match(/"openPrice\\":([\d.]+)/);
+    return m ? parseFloat(m[1]) : null;
+  } catch { return null; }
+}
+
 async function binanceKline(symbol: string, startSec: number): Promise<number | null> {
   const d = await j(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=1m&startTime=${startSec * 1000}&limit=1`);
   return Array.isArray(d) && d[0] ? parseFloat(d[0][1]) : null;
@@ -137,12 +158,17 @@ export async function GET(request: Request) {
     eventBySlug(`${cfg.slugPrefix}-5m-${next5Sec}`),
   ]);
 
-  // ---- Binance spot prices ----
-  const [s0, sa, stRaw] = await Promise.all([
+  // ---- Opening prices: Polymarket's official values (Chainlink TWAP / boundary) from event pages;
+  //      fallback: Binance 1m kline opens. St = Binance ticker (live). ----
+  const [s0pm, sapm, s0b, sab, stRaw] = await Promise.all([
+    m1h ? polymarketOpenPrice(m1h.slug) : Promise.resolve(null),
+    m15 ? polymarketOpenPrice(m15.slug) : Promise.resolve(null),
     binanceKline(cfg.binance, hourStartSec),
     binanceKline(cfg.binance, win15Sec),
     j(`https://api.binance.com/api/v3/ticker/price?symbol=${cfg.binance}`, 5000),
   ]);
+  const s0 = s0pm ?? s0b;
+  const sa = sapm ?? sab;
   const st = stRaw?.price ? parseFloat(stRaw.price) : null;
 
   // ---- CLOB midpoints (true live market prices) ----
@@ -180,6 +206,7 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     coin: coinKey, label: cfg.label, binanceSymbol: cfg.binance,
+    openSources: { s0: s0pm ? 'polymarket-chainlink' : 'binance', sa: sapm ? 'polymarket-chainlink' : 'binance' },
     serverTime: nowSec, t, hourStartSec, win15Sec, win5Sec, next15Sec, next5Sec,
     m1h, m15, m5, n15, n5, model,
   });
