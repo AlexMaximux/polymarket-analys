@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import { ExternalLink, Wallet, Activity, PieChart, Archive, History as HistoryIcon, ChevronDown, ChevronUp, Star, ChevronRight } from "lucide-react";
+import { ExternalLink, Wallet, Activity, PieChart, Archive, History as HistoryIcon, ChevronDown, ChevronUp, Star, ChevronRight, Download, FileText, Loader2 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import UserCharts from "@/components/UserCharts";
 
@@ -70,6 +70,7 @@ export default function UserProfile() {
   const [resSort, setResSort] = useState<SortState>({ col: "settled", dir: -1 });
   const [closedSort, setClosedSort] = useState<SortState>({ col: "won", dir: -1 });
   const [tradeSort, setTradeSort] = useState<SortState>({ col: "time", dir: -1 });
+  const [exporting, setExporting] = useState<string | null>(null);
   const [isStarred, setIsStarred] = useState<boolean | null>(null);
   const [sections, setSections] = useState<Record<string, boolean>>({
     open: true, resolved: false, closed: true, trades: false,
@@ -160,6 +161,37 @@ export default function UserProfile() {
     price: (t: any) => parseFloat(t.price) || 0,
     notional: (t: any) => parseFloat(t.usdcSize) || (parseFloat(t.size) * parseFloat(t.price)) || 0,
   }), [tradeRows, tradeSort]);
+
+  const downloadExport = async (kind: "trades" | "closed", format: "csv" | "pdf") => {
+    const key = kind + ":" + format;
+    setExporting(key);
+    try {
+      const res = await fetch("/api/export/wallet", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ wallet, kind, format }),
+      });
+      if (!res.ok) throw new Error("export failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${kind}-${wallet.slice(0, 6)}-${new Date().toISOString().slice(0, 10)}.${format}`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    } catch { /* keep silent, button re-enables */ }
+    finally { setExporting(null); }
+  };
+
+  const ExportBtn = ({ kind, format, label }: { kind: "trades" | "closed"; format: "csv" | "pdf"; label: string }) => (
+    <button onClick={() => downloadExport(kind, format)} disabled={!!exporting}
+      title={`Download ${label} as ${format.toUpperCase()}`}
+      className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500 hover:text-[#38BDF8] transition-colors disabled:opacity-40">
+      {exporting === kind + ":" + format
+        ? <Loader2 className="w-3 h-3 animate-spin" />
+        : format === "csv" ? <Download className="w-3 h-3" /> : <FileText className="w-3 h-3" />}
+      {format.toUpperCase()}
+    </button>
+  );
 
   const toggleStar = async () => {
     const next = !isStarred;
