@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Money Flow — Polymarket Wallet Circulation</title>
+<style>
+  :root {
+    --navy: #050a1a;
+    --navy-2: #0a1230;
+    --panel: rgba(12, 20, 52, 0.72);
+    --line: rgba(120, 160, 255, 0.14);
+    --cyan: #35f0ff;
+    --magenta: #ff3fd1;
+    --gold: #ffc86b;
+    --text: #dbe7ff;
+    --muted: #7f93c4;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    font-family: ui-sans-serif, system-ui, 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    color: var(--text);
+    background:
+      radial-gradient(ellipse 60% 40% at 20% 0%, rgba(53,240,255,0.10), transparent 60%),
+      radial-gradient(ellipse 50% 40% at 90% 100%, rgba(255,63,209,0.12), transparent 60%),
+      linear-gradient(180deg, var(--navy-2), var(--navy) 60%);
+    min-height: 100%;
+    display: flex; flex-direction: column;
+  }
+  .grid-bg {
+    position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background-image:
+      linear-gradient(rgba(120,160,255,0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(120,160,255,0.05) 1px, transparent 1px);
+    background-size: 48px 48px;
+    -webkit-mask-image: radial-gradient(ellipse at 50% 40%, #000 30%, transparent 80%);
+    mask-image: radial-gradient(ellipse at 50% 40%, #000 30%, transparent 80%);
+  }
+  header {
+    position: relative; z-index: 1;
+    display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 8px 24px;
+    padding: 22px 28px 10px;
+  }
+  header h1 { margin: 0; font-weight: 300; font-size: clamp(1.3rem, 2.6vw, 2rem); letter-spacing: 0.02em; }
+  header h1 b { font-weight: 700; background: linear-gradient(90deg, var(--cyan), var(--magenta)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  header p { margin: 0; color: var(--muted); font-size: 0.85rem; }
+  header code { font-family: 'Courier New', ui-monospace, monospace; color: var(--cyan); }
+
+  main {
+    position: relative; z-index: 1;
+    display: grid; grid-template-columns: minmax(0, 1fr) 360px;
+    gap: 16px; padding: 8px 28px 28px;
+    flex: 1; max-width: 1600px; width: 100%; margin: 0 auto;
+  }
+  @media (max-width: 980px) { main { grid-template-columns: 1fr; padding: 8px 14px 20px; } header { padding: 18px 14px 8px; } }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.05);
+    position: relative; overflow: hidden;
+  }
+  .card h2 {
+    margin: 0; font-size: 0.68rem; letter-spacing: 0.28em; text-transform: uppercase;
+    color: var(--muted); padding: 12px 16px 0;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .card h2 span.val { font-family: 'Courier New', ui-monospace, monospace; color: var(--cyan); letter-spacing: 0; font-size: 0.75rem; }
+
+  .graph-card { min-height: 500px; display: flex; flex-direction: column; }
+  .graph-wrap { position: relative; flex: 1; min-height: 440px; }
+  canvas#graph { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: pointer; }
+  .hud {
+    position: absolute; left: 14px; top: 12px;
+    font-family: 'Courier New', ui-monospace, monospace;
+    font-size: 0.72rem; line-height: 1.6; color: var(--muted); pointer-events: none;
+  }
+  .hud b { color: var(--text); font-weight: 400; }
+  .layer-labels {
+    position: absolute; left: 0; right: 0; bottom: 8px;
+    display: flex; justify-content: space-around;
+    font-size: 0.62rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--muted);
+    pointer-events: none;
+  }
+
+  .side { display: flex; flex-direction: column; gap: 14px; }
+  .controls { padding: 12px 16px 16px; display: grid; gap: 10px; }
+  textarea {
+    font-family: 'Courier New', ui-monospace, monospace; font-size: 0.78rem;
+    color: var(--text); background: rgba(10,18,48,0.9);
+    border: 1px solid rgba(120,160,255,0.35); border-radius: 8px;
+    padding: 8px 10px; outline: none; width: 100%; resize: vertical; min-height: 84px;
+  }
+  textarea:focus { border-color: var(--cyan); box-shadow: 0 0 14px rgba(53,240,255,0.18); }
+  button {
+    font: inherit; font-size: 0.72rem; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--text);
+    background: linear-gradient(180deg, rgba(120,160,255,0.16), rgba(120,160,255,0.06));
+    border: 1px solid rgba(120,160,255,0.35); border-radius: 8px;
+    padding: 10px; cursor: pointer;
+    transition: transform .12s, box-shadow .2s, border-color .2s, background .2s;
+  }
+  button:hover { border-color: var(--cyan); box-shadow: 0 0 18px rgba(53,240,255,0.25); transform: translateY(-1px); }
+  button:active { transform: translateY(1px); }
+  button.primary { background: linear-gradient(135deg, rgba(53,240,255,0.25), rgba(255,63,209,0.25)); border-color: rgba(255,255,255,0.35); }
+  button:disabled { opacity: 0.4; cursor: wait; }
+  .btnrow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .hint { font-size: 0.66rem; color: var(--muted); line-height: 1.6; }
+  .err { color: #ff8f8f; font-size: 0.72rem; min-height: 1em; }
+
+  .legend {
+    display: flex; gap: 14px; flex-wrap: wrap;
+    font-size: 0.62rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted);
+    padding: 0 16px 12px;
+  }
+  .legend i { display: inline-block; width: 18px; height: 3px; vertical-align: middle; margin-right: 6px; border-radius: 2px; }
+  .legend .win { background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
+  .legend .lose { background: var(--magenta); box-shadow: 0 0 8px var(--magenta); }
+  .legend .both { background: var(--gold); box-shadow: 0 0 8px var(--gold); }
+
+  .paircard { padding: 12px 16px 14px; max-height: 340px; overflow-y: auto; }
+  .paircard table { width: 100%; border-collapse: collapse; font-size: 0.72rem; }
+  .paircard td, .paircard th { padding: 6px 4px; border-bottom: 1px solid rgba(120,160,255,0.10); text-align: left; }
+  .paircard th { color: var(--muted); font-weight: 400; text-transform: uppercase; letter-spacing: 0.12em; font-size: 0.6rem; }
+  .paircard td.num, .paircard th.num { text-align: right; font-family: 'Courier New', ui-monospace, monospace; }
+  .pairrow { cursor: pointer; }
+  .pairrow:hover { background: rgba(53,240,255,0.06); }
+  .pairrow.sel { background: rgba(53,240,255,0.12); }
+
+  .detailcard { padding: 12px 16px 16px; max-height: 420px; overflow-y: auto; display: none; }
+  .detailcard.show { display: block; }
+  .detailcard h3 { margin: 4px 0 8px; font-size: 0.85rem; font-weight: 600; color: var(--text); }
+  .dcols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media (max-width: 640px) { .dcols { grid-template-columns: 1fr; } }
+  .dcol { border: 1px solid rgba(120,160,255,0.16); border-radius: 10px; padding: 8px 10px; background: rgba(5,10,26,0.5); }
+  .dcol h4 { margin: 0 0 6px; font-size: 0.7rem; font-weight: 600; }
+  .dcol table { width: 100%; border-collapse: collapse; font-size: 0.64rem; }
+  .dcol td { padding: 3px 2px; border-bottom: 1px solid rgba(120,160,255,0.08); font-family: 'Courier New', ui-monospace, monospace; }
+  .side-buy { color: var(--cyan); } .side-sell { color: var(--magenta); } .side-redeem { color: var(--gold); }
+  .num { text-align: right; }
+
+  .mv { margin: 2px 0 10px; display: grid; gap: 6px; }
+  .mvrow { display: grid; grid-template-columns: 92px 1fr 5.5em; gap: 8px; align-items: center; font-size: 0.68rem; }
+  .mvrow .lbl { color: var(--muted); font-family: 'Courier New', ui-monospace, monospace; }
+  .mvrow .bar { height: 8px; border-radius: 4px; background: rgba(120,160,255,0.10); position: relative; overflow: hidden; }
+  .mvrow .bar i { position: absolute; top: 0; bottom: 0; border-radius: 4px; }
+  .mvrow .amt { font-family: 'Courier New', ui-monospace, monospace; text-align: right; }
+
+  footer {
+    position: relative; z-index: 1; text-align: center;
+    color: var(--muted); font-size: 0.68rem; padding: 10px 16px 22px;
+  }
+</style>
+</head>
+<body>
+<div class="grid-bg"></div>
+<header>
+  <h1><b>Money Flow</b> — wallet circulation graph</h1>
+  <p>2–6 wallets → shared markets as edges · real cashflow (buys / sells / redeems) · <code>click an edge</code> for exact trades</p>
+</header>
+
+<main>
+  <section class="card graph-card" aria-label="Flow graph">
+    <h2>Flow Graph <span class="val" id="hudStatus">idle</span></h2>
+    <div class="graph-wrap">
+      <canvas id="graph"></canvas>
+      <div class="hud" id="hud"></div>
+      <div class="layer-labels" id="layerLabels"></div>
+    </div>
+    <div class="legend">
+      <span><i class="win"></i>both net +</span>
+      <span><i class="lose"></i>both net −</span>
+      <span><i class="both"></i>split outcome</span>
+      <span>edge thickness ∝ combined volume · number = shared markets</span>
+    </div>
+  </section>
+
+  <aside class="side">
+    <section class="card">
+      <h2>Wallets</h2>
+      <div class="controls">
+        <textarea id="wallets" spellcheck="false" placeholder="0x14e7752d2716cd3b5bcbe8c08d4561491d9ebb64&#10;0x78becf0a4e4f2640380af0c19ad32e2557e6bde0"></textarea>
+        <div class="btnrow">
+          <button class="primary" id="analyze">Analyze flow</button>
+          <button id="clear">Clear</button>
+        </div>
+        <div class="err" id="err"></div>
+        <p class="hint">Paste 2–6 Polymarket wallet addresses (space, comma or newline separated). Edges connect wallets that bet on the same markets; the badge on each edge shows how many markets they share. Click an edge → exact trades on the right.</p>
+      </div>
+    </section>
+
+    <section class="card paircard" id="pairCard" style="display:none">
+      <h2>Shared markets</h2>
+      <div style="padding: 10px 0 0;">
+        <table>
+          <thead><tr><th>Pair</th><th class="num">Shared</th><th class="num">A net</th><th class="num">B net</th></tr></thead>
+          <tbody id="pairBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card detailcard" id="detailCard">
+      <h2>Edge detail <span class="val" id="detailPair"></span></h2>
+      <div id="detailBody"></div>
+    </section>
+  </aside>
+</main>
+<footer>Computed live from Polymarket on-chain ledgers · invested = Σ buys · returned = Σ sells + redeems · pnl = returned − invested</footer>
+
+<script>
+(function () {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const graphCanvas = $('graph');
+  const fmt$ = n => (n < 0 ? '−$' : '$') + Math.abs(n).toLocaleString(undefined, { maximumFractionDigits: 0 });
+  const fmtS = n => (n >= 0 ? '+$' : '−$') + fmt(Math.abs(n)).replace('$','');
+  const shorten = w => w.slice(0, 6) + '…' + w.slice(-4);
+  const COLS = ['#35f0ff', '#34d399', '#ff3fd1', '#ffc86b', '#a78bfa', '#f472b6'];
+
+  let data = null;            // {nodes, edges}
+  let selectedEdge = -1;
+  let detail = null;          // {markets:[{conditionId,title,a:[rows],b:[rows]}]}
+  let hoverEdge = -1;
+  let animT = 0;
+  let nodesPos = [];
+
+  // ---------- data ----------
+  async function analyze() {
+    const raw = $('wallets').value.split(/[\s,;]+/).map(s => s.trim()).filter(Boolean);
+    $('err').textContent = '';
+    if (raw.length < 2) { $('err').textContent = 'Enter at least 2 wallet addresses.'; return; }
+    $('hudStatus').textContent = 'fetching ledgers…';
+    try {
+      const res = await fetch('/api/analysis', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ wallets: raw })
+      });
+      const d = await res.json();
+      if (!res.ok) { $('err').textContent = d.error || 'analysis failed'; $('hudStatus').textContent = 'error'; return; }
+      data = d; detail = null; selectedEdge = -1; hoverEdge = -1;
+      $('hudStatus').textContent = data.edges.length + ' edge' + (data.edges.length === 1 ? '' : 's');
+      renderPairs(); renderDetail(); layout();
+    } catch (e) {
+      $('err').textContent = 'request failed: ' + e;
+      $('hudStatus').textContent = 'error';
+    }
+  }
+
+  async function loadDetail(edgeIdx) {
+    const e = data.edges[edgeIdx];
+    const res = await fetch('/api/analysis/market', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ walletA: e.a, walletB: e.b, conditionId: e.markets[0].conditionId })
+    });
+    return await res.json();
+  }
+
+  function renderPairs() {
+    const card = $('pairCard'), body = $('pairBody');
+    if (!data || data.edges.length === 0) { card.style.display = 'none'; return; }
+    card.style.display = '';
+    body.innerHTML = '';
+    data.edges.forEach((e, i) => {
+      const tr = document.createElement('tr');
+      tr.className = 'pairrow' + (i === selectedEdge ? ' sel' : '');
+      tr.innerHTML =
+        '<td><span style="color:' + colOf(e.a) + '">' + shorten(e.a) + '</span>' +
+        ' <span style="color:var(--muted)">↔</span> ' +
+        '<span style="color:' + colOf(e.b) + '">' + shorten(e.b) + '</span></td>' +
+        '<td class="num">' + e.sharedMarkets + '</td>' +
+        '<td class="num" style="color:' + (e.aNetOnShared >= 0 ? 'var(--cyan)' : 'var(--magenta)') + '">' + fmtS(e.aNetOnShared) + '</td>' +
+        '<td class="num" style="color:' + (e.bNetOnShared >= 0 ? 'var(--cyan)' : 'var(--magenta)') + '">' + fmtS(e.bNetOnShared) + '</td>';
+      tr.onclick = () => selectEdge(i);
+      body.appendChild(tr);
+    });
+  }
+
+  function colOf(wallet) {
+    const i = data.nodes.findIndex(n => n.wallet === wallet);
+    return COLS[i % COLS.length];
+  }
+
+  function selectEdge(i) {
+    selectedEdge = i;
+    renderPairs(); renderDetail();
+    const e = data.edges[i];
+    $('detailCard').classList.add('show');
+    $('detailPair').textContent = shorten(e.a) + ' ↔ ' + shorten(e.b);
+    $('detailBody').innerHTML = '<p class="hint">loading trades…</p>';
+    loadDetail(i).then(d => {
+      // d = { a: rows, b: rows } for the FIRST shared market; fetch each market lazily below
+      const markets = [];
+      e.markets.forEach((m, mi) => markets.push({ conditionId: m.conditionId, title: m.title, a: [], b: [] }));
+      detail = { edgeIdx: i, markets };
+      // first market comes from the initial call
+      detail.markets[0].a = d.a; detail.markets[0].b = d.b;
+      renderDetail();
+      // lazily fetch the rest
+      (async () => {
+        for (let mi = 1; mi < e.markets.length; mi++) {
+          const m = e.markets[mi];
+          const r = await fetch('/api/analysis/market', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ walletA: e.a, walletB: e.b, conditionId: m.conditionId })
+          });
+          const dd = await r.json();
+          detail.markets[mi].a = dd.a; detail.markets[mi].b = dd.b;
+          renderDetail();
+        }
+      })();
+    });
+  }
+
+  function renderDetail() {
+    if (!detail) { $('detailBody').innerHTML = ''; return; }
+    const e = data.edges[detail.edgeIdx];
+    let html = '';
+    // per-pair money movement bars
+    const mvA = e.aNetOnShared, mvB = e.bNetOnShared;
+    const maxAbs = Math.max(Math.abs(mvA), Math.abs(mvB), 1);
+    html += '<div class="mv">';
+    [['A', mvA], ['B', mvB]].forEach(([tag, v]) => {
+      const col = v >= 0 ? 'var(--cyan)' : 'var(--magenta)';
+      const w = Math.min(100, Math.abs(v) / maxAbs * 100);
+      html += '<div class="mvrow"><span class="lbl">' + tag + ' net</span>' +
+        '<span class="bar"><i style="width:' + w + '%;background:' + col + ';box-shadow:0 0 8px ' + col + '"></i></span>' +
+        '<span class="amt" style="color:' + col + '">' + fmtS(v) + '</span></div>';
+    });
+    html += '</div>';
+    detail.markets.forEach((m, mi) => {
+      const meta = e.markets[mi];
+      html += '<h3>' + (m.title || meta.title || meta.conditionId.slice(0, 16)) + '</h3>';
+      html += '<div class="dcols">';
+      [['A', m.a, e.a], ['B', m.b, e.b]].forEach(([tag, rows, wallet]) => {
+        const col = colOf(wallet);
+        html += '<div class="dcol"><h4 style="color:' + col + '">' + tag + ' · ' + shorten(wallet) + '</h4>';
+        if (!rows || rows.length === 0) { html += '<p class="hint">loading…</p>'; }
+        else {
+          html += '<table>';
+          rows.forEach(r => {
+            const cls = r.type === 'REDEEM' ? 'side-redeem' : (r.side === 'BUY' ? 'side-buy' : 'side-sell');
+            const act = r.type === 'REDEEM' ? 'REDEEM' : r.side;
+            html += '<tr><td>' + new Date(r.timestamp * 1000).toISOString().slice(5, 16).replace('T', ' ') + '</td>' +
+              '<td class="' + cls + '">' + act + '</td>' +
+              '<td>' + (r.outcome || '').slice(0, 14) + '</td>' +
+              '<td class="num">' + Math.round(r.size).toLocaleString() + 'sh</td>' +
+              '<td class="num">' + Math.round(r.price * 100) + '¢</td>' +
+              '<td class="num" style="color:var(--text)">$' + Math.round(r.usdcSize).toLocaleString() + '</td></tr>';
+          });
+          html += '</table>';
+        }
+        html += '</div>';
+      });
+      html += '</div>';
+    });
+    $('detailBody').innerHTML = html;
+  }
+
+  // ---------- graph rendering ----------
+  function layout() {
+    if (!data) { nodesPos = []; return; }
+    const n = data.nodes.length;
+    const { w, h } = fit();
+    const R = Math.min(w, h) * 0.34;
+    nodesPos = data.nodes.map((nd, i) => {
+      const ang = (Math.PI * 2 * i) / n - Math.PI / 2;
+      return { x: w / 2 + R * Math.cos(ang), y: h / 2 + R * Math.sin(ang), r: 34 };
+    });
+    renderLayerLabels();
+  }
+
+  function renderLayerLabels() {
+    const el = $('layerLabels');
+    el.innerHTML = data ? data.nodes.map(n =>
+      '<span style="color:' + colOf(n.wallet) + '">' + n.wallet.slice(0, 6) + '…' + n.wallet.slice(-4) + '</span>'
+    ).join('') : '';
+  }
+
+  function fit() {
+    const wrap = graphCanvas.parentElement;
+    const w = wrap.clientWidth || 800, h = wrap.clientHeight || 440;
+    const dpr = window.devicePixelRatio || 1;
+    if (graphCanvas.width !== w * dpr) { graphCanvas.width = w * dpr; graphCanvas.height = h * dpr; }
+    const ctx = graphCanvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { ctx, w, h };
+  }
+
+  function edgeClass(e) {
+    const a = e.aNetOnShared, b = e.bNetOnShared;
+    if (a >= 0 && b >= 0) return 'win';
+    if (a < 0 && b < 0) return 'lose';
+    return 'both';
+  }
+  function edgeColor(e) {
+    const c = edgeClass(e);
+    return c === 'win' ? '53,240,255' : c === 'lose' ? '255,63,209' : '255,200,107';
+  }
+
+  let lastFrame = 0;
+  function frame(now) {
+    requestAnimationFrame(frame);
+    if (!data || !nodesPos.length) return;
+    const dt = Math.min(48, now - lastFrame); lastFrame = now;
+    animT += dt;
+    const { ctx, w, h } = fit();
+    ctx.clearRect(0, 0, w, h);
+
+    // edges (bezier like synapse)
+    data.edges.forEach((e, i) => {
+      const ia = data.nodes.findIndex(n => n.wallet === e.a);
+      const ib = data.nodes.findIndex(n => n.wallet === e.b);
+      const p0 = nodesPos[ia], p1 = nodesPos[ib];
+      const rgb = edgeColor(e);
+      const sel = i === selectedEdge, hov = i === hoverEdge;
+      const width = Math.min(11, 2.2 + e.combinedVolume / 250000);
+      // travelling pulses along the edge (money flowing)
+      const pulses = Math.min(6, 2 + Math.floor(e.sharedMarkets / 2));
+      for (let k = 0; k < pulses; k++) {
+        const t = ((animT / (1400 - e.sharedMarkets * 60)) + k / pulses) % 1;
+        const px = p0.x + (p1.x - p0.x) * t;
+        const py = p0.y + (p1.y - p0.y) * t + Math.sin(t * Math.PI) * -26;
+        const dir = e.aNetOnShared + e.bNetOnShared >= 0 ? 1 : -1; // direction hint
+        const tt = dir > 0 ? t : 1 - t;
+        const xx = p0.x + (p1.x - p0.x) * tt, yy = p0.y + (p1.y - p0.y) * tt + Math.sin(tt * Math.PI) * -26;
+        ctx.fillStyle = 'rgba(' + rgb + ',' + (sel ? 0.95 : 0.55) + ')';
+        ctx.shadowColor = 'rgba(' + rgb + ',0.9)'; ctx.shadowBlur = sel ? 14 : 8;
+        ctx.beginPath(); ctx.arc(xx, yy, 2 + (sel ? 1.6 : 0.8), 0, Math.PI * 2); ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+      // line
+      ctx.strokeStyle = 'rgba(' + rgb + ',' + (sel ? 0.9 : hov ? 0.7 : 0.35) + ')';
+      ctx.lineWidth = sel ? width + 1.5 : width;
+      ctx.beginPath();
+      ctx.moveTo(p0.x, p0.y);
+      ctx.quadraticCurveTo((p0.x + p1.x) / 2, Math.min(p0.y, p1.y) - 30, p1.x, p1.y);
+      ctx.stroke();
+      // badge
+      const bx = (p0.x + p1.x) / 2, by = (p0.y + p1.y) / 2 + Math.sin(Math.PI / 2) * -16;
+      ctx.fillStyle = '#050a1a';
+      ctx.strokeStyle = 'rgba(' + rgb + ',' + (sel ? 1 : 0.7) + ')';
+      ctx.lineWidth = 1.5;
+      const br = 13;
+      ctx.beginPath(); ctx.arc(bx, by - 14, br, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = sel ? 'rgb(' + rgb + ')' : 'rgba(219,231,255,0.9)';
+      ctx.font = 'bold 11px "Courier New", monospace';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(String(e.sharedMarkets), bx, by - 14);
+    });
+
+    // nodes with glow
+    data.nodes.forEach((n, i) => {
+      const p = nodesPos[i];
+      const col = COLS[i % COLS.length];
+      const rgb = hexToRgb(col);
+      const totals = n.totals;
+      const health = totals.pnl >= 0 ? 1 : 0.35;
+      ctx.shadowColor = 'rgba(' + rgb + ',' + (0.35 + health * 0.5) + ')';
+      ctx.shadowBlur = 10 + health * 22;
+      const g = ctx.createRadialGradient(p.x - 10, p.y - 10, 2, p.x, p.y, 34);
+      g.addColorStop(0, 'rgba(255,255,255,0.5)');
+      g.addColorStop(0.55, 'rgba(' + rgb + ',0.5)');
+      g.addColorStop(1, 'rgba(' + rgb + ',0.18)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(p.x, p.y, 34, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = 'rgba(' + rgb + ',0.8)'; ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.fillStyle = '#e6efff'; ctx.font = 'bold 11px ui-sans-serif, system-ui'; ctx.textAlign = 'center';
+      ctx.fillText(shorten(n.wallet), p.x, p.y - 6);
+      ctx.font = 'bold 11px "Courier New", monospace';
+      ctx.fillStyle = totals.pnl >= 0 ? '#35f0ff' : '#ff3fd1';
+      ctx.fillText(fmtS(totals.pnl), p.x, p.y + 8);
+      ctx.font = '9px "Courier New", monospace'; ctx.fillStyle = 'rgba(127,147,196,0.9)';
+      ctx.fillText(n.totals.markets + ' mkts', p.x, p.y + 21);
+    });
+  }
+  function hexToRgb(hex) {
+    const h = hex.replace('#', '');
+    const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
+    return r + ',' + g + ',' + b;
+  }
+
+  // hover/click hit-testing on edges (distance to midpoint badge)
+  function hitEdge(mx, my) {
+    if (!data) return -1;
+    let best = -1, bestD = 26;
+    data.edges.forEach((e, i) => {
+      const ia = data.nodes.findIndex(n => n.wallet === e.a);
+      const ib = data.nodes.findIndex(n => n.wallet === e.b);
+      const p0 = nodesPos[ia], p1 = nodesPos[ib];
+      const d = Math.hypot(mx - (p0.x + p1.x) / 2, my - ((p0.y + p1.y) / 2 - 14));
+      if (d < bestD) { bestD = d; best = i; }
+    });
+    return best;
+  }
+  graphCanvas.addEventListener('mousemove', ev => {
+    const rect = graphCanvas.getBoundingClientRect();
+    hoverEdge = hitEdge(ev.clientX - rect.left, ev.clientY - rect.top);
+    graphCanvas.style.cursor = hoverEdge >= 0 ? 'pointer' : 'default';
+    if (data) {
+      const e = data.edges[hoverEdge];
+      $('hud').innerHTML = e
+        ? '<b>' + shorten(e.a) + ' ↔ ' + shorten(e.b) + '</b><br>' +
+          e.sharedMarkets + ' shared markets · vol ' + fmt$(e.combinedVolume) + '<br>' +
+          'click for exact trades'
+        : '';
+    }
+  });
+  graphCanvas.addEventListener('click', ev => {
+    const rect = graphCanvas.getBoundingClientRect();
+    const i = hitEdge(ev.clientX - rect.left, ev.clientY - rect.top);
+    if (i >= 0) selectEdge(i);
+  });
+  window.addEventListener('resize', layout);
+
+  $('analyze').onclick = analyze;
+  $('clear').onclick = () => { $('wallets').value = ''; $('err').textContent = ''; data = null; detail = null; selectedEdge = -1; nodesPos = []; $('hudStatus').textContent = 'idle'; $('pairCard').style.display = 'none'; $('detailCard').classList.remove('show'); renderLayerLabels(); };
+
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
