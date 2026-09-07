@@ -12,6 +12,7 @@ export function Navigation() {
     { href: "/users", label: "Users" },
     { href: "/leaderboard", label: "Leaderboard" },
     { href: "/alerts", label: "Alerts" },
+    { href: "/updown", label: "⚡ Up/Down" },
     { href: "/starred", label: "★ Starred" },
     { href: "/flow", label: "Money Flow" },
   ];
