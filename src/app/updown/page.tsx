@@ -13,7 +13,7 @@ const COINS = [
 ];
 
 interface MarketRow {
-  slug: string; title: string; up: number; down: number; live: number | null;
+  slug: string; title: string; up: number; down: number; live: number | null; liveDown?: number | null;
   closed: boolean; accepting: boolean; tokenUp: string;
 }
 
@@ -88,9 +88,9 @@ export default function UpDownPage() {
               <p className="text-[10px] uppercase text-slate-400 mb-1">Up</p>
               <p className={`text-2xl font-bold tabular-nums ${(row.live ?? row.up) >= 0.5 ? "text-[#34D399]" : "text-slate-300"}`}>{pct(row.live ?? row.up)}</p>
             </div>
-            <div className={`rounded-xl p-3 border ${ (row.live ?? row.down) > 0.5 ? "bg-[#FB7185]/10 border-[#FB7185]/30" : "bg-[#1E2939]/60 border-slate-700/50"}`}>
+            <div className={`rounded-xl p-3 border ${ (row.liveDown ?? 1 - (row.live ?? row.up)) > 0.5 ? "bg-[#FB7185]/10 border-[#FB7185]/30" : "bg-[#1E2939]/60 border-slate-700/50"}`}>
               <p className="text-[10px] uppercase text-slate-400 mb-1">Down</p>
-              <p className={`text-2xl font-bold tabular-nums ${(row.live ?? row.down) > 0.5 ? "text-[#FB7185]" : "text-slate-300"}`}>{pct(row.live ?? row.down)}</p>
+              <p className={`text-2xl font-bold tabular-nums ${(row.liveDown ?? 1 - (row.live ?? row.up)) > 0.5 ? "text-[#FB7185]" : "text-slate-300"}`}>{pct(row.liveDown ?? 1 - (row.live ?? row.up))}</p>
             </div>
           </div>
         </>

@@ -86,7 +86,7 @@ async function eventBySlug(slug: string) {
   let tokens: string[] = [];
   try { tokens = JSON.parse(m.clobTokenIds || '[]'); } catch {}
   return {
-    slug, title: d[0].title, up: parseFloat(prices[0]), down: parseFloat(prices[1]), live: null as number | null,
+    slug, title: d[0].title, up: parseFloat(prices[0]), down: parseFloat(prices[1]), live: null as number | null, liveDown: null as number | null,
     closed: !!m.closed, accepting: !!m.acceptingOrders,
     endDate: m.endDate, startDate: m.startDate,
     tokenUp: tokens[0] || '', tokenDown: tokens[1] || '',
@@ -172,17 +172,20 @@ export async function GET(request: Request) {
   const st = stRaw?.price ? parseFloat(stRaw.price) : null;
 
   // ---- CLOB midpoints (true live market prices) ----
-  const [mid1h, mid15, mid5] = await Promise.all([
+  const [mid1hUp, mid1hDn, mid15Up, mid15Dn, mid5Up, mid5Dn] = await Promise.all([
     m1h ? clobMid(m1h.tokenUp) : Promise.resolve(null),
+    m1h ? clobMid(m1h.tokenDown) : Promise.resolve(null),
     m15 ? clobMid(m15.tokenUp) : Promise.resolve(null),
+    m15 ? clobMid(m15.tokenDown) : Promise.resolve(null),
     m5 ? clobMid(m5.tokenUp) : Promise.resolve(null),
+    m5 ? clobMid(m5.tokenDown) : Promise.resolve(null),
   ]);
-  if (m1h && mid1h != null) m1h.live = mid1h;
-  if (m15 && mid15 != null) m15.live = mid15;
-  if (m5 && mid5 != null) m5.live = mid5;
+  if (m1h) { m1h.live = mid1hUp ?? (mid1hDn != null ? 1 - mid1hDn : null); m1h.liveDown = mid1hDn ?? (mid1hUp != null ? 1 - mid1hUp : null); }
+  if (m15) { m15.live = mid15Up ?? (mid15Dn != null ? 1 - mid15Dn : null); m15.liveDown = mid15Dn ?? (mid15Up != null ? 1 - mid15Up : null); }
+  if (m5) { m5.live = mid5Up ?? (mid5Dn != null ? 1 - mid5Dn : null); m5.liveDown = mid5Dn ?? (mid5Up != null ? 1 - mid5Up : null); }
 
   // ---- Fair value model ----
-  const p15 = mid15 ?? m15?.up ?? null;
+  const p15 = m15?.live ?? m15?.up ?? null;
   let model: any = null;
   if (s0 && st && p15 && p15 > 0.001 && p15 < 0.999) {
     const sigmaM = sigma1h / Math.sqrt(60);
@@ -199,8 +202,8 @@ export async function GET(request: Request) {
       t, a, q, tau15, tau60, sigma1h, sigmaM,
       s0, sa, st, xt, y, p15, z15, mu,
       fairUp: fair, fairDown: 1 - fair,
-      market1hUp: mid1h ?? m1h?.up ?? null,
-      edge: mid1h != null ? fair - mid1h : null,   // fair - market (>0 = Up underpriced)
+      market1hUp: m1h?.live ?? m1h?.up ?? null,
+      edge: m1h?.live != null ? fair - (m1h.live as number) : null,   // fair - market (>0 = Up underpriced)
     };
   }
 
