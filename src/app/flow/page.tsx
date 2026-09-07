@@ -2,7 +2,7 @@
 import { useCallback, useState } from "react";
 import Link from "next/link";
 import { format } from "date-fns";
-import { GitBranch, Loader2, X, MousePointerClick, ChevronRight } from "lucide-react";
+import { GitBranch, Loader2, X, MousePointerClick, ChevronRight, Download, FileText } from "lucide-react";
 
 /**
  * Money-flow graph between wallets: wallets = nodes, shared markets = edges.
@@ -43,6 +43,7 @@ export default function FlowPage() {
   const [nodes, setNodes] = useState<Node[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
   const [selectedEdge, setSelectedEdge] = useState<Edge | null>(null);
+  const [exporting, setExporting] = useState<"csv" | "pdf" | null>(null);
   const [drill, setDrill] = useState<any>(null);
 
   const walletList = input.split(/[\s,;]+/).map(w => w.trim()).filter(Boolean);
@@ -66,6 +67,33 @@ export default function FlowPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [input]);
+
+  const downloadExport = async (format: "csv" | "pdf") => {
+    if (!selectedEdge) return;
+    setExporting(format);
+    try {
+      const res = await fetch("/api/analysis/export", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          walletA: selectedEdge.a, walletB: selectedEdge.b,
+          markets: selectedEdge.markets, format,
+        }),
+      });
+      if (!res.ok) throw new Error("export failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const stamp = new Date().toISOString().slice(0, 10);
+      a.href = url;
+      a.download = `flow-${selectedEdge.a.slice(0, 6)}-${selectedEdge.b.slice(0, 6)}-${stamp}.${format}`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError("export failed: " + e);
+    } finally {
+      setExporting(null);
+    }
+  };
 
   const openEdge = async (e: Edge) => {
     setSelectedEdge(e); setDrill({ loading: true, rows: [] });
@@ -222,7 +250,23 @@ export default function FlowPage() {
               <span className="text-slate-500 mx-1.5">↔</span>
               <span style={{ color: colorOf(selectedEdge.b) }} className="font-mono">{label(selectedEdge.b)}</span>
             </h3>
-            <button onClick={() => { setSelectedEdge(null); setDrill(null); }} className="text-slate-500 hover:text-slate-200"><X className="w-4 h-4" /></button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => downloadExport("csv")}
+                disabled={!!exporting}
+                title="Download full shared-market trade ledger as CSV"
+                className="flex items-center gap-1.5 text-xs font-medium text-slate-300 hover:text-[#38BDF8] border border-slate-700 hover:border-[#38BDF8]/40 rounded-lg px-2.5 py-1.5 transition-colors disabled:opacity-40">
+                {exporting === "csv" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} CSV
+              </button>
+              <button
+                onClick={() => downloadExport("pdf")}
+                disabled={!!exporting}
+                title="Download print-ready PDF report"
+                className="flex items-center gap-1.5 text-xs font-medium text-slate-300 hover:text-[#38BDF8] border border-slate-700 hover:border-[#38BDF8]/40 rounded-lg px-2.5 py-1.5 transition-colors disabled:opacity-40">
+                {exporting === "pdf" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />} PDF
+              </button>
+              <button onClick={() => { setSelectedEdge(null); setDrill(null); }} className="text-slate-500 hover:text-slate-200"><X className="w-4 h-4" /></button>
+            </div>
           </div>
           <div className="max-h-[480px] overflow-y-auto divide-y divide-slate-800/50">
             {selectedEdge.markets.map(m => (
