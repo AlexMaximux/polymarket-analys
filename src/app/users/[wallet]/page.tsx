@@ -468,10 +468,10 @@ export default function UserProfile() {
                     <td className="px-5 py-4 font-semibold text-slate-300" colSpan={2}>
                       TOTAL — {closedTotals.count} closed ({closedTotals.wins} won)
                     </td>
-                    <td className="px-5 py-4 text-right tabular-nums font-semibold text-slate-200">${closedTotals.invested.toFixed(2)}</td>
-                    <td className="px-5 py-4 text-right tabular-nums font-semibold text-slate-200">${closedTotals.returned.toFixed(2)}</td>
-                    <td className={`px-5 py-4 text-right tabular-nums font-bold ${closedTotals.pnl >= 0 ? 'text-[#34D399]' : 'text-[#FB7185]'}`}>
-                      {closedTotals.pnl >= 0 ? '+' : ''}${closedTotals.pnl.toFixed(2)}
+                    <td className="px-5 py-4 text-right tabular-nums font-semibold text-slate-200">${(closedTotals.invested ?? 0).toFixed(2)}</td>
+                    <td className="px-5 py-4 text-right tabular-nums font-semibold text-slate-200">${(closedTotals.gotBack ?? 0).toFixed(2)}</td>
+                    <td className={`px-5 py-4 text-right tabular-nums font-bold ${(closedTotals.pnl ?? 0) >= 0 ? 'text-[#34D399]' : 'text-[#FB7185]'}`}>
+                      {(closedTotals.pnl ?? 0) >= 0 ? '+' : ''}${(closedTotals.pnl ?? 0).toFixed(2)}
                     </td>
                     <td></td>
                   </tr>
