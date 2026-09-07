@@ -102,6 +102,24 @@ export default function UserProfile() {
 
   const realizedProfit = (closedTotals.pnl || 0) + resolvedPnl;
   const settledCount = (closedTotals.count || 0) + resolved.length;
+
+  // ---- Risk assessment: totals across all three tables ----
+  const totalPositions = (closedTotals.count || 0) + resolved.length + positions.length;
+  const closedWins = closedTotals.wins || 0;
+  const closedLosses = (closedTotals.count || 0) - closedWins;
+  const resolvedWins = resolved.filter((p: any) => (parseFloat(p.cashPnl) || 0) > 0.01).length;
+  const resolvedLosses = resolved.length - resolvedWins;
+  const totalWins = closedWins + resolvedWins;
+  const totalLosses = closedLosses + resolvedLosses;
+  const winPct = totalWins + totalLosses > 0 ? Math.round((totalWins / (totalWins + totalLosses)) * 1000) / 10 : 0;
+  // simple risk grade from win% + realized pnl
+  let riskGrade = '—', riskColor = 'text-slate-500';
+  if (totalWins + totalLosses >= 3) {
+    const score = winPct + (realizedProfit >= 0 ? 10 : -10);
+    if (score >= 85) { riskGrade = 'LOW'; riskColor = 'text-[#34D399]'; }
+    else if (score >= 60) { riskGrade = 'MODERATE'; riskColor = 'text-[#FBBF24]'; }
+    else { riskGrade = 'HIGH'; riskColor = 'text-[#FB7185]'; }
+  }
   const openValue = positions.reduce((s: number, p: any) => s + (parseFloat(p.currentValue) || 0), 0);
   const tradesVolume = (tradesData?.totals?.buyUsd || 0) + (tradesData?.totals?.sellUsd || 0);
 
@@ -241,6 +259,22 @@ export default function UserProfile() {
             ${openValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
           </p>
           <p className="text-[11px] text-slate-500 mt-1.5">{positions.length} position{positions.length !== 1 ? "s" : ""} still held</p>
+        </div>
+        <div className="bg-[#111827] border border-slate-800/50 p-6 rounded-2xl relative overflow-hidden group hover:border-slate-700 transition-colors shadow-sm md:col-span-2">
+          <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-slate-600 to-transparent opacity-30"></div>
+          <p className="text-xs uppercase tracking-wider text-slate-400 font-medium mb-1.5">Risk Assessment</p>
+          <div className="flex items-baseline gap-3 flex-wrap">
+            <p className={`text-2xl font-bold tracking-tight ${riskColor}`}>{riskGrade}</p>
+            <p className="text-sm tabular-nums text-slate-300">
+              {totalPositions} total positions · <span className="text-[#34D399]">{totalWins}W</span> / <span className="text-[#FB7185]">{totalLosses}L</span>
+              {totalWins + totalLosses > 0 && <> · {winPct}% win</>}
+            </p>
+          </div>
+          <div className="flex gap-4 mt-2 text-[11px] text-slate-500 flex-wrap">
+            <span>Closed History: <b className="text-slate-300">{closedTotals.count || 0}</b> ({closedWins}W/{closedLosses}L)</span>
+            <span>Resolved on hand: <b className="text-slate-300">{resolved.length}</b> ({resolvedWins}W/{resolvedLosses}L)</span>
+            <span>Live open: <b className="text-slate-300">{positions.length}</b></span>
+          </div>
         </div>
       </div>
 
