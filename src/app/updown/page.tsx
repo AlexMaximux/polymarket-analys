@@ -30,6 +30,7 @@ export default function UpDownPage() {
   const [auto, setAuto] = useState(true);
   const [countdown, setCountdown] = useState(5);
   const [liveMode, setLiveMode] = useState(false);
+  const [copied, setCopied] = useState(false);
   const esRef = useRef<EventSource | null>(null);
   const timerRef = useRef<any>(null);
 
@@ -69,6 +70,25 @@ export default function UpDownPage() {
   const market1h = m1h?.live ?? m1h?.up ?? null;
   const fair = m?.fairUp ?? null;
   const edge = m?.edge ?? null;
+
+  const nowClk = new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  const fmt = (v: number | null | undefined, digits = 2) => (v == null ? "—" : v.toLocaleString("en-US", { maximumFractionDigits: digits }));
+  const snapshot = [
+    `1- Current time (${nowClk})`,
+    `2- S0 = ${fmt(m?.s0, 2)}`,
+    `3- SA = ${fmt(m?.sa, 2)}`,
+    `4- ST = ${fmt(m?.st, 2)}`,
+    `5- P15 = ${m?.p15 != null ? (m.p15 * 100).toFixed(2) + "¢" : "—"}`,
+    `6- P5 = ${m5?.live != null ? (m5.live * 100).toFixed(2) + "¢" : "—"}`,
+  ].join("\n");
+
+  const copySnapshot = async () => {
+    try {
+      await navigator.clipboard.writeText(snapshot);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {}
+  };
 
   const Row = ({ title, row, next }: { title: string; row: MarketRow | null; next?: MarketRow | null }) => (
     <div className="bg-[#111827] border border-slate-800/50 rounded-2xl p-5 shadow-sm">
@@ -208,6 +228,27 @@ export default function UpDownPage() {
               : "Waiting for spot + market data (need S₀, Sₜ and a live 15m price in (0,1))."}
           </p>
         )}
+      </div>
+
+      {/* debug snapshot table */}
+      <div className="bg-[#111827] border border-slate-800/50 rounded-2xl p-5 shadow-sm">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-medium text-slate-300 uppercase tracking-wider">Model Inputs — Snapshot</h3>
+          <button onClick={copySnapshot}
+            className={`text-xs font-medium rounded-lg px-3 py-1.5 border transition-colors ${copied ? "bg-[#34D399]/10 text-[#34D399] border-[#34D399]/30" : "text-slate-300 border-slate-700 hover:border-slate-500"}`}>
+            {copied ? "✓ Copied" : "Copy all"}
+          </button>
+        </div>
+        <table className="w-full text-left text-sm whitespace-nowrap">
+          <tbody className="divide-y divide-slate-800/40 text-slate-300 tabular-nums">
+            <tr><td className="py-2 pr-6 text-slate-500">1- Current time</td><td className="py-2">{nowClk}</td></tr>
+            <tr><td className="py-2 pr-6 text-slate-500">2- S0</td><td className="py-2">${fmt(m?.s0)}</td><td className="py-2 pl-6 text-[10px] text-slate-600">hour open ({data?.openSources?.s0 === "polymarket-chainlink" ? "Chainlink" : "Binance"})</td></tr>
+            <tr><td className="py-2 pr-6 text-slate-500">3- SA</td><td className="py-2">${fmt(m?.sa)}</td><td className="py-2 pl-6 text-[10px] text-slate-600">15m block open ({data?.openSources?.sa === "polymarket-chainlink" ? "Chainlink" : "Binance"})</td></tr>
+            <tr><td className="py-2 pr-6 text-slate-500">4- ST</td><td className="py-2">${fmt(m?.st)}</td><td className="py-2 pl-6 text-[10px] text-slate-600">live spot (Binance)</td></tr>
+            <tr><td className="py-2 pr-6 text-slate-500">5- P15</td><td className="py-2">{m?.p15 != null ? (m.p15 * 100).toFixed(2) + "¢" : "—"}</td><td className="py-2 pl-6 text-[10px] text-slate-600">live 15m Up (CLOB mid)</td></tr>
+            <tr><td className="py-2 pr-6 text-slate-500">6- P5</td><td className="py-2">{m5?.live != null ? (m5.live * 100).toFixed(2) + "¢" : "—"}</td><td className="py-2 pl-6 text-[10px] text-slate-600">live 5m Up (CLOB mid)</td></tr>
+          </tbody>
+        </table>
       </div>
 
       {/* debug slugs */}
