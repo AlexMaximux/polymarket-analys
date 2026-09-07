@@ -103,6 +103,9 @@ export function initializeDb(dbInstance?: Database.Database) {
       db.exec(`ALTER TABLE users ADD COLUMN starred INTEGER DEFAULT 0`);
       db.exec(`CREATE INDEX IF NOT EXISTS idx_users_starred ON users(starred)`);
     }
+    if (!ucols.has('note')) {
+      db.exec(`ALTER TABLE users ADD COLUMN note TEXT`);
+    }
     const acols = new Set((db.prepare(`PRAGMA table_info(alerts)`).all() as { name: string }[]).map(c => c.name));
     if (!acols.has('alert_type')) {
       db.exec(`ALTER TABLE alerts ADD COLUMN alert_type TEXT NOT NULL DEFAULT 'new_whale'`);

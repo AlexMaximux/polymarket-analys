@@ -19,7 +19,13 @@ export async function GET(request: Request) {
     const wallets = db.prepare(`SELECT wallet FROM alert_wallets WHERE alert_id = ? ORDER BY wallet`).all(alertId);
     return NextResponse.json({ wallets });
   }
-  const starred = db.prepare(`SELECT wallet, name, pseudonym, max_single_bet, total_notional FROM users WHERE starred = 1 ORDER BY max_single_bet DESC`).all();
+  const starred = db
+    .prepare(
+      `SELECT wallet, name, pseudonym, max_single_bet, total_notional, trade_count,
+              true_first_trade_at, note, last_active
+       FROM users WHERE starred = 1 ORDER BY starred DESC, max_single_bet DESC`
+    )
+    .all();
   return NextResponse.json({ starred });
 }
 
@@ -45,6 +51,17 @@ export async function POST(request: Request) {
   });
   tx();
   return NextResponse.json({ ok: true, wallet, starred: star, alertId: alertId || null });
+}
+
+export async function PATCH(request: Request) {
+  const body = await request.json().catch(() => null);
+  const wallet = String(body?.wallet || '').trim().toLowerCase();
+  if (!/^0x[a-f0-9]{40}$/.test(wallet)) return NextResponse.json({ error: 'valid wallet required' }, { status: 400 });
+  const note = String(body?.note ?? '').slice(0, 2000);
+  const db = getDb();
+  const r = db.prepare(`UPDATE users SET note = ? WHERE wallet = ?`).run(note, wallet);
+  if (r.changes === 0) return NextResponse.json({ error: 'wallet not found' }, { status: 404 });
+  return NextResponse.json({ ok: true, wallet, note });
 }
 
 export async function DELETE(request: Request) {
