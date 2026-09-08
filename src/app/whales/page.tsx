@@ -73,12 +73,18 @@ export default function WhalesPage() {
     setHoverStats(null);
     setHoverLoading(true);
     try {
-      const res = await fetch(`/api/users/${r.wallet}/closed`);
-      const d = await res.json();
+      const [cRes, pRes] = await Promise.all([
+        fetch(`/api/users/${r.wallet}/closed`),
+        fetch(`/api/users/${r.wallet}/positions`),
+      ]);
+      const c = await cRes.json();
+      const p = await pRes.json();
+      const resolvedPnl = (p?.resolved || []).reduce(
+        (s: number, x: any) => s + (parseFloat(x.cashPnl) || 0), 0);
       setHoverStats({
-        realized: d?.totals?.pnl ?? null,
+        realized: (c?.totals?.pnl ?? 0) + resolvedPnl,
         trades: r.allTimeTrades,
-        truncated: d?.totals?.truncated ?? false,
+        truncated: c?.totals?.truncated ?? false,
       });
     } catch { setHoverStats(null); } finally { setHoverLoading(false); }
   };
