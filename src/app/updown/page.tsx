@@ -65,6 +65,8 @@ export default function UpDownPage() {
 
   const m = data?.model;
   const m5model = data?.model5;
+  const modelA = data?.modelA;
+  const modelC = data?.modelC;
   const m1h: MarketRow | null = data?.m1h;
   const m15: MarketRow | null = data?.m15;
   const m5: MarketRow | null = data?.m5;
@@ -271,6 +273,87 @@ export default function UpDownPage() {
           </p>
         </div>
       ) : null}
+
+      {/* Part A: base valuation (no drift) */}
+      {modelA ? (
+        <div className="bg-[#111827] border border-slate-800/50 rounded-2xl p-6 shadow-sm">
+          <div className="flex items-center gap-2 mb-4">
+            <Activity className="w-5 h-5 text-[#A78BFA]" />
+            <h2 className="text-lg font-medium text-white">الف — Base Valuation (no drift) <span className="text-xs text-slate-500">fair = Φ( xₜ / (σ₁ₕ·√τ_hours) )</span></h2>
+          </div>
+          <div className="grid md:grid-cols-3 gap-4">
+            <div className="bg-[#0B1120] rounded-xl p-4 border border-slate-800/60">
+              <p className="text-[10px] uppercase text-slate-500 mb-1">Fair value (Up)</p>
+              <p className="text-3xl font-bold text-[#A78BFA] tabular-nums">{(modelA.fairUp * 100).toFixed(1)}¢</p>
+            </div>
+            <div className="bg-[#0B1120] rounded-xl p-4 border border-slate-800/60">
+              <p className="text-[10px] uppercase text-slate-500 mb-1">Market price (Up)</p>
+              <p className="text-3xl font-bold text-white tabular-nums">{market1h != null ? (market1h * 100).toFixed(1) + "¢" : "—"}</p>
+            </div>
+            <div className={`bg-[#0B1120] rounded-xl p-4 border ${modelA.edge != null && Math.abs(modelA.edge) > 0.03 ? (modelA.edge > 0 ? "border-[#34D399]/40" : "border-[#FB7185]/40") : "border-slate-800/60"}`}>
+              <p className="text-[10px] uppercase text-slate-500 mb-1">Edge (fair − market)</p>
+              <p className={`text-3xl font-bold tabular-nums ${modelA.edge == null ? "text-slate-500" : modelA.edge > 0.03 ? "text-[#34D399]" : modelA.edge < -0.03 ? "text-[#FB7185]" : "text-slate-300"}`}>
+                {modelA.edge == null ? "—" : (modelA.edge > 0 ? "+" : "") + (modelA.edge * 100).toFixed(1) + "¢"}
+              </p>
+            </div>
+          </div>
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full text-left text-xs whitespace-nowrap">
+              <tbody className="divide-y divide-slate-800/40 text-slate-300 tabular-nums">
+                <tr><td className="py-1.5 pr-4">xₜ = ln(Sₜ/S₀)</td><td className="py-1.5 pr-4">{modelA.x_t.toFixed(5)}</td><td className="py-1.5 pr-4">τ (hours)</td><td className="py-1.5 pr-4">{modelA.tauHours.toFixed(4)} h</td><td className="py-1.5 pr-4">σ₁ₕ</td><td className="py-1.5">{modelA.sigma1h}</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Part C: joint solve from BOTH windows */}
+      {modelC && modelC.valid ? (
+        <div className="bg-[#111827] border border-slate-800/50 rounded-2xl p-6 shadow-sm">
+          <div className="flex items-center gap-2 mb-2">
+            <Activity className="w-5 h-5 text-[#F472B6]" />
+            <h2 className="text-lg font-medium text-white">Joint Solve — σ &amp; μ from BOTH markets <span className="text-xs text-slate-500">حل دستگاه دو معادله</span></h2>
+          </div>
+          <p className="text-[11px] text-slate-500 mb-4">
+            Φ⁻¹(p₅) = (y₅ + μ·τ₅)/(σₘ·√τ₅) · Φ⁻¹(p₁₅) = (y₁₅ + μ·τ₁₅)/(σₘ·√τ₁₅) → solves σₘ and μ simultaneously, then fair = Φ((xₜ + μ·τ₆₀)/(σₘ·√τ₆₀))
+          </p>
+          <div className="grid md:grid-cols-3 gap-4">
+            <div className="bg-[#0B1120] rounded-xl p-4 border border-slate-800/60">
+              <p className="text-[10px] uppercase text-slate-500 mb-1">Fair value (Up)</p>
+              <p className="text-3xl font-bold text-[#F472B6] tabular-nums">{(modelC.fairUp * 100).toFixed(1)}¢</p>
+            </div>
+            <div className="bg-[#0B1120] rounded-xl p-4 border border-slate-800/60">
+              <p className="text-[10px] uppercase text-slate-500 mb-1">Implied σ₁ₕ (joint)</p>
+              <p className="text-3xl font-bold text-white tabular-nums">{modelC.sigma1h.toFixed(4)}</p>
+            </div>
+            <div className={`bg-[#0B1120] rounded-xl p-4 border ${modelC.edge != null && Math.abs(modelC.edge) > 0.03 ? (modelC.edge > 0 ? "border-[#34D399]/40" : "border-[#FB7185]/40") : "border-slate-800/60"}`}>
+              <p className="text-[10px] uppercase text-slate-500 mb-1">Edge (fair − market)</p>
+              <p className={`text-3xl font-bold tabular-nums ${modelC.edge == null ? "text-slate-500" : modelC.edge > 0.03 ? "text-[#34D399]" : modelC.edge < -0.03 ? "text-[#FB7185]" : "text-slate-300"}`}>
+                {modelC.edge == null ? "—" : (modelC.edge > 0 ? "+" : "") + (modelC.edge * 100).toFixed(1) + "¢"}
+              </p>
+            </div>
+          </div>
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full text-left text-xs whitespace-nowrap">
+              <tbody className="divide-y divide-slate-800/40 text-slate-300 tabular-nums">
+                <tr><td className="py-1.5 pr-4">τ₅ / τ₁₅</td><td className="py-1.5 pr-4">{modelC.tau5.toFixed(2)} / {modelC.tau15.toFixed(2)} min</td><td className="py-1.5 pr-4">y₅ / y₁₅</td><td className="py-1.5 pr-4">{modelC.y5.toFixed(5)} / {modelC.y15.toFixed(5)}</td></tr>
+                <tr><td className="py-1.5 pr-4">p₅ / p₁₅</td><td className="py-1.5 pr-4">{(modelC.p5 * 100).toFixed(1)}¢ / {(modelC.p15 * 100).toFixed(1)}¢</td><td className="py-1.5 pr-4">z₅ / z₁₅</td><td className="py-1.5 pr-4">{modelC.z5.toFixed(4)} / {modelC.z15.toFixed(4)}</td></tr>
+                <tr><td className="py-1.5 pr-4">σₘ (solved)</td><td className="py-1.5 pr-4">{modelC.sigmaM.toFixed(6)}</td><td className="py-1.5 pr-4">μ (solved)</td><td className={modelC.mu >= 0 ? "text-[#34D399]" : "text-[#FB7185]"}>{modelC.mu.toFixed(6)}/min</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : modelC ? (
+        <div className="bg-[#111827] border border-slate-800/50 rounded-2xl p-5 shadow-sm">
+          <p className="text-xs text-slate-400">
+            Joint solve this minute gives σₘ = <b className="text-[#FB7185]">{modelC.sigmaM.toFixed(6)}</b> (≤ 0 — the 5m and 15m markets are momentarily inconsistent with one flat-σ model; usually happens when both windows opened at nearly the same price). System inputs: τ₅={modelC.tau5.toFixed(1)}m τ₁₅={modelC.tau15.toFixed(1)}m y₅={modelC.y5.toFixed(5)} y₁₅={modelC.y15.toFixed(5)} z₅={modelC.z5.toFixed(3)} z₁₅={modelC.z15.toFixed(3)}
+          </p>
+        </div>
+      ) : (
+        <div className="bg-[#111827] border border-slate-800/50 rounded-2xl p-5 shadow-sm">
+          <p className="text-xs text-slate-500">Joint solve needs both the 5m and 15m markets live (not at extremes) — one of them is near resolution right now.</p>
+        </div>
+      )}
 
 {/* debug snapshot table */}
       <div className="bg-[#111827] border border-slate-800/50 rounded-2xl p-5 shadow-sm">

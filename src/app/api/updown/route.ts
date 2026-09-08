@@ -236,10 +236,48 @@ export async function GET(request: Request) {
     };
   }
 
+  // ---- Part A: base 1H valuation (no drift, Black-Scholes style) ----
+  // fair_A = Φ( x_t / (σ_1h · √τ_hours) ),  x_t = ln(St/S0), τ_hours = (60−t)/60
+  let modelA: any = null;
+  if (s0 && st && xt != null) {
+    const tauHours = (60 - t) / 60;
+    const fairA = normCdf(xt / (sigma1h * Math.sqrt(tauHours)));
+    modelA = {
+      tauHours, x_t: xt, sigma1h,
+      fairUp: fairA, fairDown: 1 - fairA,
+      edge: m1h?.live != null ? fairA - (m1h.live as number) : null,
+    };
+  }
+
+  // ---- Part C: joint solve — BOTH windows (5m + 15m) determine σ_m AND μ simultaneously ----
+  // system:  Φ⁻¹(p₅)  = (y₅  + μ·τ₅)  / (σ_m·√τ₅)
+  //          Φ⁻¹(p₁₅) = (y₁₅ + μ·τ₁₅) / (σ_m·√τ₁₅)
+  // → σ_m = (y₁₅·τ₅ − y₅·τ₁₅) / (b·τ₅·√τ₁₅ − a·τ₁₅·√τ₅),  μ = (a·σ_m·√τ₅ − y₅)/τ₅
+  let modelC: any = null;
+  if (xt != null && y != null && y5 != null && p5 && p15 &&
+      p5 > 0.0005 && p5 < 0.9995 && p15 > 0.0005 && p15 < 0.9995) {
+    const aq = normInv(p5);    // z of the 5m market
+    const bq = normInv(p15);   // z of the 15m market
+    const denom = bq * tau5 * Math.sqrt(tau15) - aq * tau15 * Math.sqrt(tau5);
+    if (Math.abs(denom) > 1e-9) {
+      const sigmaMj = (y * tau5 - y5 * tau15) / denom;
+      const sigma1hJ = sigmaMj * Math.sqrt(60);
+      const muJ = tau5 > 0.01 ? (aq * sigmaMj * Math.sqrt(tau5) - y5) / tau5 : 0;
+      const fairJ = sigmaMj > 0 ? normCdf((xt + muJ * tau60) / (sigmaMj * Math.sqrt(tau60))) : null;
+      modelC = {
+        tau5, tau15, y5, y15: y, p5, p15, z5: aq, z15: bq,
+        sigmaM: sigmaMj, sigma1h: sigma1hJ, mu: muJ,
+        valid: sigmaMj > 0,
+        fairUp: fairJ, fairDown: fairJ != null ? 1 - fairJ : null,
+        edge: fairJ != null && m1h?.live != null ? fairJ - (m1h.live as number) : null,
+      };
+    }
+  }
+
   return NextResponse.json({
     coin: coinKey, label: cfg.label, binanceSymbol: cfg.binance,
     openSources: { s0: s0pm ? 'polymarket-chainlink' : 'binance', sa: sapm ? 'polymarket-chainlink' : 'binance' },
     serverTime: nowSec, t, hourStartSec, win15Sec, win5Sec, next15Sec, next5Sec,
-    m1h, m15, m5, n15, n5, model, model5, sa5,
+    m1h, m15, m5, n15, n5, model, model5, modelA, modelC, sa5,
   });
 }
