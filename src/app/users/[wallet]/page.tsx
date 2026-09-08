@@ -116,6 +116,11 @@ export default function UserProfile() {
   const totalWins = closedWins + resolvedWins;
   const totalLosses = closedLosses + resolvedLosses;
   const winPct = totalWins + totalLosses > 0 ? Math.round((totalWins / (totalWins + totalLosses)) * 1000) / 10 : 0;
+  // dollar amounts won / lost (closed markets by realized pnl + resolved-on-hand by cashPnl)
+  const wonDollars = closedRows.reduce((s: number, m: any) => (m.pnl ?? 0) > 0.01 ? s + (m.pnl ?? 0) : s, 0)
+    + resolved.reduce((s: number, p: any) => (parseFloat(p.cashPnl) || 0) > 0.01 ? s + (parseFloat(p.cashPnl) || 0) : s, 0);
+  const lostDollars = Math.abs(closedRows.reduce((s: number, m: any) => (m.pnl ?? 0) < -0.01 ? s + (m.pnl ?? 0) : s, 0)
+    + resolved.reduce((s: number, p: any) => (parseFloat(p.cashPnl) || 0) < -0.01 ? s + (parseFloat(p.cashPnl) || 0) : s, 0));
   // simple risk grade from win% + realized pnl
   let riskGrade = '—', riskColor = 'text-[#5d628f]';
   if (totalWins + totalLosses >= 3) {
@@ -320,6 +325,16 @@ export default function UserProfile() {
                 <span className="text-xs text-[#8b91c5] uppercase tracking-wide">win rate</span>
               </div>
             )}
+          </div>
+          <div className="mt-2.5 flex items-center gap-3 flex-wrap text-[13px]">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#2ce5a7]/10 border border-[#2ce5a7]/25">
+              <span className="text-[#2ce5a7] font-semibold tabular-nums">+${wonDollars.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+              <span className="text-[#8b91c5]">won (total)</span>
+            </span>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#ff6b9d]/10 border border-[#ff6b9d]/25">
+              <span className="text-[#ff6b9d] font-semibold tabular-nums">−${lostDollars.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+              <span className="text-[#8b91c5]">lost (total)</span>
+            </span>
           </div>
           <div className="flex gap-4 mt-2 text-[11px] text-[#5d628f] flex-wrap">
             <span>Closed History: <b className="text-[#c3c8ee]">{closedTotals.count || 0}</b> ({closedWins}W/{closedLosses}L)</span>
