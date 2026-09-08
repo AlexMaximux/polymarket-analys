@@ -78,8 +78,51 @@ async function j(url: string, timeoutMs = 8000): Promise<any> {
   } catch { return null; } finally { clearTimeout(t); }
 }
 
+// ---------- module-level caches (survive between requests) ----------
+const openPriceCache = new Map<string, { value: number | null; expires: number }>();
+const gammaCache = new Map<string, { value: any; expires: number }>();
+const klineCache = new Map<string, { value: number | null; expires: number }>();
+
+// openPrice of a window is fixed once the window starts — cache until window ends (12/5 min) + slack
+async function polymarketOpenPriceCached(slug: string): Promise<number | null> {
+  const hit = openPriceCache.get(slug);
+  if (hit && hit.expires > Date.now()) return hit.value;
+  const value = await polymarketOpenPrice(slug);
+  // window length from slug suffix; 1h slugs have no -{unix} suffix → 60 min
+  const m = slug.match(/-(\d{10})$/);
+  const winSec = m ? 900 : 3600; // 15m slugs share pattern with 5m; safe upper bound handled below
+  const ttl = (slug.includes('5m-') ? 300 : winSec) * 1000 + 60_000;
+  openPriceCache.set(slug, { value, expires: Date.now() + ttl });
+  return value;
+}
+
+async function gammaEventCached(key: string, url: string): Promise<any> {
+  const hit = gammaCache.get(key);
+  if (hit && hit.expires > Date.now()) return hit.value;
+  const d = await j(url);
+  if (Array.isArray(d) && d.length) gammaCache.set(key, { value: d, expires: Date.now() + 20_000 });
+  return d;
+}
+
+async function binanceKlineCached(symbol: string, startSec: number): Promise<number | null> {
+  const key = `${symbol}:${startSec}`;
+  const hit = klineCache.get(key);
+  if (hit && hit.expires > Date.now()) return hit.value;
+  const v = await binanceKline(symbol, startSec);
+  klineCache.set(key, { value: v, expires: Date.now() + 120_000 }); // historical 1m open never changes
+  return v;
+}
+
+// periodic cleanup so maps don't grow unbounded
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of openPriceCache) if (v.expires < now - 600_000) openPriceCache.delete(k);
+  for (const [k, v] of gammaCache) if (v.expires < now) gammaCache.delete(k);
+  for (const [k, v] of klineCache) if (v.expires < now - 300_000) klineCache.delete(k);
+}, 120_000).unref();
+
 async function eventBySlug(slug: string) {
-  const d = await j(`https://gamma-api.polymarket.com/events?slug=${slug}`);
+  const d = await gammaEventCached(slug, `https://gamma-api.polymarket.com/events?slug=${slug}`);
   if (!Array.isArray(d) || !d.length) return null;
   const m = d[0]?.markets?.[0];
   if (!m) return null;
@@ -158,12 +201,12 @@ export async function GET(request: Request) {
   // ---- Opening prices: Polymarket's official values (Chainlink TWAP / boundary) from event pages;
   //      fallback: Binance 1m kline opens. St = Binance ticker (live). ----
   const [s0pm, sapm, sa5pm, s0b, sab, sa5b, stRaw] = await Promise.all([
-    m1h ? polymarketOpenPrice(m1h.slug) : Promise.resolve(null),
-    m15 ? polymarketOpenPrice(m15.slug) : Promise.resolve(null),
-    m5 ? polymarketOpenPrice(m5.slug) : Promise.resolve(null),
-    binanceKline(cfg.binance, hourStartSec),
-    binanceKline(cfg.binance, win15Sec),
-    binanceKline(cfg.binance, win5Sec),
+    m1h ? polymarketOpenPriceCached(m1h.slug) : Promise.resolve(null),
+    m15 ? polymarketOpenPriceCached(m15.slug) : Promise.resolve(null),
+    m5 ? polymarketOpenPriceCached(m5.slug) : Promise.resolve(null),
+    binanceKlineCached(cfg.binance, hourStartSec),
+    binanceKlineCached(cfg.binance, win15Sec),
+    binanceKlineCached(cfg.binance, win5Sec),
     j(`https://api.binance.com/api/v3/ticker/price?symbol=${cfg.binance}`, 5000),
   ]);
   const s0 = s0pm ?? s0b;
