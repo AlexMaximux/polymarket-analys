@@ -18,6 +18,10 @@ export default function WhalesPage() {
   const [wrMinMarkets, setWrMinMarkets] = useState("3");
   const [wrMinVolume, setWrMinVolume] = useState("0");
   const [wrError, setWrError] = useState("");
+  const [wrSort, setWrSort] = useState<{ col: string; dir: 1 | -1 }>({ col: "winRate", dir: -1 });
+  const [hoverWallet, setHoverWallet] = useState<string | null>(null);
+  const [hoverStats, setHoverStats] = useState<any>(null);
+  const [hoverLoading, setHoverLoading] = useState(false);
 
   const fetchWhales = useCallback(async () => {
     setLoading(true);
@@ -51,6 +55,23 @@ export default function WhalesPage() {
   const wrRows = (wrData?.rows || []).filter((r: any) =>
     (parseFloat(wrMinVolume) || 0) <= 0 ? true : r.invested >= (parseFloat(wrMinVolume) || 0)
   );
+  const wrSorted = [...wrRows].sort((a: any, b: any) => {
+    const { col, dir } = wrSort;
+    let va: any = a[col] ?? 0, vb: any = b[col] ?? 0;
+    if (col === "pseudonym") { va = (a.pseudonym || "").toLowerCase(); vb = (b.pseudonym || "").toLowerCase(); return va < vb ? -dir : va > vb ? dir : 0; }
+    if (col === "lastActive") { va = a.lastActive ?? 0; vb = b.lastActive ?? 0; }
+    return (Number(va) - Number(vb)) * dir;
+  });
+  const wrTh = (col: string, label: string, right = false) => (
+    <th onClick={() => setWrSort(s => ({ col, dir: s.col === col ? (s.dir === 1 ? -1 : 1) : -1 }))}
+      className={`px-5 py-4 cursor-pointer select-none hover:text-[#eef0ff] ${right ? "text-right" : ""}`}>
+      {label} {wrSort.col === col && (wrSort.dir === 1 ? " ▲" : " ▼")}
+    </th>
+  );
+  const fetchHoverStats = (r: any) => {
+    setHoverWallet(r.wallet);
+    setHoverStats({ realized: r.lifetimePnl, trades: r.allTimeTrades });
+  };
 
   return (
     <div className="space-y-8 rise-in">
@@ -192,12 +213,12 @@ export default function WhalesPage() {
           <table className="w-full text-left text-sm whitespace-nowrap">
             <thead className="bg-[#0a0b1e]/70 backdrop-blur text-[#8b91c5] text-xs uppercase tracking-wider font-medium sticky top-0 z-10 border-b border-[rgba(140,130,255,0.15)]">
               <tr>
-                <th className="px-5 py-4">User</th>
-                <th className="px-5 py-4 text-right">Win Rate</th>
-                <th className="px-5 py-4 text-right">W / L</th>
-                <th className="px-5 py-4 text-right">Invested</th>
-                <th className="px-5 py-4 text-right">Net PnL</th>
-                <th className="px-5 py-4">Last Active</th>
+                {wrTh("pseudonym", "User")}
+                {wrTh("winRate", "Win Rate", true)}
+                {wrTh("wins", "W / L", true)}
+                {wrTh("invested", "Invested", true)}
+                {wrTh("pnl", "Net PnL", true)}
+                {wrTh("lastActive", "Last Active")}
               </tr>
             </thead>
             <tbody className="divide-y divide-[rgba(140,130,255,0.11)]">
@@ -206,12 +227,31 @@ export default function WhalesPage() {
               ) : wrRows.length === 0 ? (
                 <tr><td colSpan={6} className="p-8 text-center text-[#5d628f]">No wallets match — try lowering the win rate or market count.</td></tr>
               ) : (
-                wrRows.map((r: any) => (
+                wrSorted.map((r: any) => (
                   <tr key={r.wallet} className="hover:bg-white/[0.08] transition-colors group">
-                    <td className="px-5 py-4">
+                    <td className="px-5 py-4 relative"
+                        onMouseEnter={() => fetchHoverStats(r)}
+                        onMouseLeave={() => setHoverWallet(null)}>
                       <Link href={`/users/${r.wallet}`} className="text-[#a99cff] hover:underline font-medium">
                         {r.pseudonym || (r.wallet.slice(0, 6) + "..." + r.wallet.slice(-4))}
                       </Link>
+                      {hoverWallet === r.wallet && (
+                        <div className="absolute left-0 top-full mt-1 z-50 w-64 pm-panel p-4 shadow-2xl">
+                          <p className="text-[11px] uppercase tracking-wide text-[#8b91c5] mb-2">Quick stats</p>
+                          {hoverLoading ? (
+                            <Loader2 className="w-4 h-4 animate-spin text-[#8b91c5]" />
+                          ) : (
+                            <div className="space-y-1.5 text-[13px]">
+                              <div className="flex justify-between"><span className="text-[#8b91c5]">Realized Profit (all-time)</span>
+                                <b className={(hoverStats?.realized ?? 0) >= 0 ? "text-[#2ce5a7]" : "text-[#ff6b9d]"}>
+                                  {(hoverStats?.realized ?? 0) >= 0 ? "+" : ""}${Math.abs(hoverStats?.realized ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                                </b></div>
+                              <div className="flex justify-between"><span className="text-[#8b91c5]">Trades (full history)</span>
+                                <b className="text-[#eef0ff]">{hoverStats?.trades ?? "—"}</b></div>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </td>
                     <td className="px-5 py-4 text-right">
                       <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border ${

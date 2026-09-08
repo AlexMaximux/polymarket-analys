@@ -76,6 +76,16 @@ async function ledgerStats(wallet: string, since: number, minMarkets: number) {
     } catch { return null; }
   }
 
+  // lifetime stats (all history fetched): trade count + realized pnl across ALL time
+  let allTimeTrades = 0;
+  let lifeInvested = 0, lifeReturned = 0;
+  for (const a of rows) {
+    if (a.type === 'TRADE') allTimeTrades++;
+    if (a.type !== 'TRADE' && a.type !== 'REDEEM') continue;
+    const usd = Number(a.usdcSize) || 0;
+    if (a.type === 'TRADE' && a.side === 'BUY') lifeInvested += usd; else lifeReturned += usd;
+  }
+
   // per-condition realized pnl, only from trades/redeems INSIDE the window
   const markets = new Map<string, { invested: number; returned: number; firstTs: number; lastTs: number }>();
   for (const a of rows) {
@@ -118,5 +128,8 @@ async function ledgerStats(wallet: string, since: number, minMarkets: number) {
     returned,
     pnl: returned - invested,
     lastActive: Math.max(...[...markets.values()].map(m => m.lastTs)),
+    allTimeTrades,
+    lifetimePnl: lifeReturned - lifeInvested,
+    lifetimeInvested: lifeInvested,
   };
 }

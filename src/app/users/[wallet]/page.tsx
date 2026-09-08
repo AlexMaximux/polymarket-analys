@@ -301,9 +301,25 @@ export default function UserProfile() {
           <div className="flex items-baseline gap-3 flex-wrap">
             <p className={`text-2xl font-bold tracking-tight ${riskColor}`}>{riskGrade}</p>
             <p className="text-sm tabular-nums text-[#c3c8ee]">
-              {totalPositions} total positions · <span className="text-[#2ce5a7]">{totalWins}W</span> / <span className="text-[#ff6b9d]">{totalLosses}L</span>
-              {totalWins + totalLosses > 0 && <> · {winPct}% win</>}
+              {totalPositions} total positions
             </p>
+          </div>
+          <div className="mt-3 flex items-center gap-4 flex-wrap">
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-2xl font-bold tabular-nums text-[#2ce5a7]">{totalWins}</span>
+              <span className="text-xs text-[#8b91c5] uppercase tracking-wide">wins</span>
+            </div>
+            <span className="text-[#5d628f] text-lg font-light">/</span>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-2xl font-bold tabular-nums text-[#ff6b9d]">{totalLosses}</span>
+              <span className="text-xs text-[#8b91c5] uppercase tracking-wide">losses</span>
+            </div>
+            {totalWins + totalLosses > 0 && (
+              <div className="flex items-baseline gap-1.5 ml-2">
+                <span className="text-lg font-semibold tabular-nums text-[#eef0ff]">{winPct}%</span>
+                <span className="text-xs text-[#8b91c5] uppercase tracking-wide">win rate</span>
+              </div>
+            )}
           </div>
           <div className="flex gap-4 mt-2 text-[11px] text-[#5d628f] flex-wrap">
             <span>Closed History: <b className="text-[#c3c8ee]">{closedTotals.count || 0}</b> ({closedWins}W/{closedLosses}L)</span>
