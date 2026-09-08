@@ -64,15 +64,20 @@ function fmtAge(ts: number): string {
 }
 
 export function formatPositionMessage(alert: AlertRow, events: any[]): string {
-  const lines = events.map(e => (
-    `⭐ <b>${e.pseudonym || e.name || e.wallet.slice(0, 10) + '…'}</b>\n` +
-    `• Opened: <b>${e.side === 'BUY' ? 'LONG' : e.side} ${e.outcome}</b>\n` +
-    `• Market: ${e.title}\n` +
-    `• Size: ${Number(e.size).toLocaleString(undefined, { maximumFractionDigits: 0 })} sh @ ${e.price}¢` +
-    (e.usdcSize ? ` (<b>$${Number(e.usdcSize).toLocaleString(undefined, { maximumFractionDigits: 0 })}</b>)` : '') +
-    `\n• ${fmtAge(e.timestamp)}\n` +
-    `• https://polymarket.com/event/${e.slug || ''}`
-  ));
+  const lines = events.map((e: any) => {
+    const badge = e.catEmoji ? `${e.catEmoji} <b>${e.catLabel}</b>` : '⭐';
+    const noteLine = e.note ? `\n📝 <i>${e.note}</i>` : '';
+    const catLine = e.catNote ? `\n🏷 <i>${e.catNote}</i>` : '';
+    return (
+      `${badge} <b>${e.pseudonym || e.name || e.wallet.slice(0, 10) + '…'}</b>${noteLine}${catLine}\n` +
+      `• Opened: <b>${e.side === 'BUY' ? 'LONG' : e.side} ${e.outcome}</b>\n` +
+      `• Market: ${e.title}\n` +
+      `• Size: ${Number(e.size).toLocaleString(undefined, { maximumFractionDigits: 0 })} sh @ ${e.price}¢` +
+      (e.usdcSize ? ` (<b>$${Number(e.usdcSize).toLocaleString(undefined, { maximumFractionDigits: 0 })}</b>)` : '') +
+      `\n• ${fmtAge(e.timestamp)}\n` +
+      `• https://polymarket.com/event/${e.slug || ''}`
+    );
+  });
   return (
     `<b>⭐ ${alert.name}</b>\n` +
     `${events.length} new position${events.length > 1 ? 's' : ''} from watchlisted wallet${events.length > 1 ? 's' : ''}:\n\n` +
@@ -119,6 +124,8 @@ async function evaluateStarredAlert(alert: AlertRow): Promise<any[]> {
   const lastEval = (db.prepare(`SELECT last_evaluated_at FROM alerts WHERE id = ?`).get(alert.id) as any)?.last_evaluated_at || (now - alert.hours * 3600);
   const since = lastEval - 300;
 
+  const metaByWallet = new Map<string, any>();
+  for (const s of starred) metaByWallet.set(s.wallet, s);
   const events: any[] = [];
   // dedupe check WITHOUT marking — marking happens only after a successful Telegram send
   const isSeen = db.prepare(`SELECT 1 FROM alert_pos_seen WHERE alert_id = ? AND wallet = ? AND condition_id = ?`);
@@ -131,10 +138,15 @@ async function evaluateStarredAlert(alert: AlertRow): Promise<any[]> {
       for (const t of rows) {
         if (!t.conditionId || !t.timestamp || t.timestamp <= since) continue;
         if (isSeen.get(alert.id, w, t.conditionId)) continue;
+        const meta = metaByWallet.get(w) || {};
         events.push({
           wallet: w,
           conditionId: t.conditionId,
-          pseudonym: t.pseudonym || t.name || '',
+          pseudonym: meta.pseudonym || meta.name || t.pseudonym || t.name || '',
+          note: meta.note || '',
+          catLabel: meta.cat_label || '',
+          catEmoji: meta.cat_emoji || '',
+          catNote: meta.cat_note || '',
           title: t.title,
           outcome: t.outcome,
           side: 'BUY',

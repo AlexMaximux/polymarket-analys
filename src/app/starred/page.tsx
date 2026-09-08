@@ -6,6 +6,8 @@ import { Star, StickyNote, Loader2, X, ChevronDown, ChevronUp, ExternalLink } fr
 
 export default function StarredPage() {
   const [rows, setRows] = useState<any[]>([]);
+  const [cats, setCats] = useState<any[]>([]);
+  const [showCatManager, setShowCatManager] = useState(false);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
@@ -17,6 +19,7 @@ export default function StarredPage() {
     const res = await fetch("/api/watchlist");
     const d = await res.json();
     setRows(d.starred || []);
+    setCats(d.categories || []);
     setLoading(false);
   }, []);
 
@@ -31,6 +34,27 @@ export default function StarredPage() {
       setRows(rs => rs.map(r => r.wallet === wallet ? { ...r, note: noteDraft } : r));
       setEditing(null);
     }
+  };
+
+  const setCategory = async (wallet: string, categoryId: number | null) => {
+    await fetch("/api/watchlist", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ wallet, categoryId }),
+    });
+    setRows(rs => rs.map(r => r.wallet === wallet
+      ? { ...r, category_id: categoryId,
+          category_label: cats.find(c => c.id === categoryId)?.label || null,
+          category_emoji: cats.find(c => c.id === categoryId)?.emoji || null,
+          category_note: cats.find(c => c.id === categoryId)?.note || null }
+      : r));
+  };
+
+  const saveCategory = async (cat: any) => {
+    await fetch("/api/watchlist", {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ category: cat }),
+    });
+    load();
   };
 
   const unstar = async (wallet: string) => {
@@ -70,14 +94,15 @@ export default function StarredPage() {
                 <th className="px-4 py-3 text-right">Total Vol</th>
                 {th("trade_count", "Trades", true)}
                 {th("last_active", "Last Active")}
+                <th className="px-4 py-3">Category</th>
                 <th className="px-4 py-3">Note</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[rgba(140,130,255,0.11)]">
               {loading ? (
-                <tr><td colSpan={8} className="p-8 text-center text-[#5d628f]"><Loader2 className="w-5 h-5 animate-spin inline" /></td></tr>
+                <tr><td colSpan={9} className="p-8 text-center text-[#5d628f]"><Loader2 className="w-5 h-5 animate-spin inline" /></td></tr>
               ) : rows.length === 0 ? (
-                <tr><td colSpan={8} className="p-8 text-center text-[#5d628f]">Nothing starred yet — tap the ☆ on any user.</td></tr>
+                <tr><td colSpan={9} className="p-8 text-center text-[#5d628f]">Nothing starred yet — tap the ☆ on any user.</td></tr>
               ) : (
                 sorted.map(r => (
                   <tr key={r.wallet} className="hover:bg-white/[0.08] align-top">
@@ -91,12 +116,29 @@ export default function StarredPage() {
                         {r.pseudonym || r.name || (r.wallet.slice(0, 6) + "…" + r.wallet.slice(-4))}
                       </Link>
                       <a href={`https://polymarket.com/profile/${r.wallet}`} target="_blank" rel="noreferrer" className="ml-1.5 text-[#5d628f] hover:text-[#a99cff]"><ExternalLink className="w-3 h-3 inline" /></a>
-                      <p className="text-[10px] font-mono text-[#5d628f] mt-0.5">{r.wallet}</p>
+                      <p className="text-[10px] font-mono text-[#5d628f] mt-0.5">
+                        {r.wallet}
+                        {r.category_label && (
+                          <span className="ml-2 font-sans not-italic text-[10px] font-bold text-[#ffc94d]">
+                            {r.category_emoji} {r.category_label}
+                          </span>
+                        )}
+                      </p>
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums text-[#2ce5a7] font-medium">${(r.max_single_bet ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-[#c3c8ee]">${(r.total_notional ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-[#c3c8ee]">{(r.trade_count ?? 0).toLocaleString()}</td>
                     <td className="px-4 py-3 text-[#8b91c5]">{r.last_active ? formatDistanceToNow(new Date(r.last_active * 1000), { addSuffix: true }) : "—"}</td>
+                    <td className="px-4 py-3">
+                      <select value={r.category_id ?? ""}
+                        onChange={e => setCategory(r.wallet, e.target.value ? parseInt(e.target.value) : null)}
+                        className={`text-xs rounded-lg px-2 py-1.5 border bg-white/[0.05] focus:outline-none ${r.category_id ? "border-[rgba(140,130,255,0.35)] text-[#eef0ff]" : "border-[rgba(140,130,255,0.15)] text-[#8b91c5]"}`}>
+                        <option value="">— none —</option>
+                        {cats.map(c => (
+                          <option key={c.id} value={c.id}>{c.emoji} {c.label}</option>
+                        ))}
+                      </select>
+                    </td>
                     <td className="px-4 py-3 min-w-[240px]">
                       {editing === r.wallet ? (
                         <div>

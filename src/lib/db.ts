@@ -106,6 +106,22 @@ export function initializeDb(dbInstance?: Database.Database) {
     if (!ucols.has('note')) {
       db.exec(`ALTER TABLE users ADD COLUMN note TEXT`);
     }
+    if (!ucols.has('category_id')) {
+      db.exec(`ALTER TABLE users ADD COLUMN category_id INTEGER`);
+    }
+    // watch categories (gold/silver/red/custom) with per-category notes
+    db.exec(`CREATE TABLE IF NOT EXISTS watch_categories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      label TEXT NOT NULL,
+      emoji TEXT DEFAULT '*',
+      note TEXT DEFAULT '',
+      sort INTEGER DEFAULT 0
+    )`);
+    const wcc = (db.prepare(`SELECT COUNT(*) as n FROM watch_categories`).all() as any)[0];
+    if (!wcc || wcc.n === 0) {
+      db.exec(`INSERT INTO watch_categories (label, emoji, note, sort) VALUES
+        ('Gold', '🥇', '', 1), ('Silver', '🥈', '', 2), ('Red', '🔴', '', 3)`);
+    }
     const acols = new Set((db.prepare(`PRAGMA table_info(alerts)`).all() as { name: string }[]).map(c => c.name));
     if (!acols.has('alert_type')) {
       db.exec(`ALTER TABLE alerts ADD COLUMN alert_type TEXT NOT NULL DEFAULT 'new_whale'`);
