@@ -303,10 +303,8 @@ export default function UpDownPage() {
       {/* Fair Value — 1H Up (μ from 5m) — collapsible */}
       <Collapsible id="open5" openState={open5} toggle={() => setOpen5(!open5)}
         color="#FBBF24" title="Fair Value — 1H Up (μ from 5m)" subtitle="مدل ۵ دقیقه‌ای" badge={badge5}>
-        <div className="flex items-center gap-2 mb-4">
-            <Activity className="w-5 h-5 text-[#FBBF24]" />
-            <h2 className="text-lg font-medium text-white">Fair Value Model — 1H Up <span className="text-xs text-slate-500">(calibrated on the 5-minute market)</span></h2>
-          </div>
+        {m5model ? (
+        <>
           <div className="grid md:grid-cols-3 gap-4">
             <div className="bg-[#0B1120] rounded-xl p-4 border border-slate-800/60">
               <p className="text-[10px] uppercase text-slate-500 mb-1">Model fair value (Up) — 5m calib</p>
@@ -337,15 +335,15 @@ export default function UpDownPage() {
           <p className="text-[11px] text-slate-500 mt-3">
             Same formula as the 15m panel, but μ extracted from the live 5¢ market: μ₅ = (z₅·σₘ·√τ₅ − y₅) / τ₅ · fair = Φ((xₜ + μ₅·τ₆₀)/(σₘ·√τ₆₀))
           </p>
+        </>
+        ) : <p className="text-xs text-slate-500">5m model inactive (market near resolution or missing data).</p>}
       </Collapsible>
 
       {/* الف — Base (no drift) — collapsible */}
       <Collapsible id="openA" openState={openA} toggle={() => setOpenA(!openA)}
         color="#A78BFA" title="الف — Base (no drift)" subtitle="فرمول پایه" badge={badgeA}>
-        <div className="flex items-center gap-2 mb-4">
-            <Activity className="w-5 h-5 text-[#A78BFA]" />
-            <h2 className="text-lg font-medium text-white">الف — Base Valuation (no drift) <span className="text-xs text-slate-500">fair = Φ( xₜ / (σ₁ₕ·√τ_hours) )</span></h2>
-          </div>
+        {modelA ? (
+        <>
           <div className="grid md:grid-cols-3 gap-4">
             <div className="bg-[#0B1120] rounded-xl p-4 border border-slate-800/60">
               <p className="text-[10px] uppercase text-slate-500 mb-1">Fair value (Up)</p>
@@ -369,15 +367,15 @@ export default function UpDownPage() {
               </tbody>
             </table>
           </div>
+        </>
+        ) : <p className="text-xs text-slate-500">مدل الف نیاز به S₀ و Sₜ زنده دارد.</p>}
       </Collapsible>
 
       {/* Joint Solve — σ & μ — collapsible */}
       <Collapsible id="openC" openState={openC} toggle={() => setOpenC(!openC)}
         color="#F472B6" title="Joint Solve — σ & μ" subtitle="حل دستگاه" badge={badgeC}>
-        <div className="flex items-center gap-2 mb-2">
-            <Activity className="w-5 h-5 text-[#F472B6]" />
-            <h2 className="text-lg font-medium text-white">Joint Solve — σ &amp; μ from BOTH markets <span className="text-xs text-slate-500">حل دستگاه دو معادله</span></h2>
-          </div>
+        {modelC && modelC.valid ? (
+        <>
           <p className="text-[11px] text-slate-500 mb-4">
             Φ⁻¹(p₅) = (y₅ + μ·τ₅)/(σₘ·√τ₅) · Φ⁻¹(p₁₅) = (y₁₅ + μ·τ₁₅)/(σₘ·√τ₁₅) → solves σₘ and μ simultaneously, then fair = Φ((xₜ + μ·τ₆₀)/(σₘ·√τ₆₀))
           </p>
@@ -406,6 +404,12 @@ export default function UpDownPage() {
               </tbody>
             </table>
           </div>
+        </>
+        ) : (
+        <p className="text-xs text-slate-400">
+          Joint solve needs both 5m &amp; 15m markets live (or they disagree → σ ≤ 0). System inputs this minute: τ₅={modelC?.tau5?.toFixed(1) ?? "—"}m τ₁₅={modelC?.tau15?.toFixed(1) ?? "—"}m y₅={modelC?.y5?.toFixed(5) ?? "—"} y₁₅={modelC?.y15?.toFixed(5) ?? "—"} z₅={modelC?.z5?.toFixed(3) ?? "—"} z₁₅={modelC?.z15?.toFixed(3) ?? "—"}
+        </p>
+        )}
       </Collapsible>
 
       {/* Snapshot (S₀/SA/ST/P15/P5) — collapsible */}
