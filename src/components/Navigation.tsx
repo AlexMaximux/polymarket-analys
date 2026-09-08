@@ -25,12 +25,15 @@ export function Navigation() {
           <Link
             key={link.href}
             href={link.href}
-            className={`px-2.5 py-1 rounded-md text-[13px] font-medium tracking-[-0.01em] whitespace-nowrap transition-colors duration-150 ${
+            className={`relative px-2.5 py-1 rounded-md text-[13px] font-medium tracking-[-0.01em] whitespace-nowrap transition-all duration-200 ${
               isActive
-                ? "bg-white/[0.07] text-[#f7f8f8] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]"
-                : "text-[#8a8f98] hover:text-[#f7f8f8] hover:bg-white/[0.04]"
+                ? "text-white bg-gradient-to-b from-[#6c5ce7]/35 to-[#6c5ce7]/15 shadow-[inset_0_0_0_1px_rgba(139,124,255,0.35),0_2px_12px_-2px_rgba(108,92,231,0.5)]"
+                : "text-[#8b91c5] hover:text-[#eef0ff] hover:bg-white/[0.08]"
             }`}
           >
+            {isActive && (
+              <span className="absolute -bottom-[5px] left-1/2 -translate-x-1/2 w-4 h-[2px] rounded-full bg-gradient-to-r from-[#7170ff] to-[#4dd6ff] shadow-[0_0_6px_rgba(113,112,255,0.8)]" />
+            )}
             {link.label}
           </Link>
         );

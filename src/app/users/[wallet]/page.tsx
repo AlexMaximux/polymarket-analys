@@ -12,10 +12,10 @@ function SortHeader({ label, col, sort, onSort, right }: { label: string; col: s
   return (
     <th
       onClick={() => onSort(col)}
-      className={`px-5 py-4 cursor-pointer select-none hover:text-[#f7f8f8] transition-colors ${right ? "text-right" : ""}`}
+      className={`px-5 py-4 cursor-pointer select-none hover:text-[#eef0ff] transition-colors ${right ? "text-right" : ""}`}
     >
       {label}
-      {active && (sort.dir === 1 ? <ChevronUp className="w-3.5 h-3.5 inline ml-1 text-[#7170ff]" /> : <ChevronDown className="w-3.5 h-3.5 inline ml-1 text-[#7170ff]" />)}
+      {active && (sort.dir === 1 ? <ChevronUp className="w-3.5 h-3.5 inline ml-1 text-[#a99cff]" /> : <ChevronDown className="w-3.5 h-3.5 inline ml-1 text-[#a99cff]" />)}
     </th>
   );
 }
@@ -46,11 +46,11 @@ function Section({ id, title, count, open, onToggle, subtitle, accent, icon, act
     <div>
       <div className="flex items-center gap-2">
         <button onClick={onToggle} className="flex-1 flex items-center gap-2 text-left group min-w-0">
-          <ChevronRight className={`w-4 h-4 text-[#62666d] transition-transform shrink-0 ${open ? "rotate-90" : ""}`} />
-          <span className={`text-lg font-medium flex items-center gap-2 ${open ? "text-white" : "text-[#d0d6e0]"}`}>
+          <ChevronRight className={`w-4 h-4 text-[#5d628f] transition-transform shrink-0 ${open ? "rotate-90" : ""}`} />
+          <span className={`text-lg font-medium flex items-center gap-2 ${open ? "text-white" : "text-[#c3c8ee]"}`}>
             {icon} {title}{count != null && ` (${count})`}
           </span>
-          {subtitle && <span className="text-xs font-normal text-[#62666d] hidden md:inline truncate">— {subtitle}</span>}
+          {subtitle && <span className="text-xs font-normal text-[#5d628f] hidden md:inline truncate">— {subtitle}</span>}
         </button>
         {actions && <div className="shrink-0 flex items-center gap-2">{actions}</div>}
       </div>
@@ -117,12 +117,12 @@ export default function UserProfile() {
   const totalLosses = closedLosses + resolvedLosses;
   const winPct = totalWins + totalLosses > 0 ? Math.round((totalWins / (totalWins + totalLosses)) * 1000) / 10 : 0;
   // simple risk grade from win% + realized pnl
-  let riskGrade = '—', riskColor = 'text-[#62666d]';
+  let riskGrade = '—', riskColor = 'text-[#5d628f]';
   if (totalWins + totalLosses >= 3) {
     const score = winPct + (realizedProfit >= 0 ? 10 : -10);
-    if (score >= 85) { riskGrade = 'LOW'; riskColor = 'text-[#10b981]'; }
-    else if (score >= 60) { riskGrade = 'MODERATE'; riskColor = 'text-[#FBBF24]'; }
-    else { riskGrade = 'HIGH'; riskColor = 'text-[#fb7185]'; }
+    if (score >= 85) { riskGrade = 'LOW'; riskColor = 'text-[#2ce5a7]'; }
+    else if (score >= 60) { riskGrade = 'MODERATE'; riskColor = 'text-[#ffc94d]'; }
+    else { riskGrade = 'HIGH'; riskColor = 'text-[#ff6b9d]'; }
   }
   const openValue = positions.reduce((s: number, p: any) => s + (parseFloat(p.currentValue) || 0), 0);
   const tradesVolume = (tradesData?.totals?.buyUsd || 0) + (tradesData?.totals?.sellUsd || 0);
@@ -188,7 +188,7 @@ export default function UserProfile() {
   const ExportBtn = ({ kind, format, label }: { kind: "trades" | "closed"; format: "csv" | "pdf"; label: string }) => (
     <button onClick={() => downloadExport(kind, format)} disabled={!!exporting}
       title={`Download ${label} as ${format.toUpperCase()}`}
-      className="inline-flex items-center gap-1 text-[11px] font-medium text-[#62666d] hover:text-[#7170ff] transition-colors disabled:opacity-40">
+      className="inline-flex items-center gap-1 text-[11px] font-medium text-[#5d628f] hover:text-[#a99cff] transition-colors disabled:opacity-40">
       {exporting === kind + ":" + format
         ? <Loader2 className="w-3 h-3 animate-spin" />
         : format === "csv" ? <Download className="w-3 h-3" /> : <FileText className="w-3 h-3" />}
@@ -205,14 +205,14 @@ export default function UserProfile() {
 
   /* ---- loading / error guards (inline returns AFTER all hooks) ---- */
   if (!data) {
-    return <div className="p-8 text-center text-[#62666d] animate-in fade-in">Loading...</div>;
+    return <div className="p-8 text-center text-[#5d628f] animate-in fade-in">Loading...</div>;
   }
   if (data.error) {
     return (
-      <div className="p-8 max-w-md mx-auto mt-12 text-center bg-white/[0.02] border border-white/[0.08] rounded-2xl animate-in fade-in">
-        <Wallet className="w-12 h-12 text-[#62666d] mx-auto mb-4 opacity-50"/>
+      <div className="p-8 max-w-md mx-auto mt-12 text-center bg-white/[0.08] border border-[rgba(140,130,255,0.15)] rounded-2xl animate-in fade-in">
+        <Wallet className="w-12 h-12 text-[#5d628f] mx-auto mb-4 opacity-50"/>
         <h2 className="text-xl font-medium text-white mb-2">User not found</h2>
-        <p className="text-[#8a8f98] text-sm">This wallet is not tracked by the crawler and has no activity on Polymarket.</p>
+        <p className="text-[#8b91c5] text-sm">This wallet is not tracked by the crawler and has no activity on Polymarket.</p>
       </div>
     );
   }
@@ -235,80 +235,80 @@ export default function UserProfile() {
         <div>
           <h1 className="text-2xl font-semibold mb-2 flex items-center gap-3 text-white tracking-tight">
             <button onClick={toggleStar} title={isStarred ? "Remove from watchlist" : "Star → add to watchlist (alert-able)"}>
-              <Star className={`w-6 h-6 ${isStarred ? "text-yellow-400 fill-yellow-400" : "text-[#62666d] hover:text-yellow-300"}`} />
+              <Star className={`w-6 h-6 ${isStarred ? "text-yellow-400 fill-yellow-400" : "text-[#5d628f] hover:text-yellow-300"}`} />
             </button>
             {user.pseudonym || user.name || "Anonymous"}
-            <a href={`https://polymarket.com/profile/${wallet}`} target="_blank" rel="noreferrer" className="text-[#62666d] hover:text-[#7170ff] transition-colors p-1 hover:bg-[#7170ff]/10 rounded-md">
+            <a href={`https://polymarket.com/profile/${wallet}`} target="_blank" rel="noreferrer" className="text-[#5d628f] hover:text-[#a99cff] transition-colors p-1 hover:bg-[#8b7cff]/12 rounded-md">
               <ExternalLink className="w-5 h-5" />
             </a>
           </h1>
-          <p className="text-[#8a8f98] flex items-center gap-2 text-sm"><Wallet className="w-4 h-4"/> <span className="font-mono text-[13px]">{wallet}</span></p>
+          <p className="text-[#8b91c5] flex items-center gap-2 text-sm"><Wallet className="w-4 h-4"/> <span className="font-mono text-[13px]">{wallet}</span></p>
         </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-        <div className="bg-white/[0.02] border border-white/[0.08] p-6 rounded-2xl relative overflow-hidden group hover:border-white/[0.08] transition-colors shadow-sm">
+        <div className="bg-white/[0.08] border border-[rgba(140,130,255,0.15)] p-6 rounded-2xl relative overflow-hidden group hover:border-[rgba(140,130,255,0.15)] transition-colors shadow-sm">
           <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-slate-600 to-transparent opacity-30"></div>
-          <p className="text-xs uppercase tracking-wider text-[#8a8f98] font-medium mb-1.5">Realized Profit (all-time)</p>
+          <p className="text-xs uppercase tracking-wider text-[#8b91c5] font-medium mb-1.5">Realized Profit (all-time)</p>
           {settledCount > 0 ? (
             <>
-              <p className={`text-2xl font-bold tabular-nums tracking-tight ${realizedProfit >= 0 ? 'text-[#10b981]' : 'text-[#fb7185]'}`}>
+              <p className={`text-2xl font-bold tabular-nums tracking-tight ${realizedProfit >= 0 ? 'text-[#2ce5a7]' : 'text-[#ff6b9d]'}`}>
                 {realizedProfit >= 0 ? '+' : ''}${realizedProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}
               </p>
-              <p className="text-[11px] text-[#62666d] mt-1.5">closed history {closedTotals.count || 0} + resolved-on-hand {resolved.length} — settled markets only</p>
+              <p className="text-[11px] text-[#5d628f] mt-1.5">closed history {closedTotals.count || 0} + resolved-on-hand {resolved.length} — settled markets only</p>
             </>
           ) : (
             <>
-              <p className="text-2xl font-bold tabular-nums text-[#62666d]">—</p>
-              <p className="text-[11px] text-[#62666d] mt-1.5">no settled positions yet</p>
+              <p className="text-2xl font-bold tabular-nums text-[#5d628f]">—</p>
+              <p className="text-[11px] text-[#5d628f] mt-1.5">no settled positions yet</p>
             </>
           )}
         </div>
-        <div className="bg-white/[0.02] border border-white/[0.08] p-6 rounded-2xl relative overflow-hidden group hover:border-white/[0.08] transition-colors shadow-sm">
+        <div className="bg-white/[0.08] border border-[rgba(140,130,255,0.15)] p-6 rounded-2xl relative overflow-hidden group hover:border-[rgba(140,130,255,0.15)] transition-colors shadow-sm">
           <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-slate-600 to-transparent opacity-30"></div>
-          <p className="text-xs uppercase tracking-wider text-[#8a8f98] font-medium mb-1.5">Trades (full history)</p>
+          <p className="text-xs uppercase tracking-wider text-[#8b91c5] font-medium mb-1.5">Trades (full history)</p>
           <p className="text-2xl font-bold tabular-nums text-white tracking-tight">{tradesData?.totals?.count ?? user.trade_count ?? 0}</p>
-          <p className="text-[11px] text-[#62666d] mt-1.5">
+          <p className="text-[11px] text-[#5d628f] mt-1.5">
             vol ${tradesVolume > 0 ? tradesVolume.toLocaleString(undefined, { maximumFractionDigits: 0 }) : (user.total_notional || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
           </p>
         </div>
         {user.true_first_trade_at ? (
-          <div className="bg-white/[0.02] border border-white/[0.08] p-6 rounded-2xl relative overflow-hidden group hover:border-white/[0.08] transition-colors shadow-sm">
+          <div className="bg-white/[0.08] border border-[rgba(140,130,255,0.15)] p-6 rounded-2xl relative overflow-hidden group hover:border-[rgba(140,130,255,0.15)] transition-colors shadow-sm">
             <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-[#34D399] to-transparent opacity-50"></div>
-            <p className="text-xs uppercase tracking-wider text-[#8a8f98] font-medium mb-1.5">First-Ever Bet</p>
+            <p className="text-xs uppercase tracking-wider text-[#8b91c5] font-medium mb-1.5">First-Ever Bet</p>
             <p className="text-2xl font-bold tabular-nums text-white tracking-tight">${(user.true_first_trade_size || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
-            <p className="text-[11px] text-[#62666d] mt-1.5">{format(new Date(user.true_first_trade_at * 1000), "MMM d, yyyy HH:mm")} UTC — verified from full history</p>
+            <p className="text-[11px] text-[#5d628f] mt-1.5">{format(new Date(user.true_first_trade_at * 1000), "MMM d, yyyy HH:mm")} UTC — verified from full history</p>
           </div>
         ) : (
-          <div className="bg-white/[0.02] border border-white/[0.08] p-6 rounded-2xl relative overflow-hidden group hover:border-white/[0.08] transition-colors shadow-sm">
+          <div className="bg-white/[0.08] border border-[rgba(140,130,255,0.15)] p-6 rounded-2xl relative overflow-hidden group hover:border-[rgba(140,130,255,0.15)] transition-colors shadow-sm">
             <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-slate-600 to-transparent opacity-30"></div>
-            <p className="text-xs uppercase tracking-wider text-[#8a8f98] font-medium mb-1.5">First-Ever Bet</p>
-            <p className="text-2xl font-bold tabular-nums text-[#62666d]">—</p>
-            <p className="text-[11px] text-[#62666d] mt-1.5">{user.true_first_checked_at ? "no on-chain trades found" : "scanning history…"}</p>
+            <p className="text-xs uppercase tracking-wider text-[#8b91c5] font-medium mb-1.5">First-Ever Bet</p>
+            <p className="text-2xl font-bold tabular-nums text-[#5d628f]">—</p>
+            <p className="text-[11px] text-[#5d628f] mt-1.5">{user.true_first_checked_at ? "no on-chain trades found" : "scanning history…"}</p>
           </div>
         )}
-        <div className="bg-white/[0.02] border border-white/[0.08] p-6 rounded-2xl relative overflow-hidden group hover:border-white/[0.08] transition-colors shadow-sm">
+        <div className="bg-white/[0.08] border border-[rgba(140,130,255,0.15)] p-6 rounded-2xl relative overflow-hidden group hover:border-[rgba(140,130,255,0.15)] transition-colors shadow-sm">
           <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-slate-600 to-transparent opacity-30"></div>
-          <p className="text-xs uppercase tracking-wider text-[#8a8f98] font-medium mb-1.5">Open Positions Value</p>
+          <p className="text-xs uppercase tracking-wider text-[#8b91c5] font-medium mb-1.5">Open Positions Value</p>
           <p className="text-2xl font-bold tabular-nums text-white tracking-tight">
             ${openValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
           </p>
-          <p className="text-[11px] text-[#62666d] mt-1.5">{positions.length} position{positions.length !== 1 ? "s" : ""} still held</p>
+          <p className="text-[11px] text-[#5d628f] mt-1.5">{positions.length} position{positions.length !== 1 ? "s" : ""} still held</p>
         </div>
-        <div className="bg-white/[0.02] border border-white/[0.08] p-6 rounded-2xl relative overflow-hidden group hover:border-white/[0.08] transition-colors shadow-sm md:col-span-2">
+        <div className="bg-white/[0.08] border border-[rgba(140,130,255,0.15)] p-6 rounded-2xl relative overflow-hidden group hover:border-[rgba(140,130,255,0.15)] transition-colors shadow-sm md:col-span-2">
           <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-slate-600 to-transparent opacity-30"></div>
-          <p className="text-xs uppercase tracking-wider text-[#8a8f98] font-medium mb-1.5">Risk Assessment</p>
+          <p className="text-xs uppercase tracking-wider text-[#8b91c5] font-medium mb-1.5">Risk Assessment</p>
           <div className="flex items-baseline gap-3 flex-wrap">
             <p className={`text-2xl font-bold tracking-tight ${riskColor}`}>{riskGrade}</p>
-            <p className="text-sm tabular-nums text-[#d0d6e0]">
-              {totalPositions} total positions · <span className="text-[#10b981]">{totalWins}W</span> / <span className="text-[#fb7185]">{totalLosses}L</span>
+            <p className="text-sm tabular-nums text-[#c3c8ee]">
+              {totalPositions} total positions · <span className="text-[#2ce5a7]">{totalWins}W</span> / <span className="text-[#ff6b9d]">{totalLosses}L</span>
               {totalWins + totalLosses > 0 && <> · {winPct}% win</>}
             </p>
           </div>
-          <div className="flex gap-4 mt-2 text-[11px] text-[#62666d] flex-wrap">
-            <span>Closed History: <b className="text-[#d0d6e0]">{closedTotals.count || 0}</b> ({closedWins}W/{closedLosses}L)</span>
-            <span>Resolved on hand: <b className="text-[#d0d6e0]">{resolved.length}</b> ({resolvedWins}W/{resolvedLosses}L)</span>
-            <span>Live open: <b className="text-[#d0d6e0]">{positions.length}</b></span>
+          <div className="flex gap-4 mt-2 text-[11px] text-[#5d628f] flex-wrap">
+            <span>Closed History: <b className="text-[#c3c8ee]">{closedTotals.count || 0}</b> ({closedWins}W/{closedLosses}L)</span>
+            <span>Resolved on hand: <b className="text-[#c3c8ee]">{resolved.length}</b> ({resolvedWins}W/{resolvedLosses}L)</span>
+            <span>Live open: <b className="text-[#c3c8ee]">{positions.length}</b></span>
           </div>
         </div>
       </div>
@@ -317,11 +317,11 @@ export default function UserProfile() {
       <Section id="open" title="Current Positions (Live)" count={positions.length}
         open={sections.open} onToggle={() => toggleSection("open")}
         subtitle="matches what polymarket.com shows as open · click headers to sort"
-        icon={<PieChart className="w-5 h-5 text-[#8a8f98]" />}>
-        <div className="bg-white/[0.02] border border-white/[0.08] rounded-2xl overflow-hidden shadow-sm">
+        icon={<PieChart className="w-5 h-5 text-[#8b91c5]" />}>
+        <div className="bg-white/[0.08] border border-[rgba(140,130,255,0.15)] rounded-2xl overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm whitespace-nowrap">
-              <thead className="bg-black/30 backdrop-blur text-[#8a8f98] text-xs uppercase tracking-wider font-medium sticky top-0 z-10 border-b border-white/[0.08]">
+              <thead className="bg-[#0a0b1e]/70 backdrop-blur text-[#8b91c5] text-xs uppercase tracking-wider font-medium sticky top-0 z-10 border-b border-[rgba(140,130,255,0.15)]">
                 <tr>
                   <SortHeader label="Market" col="market" sort={openSort} onSort={c => setOpenSort(flip(openSort, c))} />
                   <SortHeader label="Outcome" col="outcome" sort={openSort} onSort={c => setOpenSort(flip(openSort, c))} />
@@ -331,22 +331,22 @@ export default function UserProfile() {
                   <SortHeader label="PnL" col="pnl" sort={openSort} onSort={c => setOpenSort(flip(openSort, c))} right />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/[0.05]">
+              <tbody className="divide-y divide-[rgba(140,130,255,0.11)]">
                 {openSorted.length === 0 ? (
-                  <tr><td colSpan={6} className="p-8 text-center text-[#62666d]">No open positions found.</td></tr>
+                  <tr><td colSpan={6} className="p-8 text-center text-[#5d628f]">No open positions found.</td></tr>
                 ) : (
                   openSorted.map((p: any, i: number) => (
-                    <tr key={`${p.asset ?? "o"}-${i}`} className="hover:bg-white/[0.05] transition-colors group">
-                      <td className="px-5 py-4 max-w-[200px] truncate text-[#f7f8f8]" title={p.title}>{p.title}</td>
+                    <tr key={`${p.asset ?? "o"}-${i}`} className="hover:bg-white/[0.08] transition-colors group">
+                      <td className="px-5 py-4 max-w-[200px] truncate text-[#eef0ff]" title={p.title}>{p.title}</td>
                       <td className="px-5 py-4">
-                        <span className="inline-flex items-center px-2 py-0.5 bg-white/[0.05] border border-white/[0.08] rounded-md text-[11px] font-bold uppercase tracking-wide text-[#d0d6e0]">
+                        <span className="inline-flex items-center px-2 py-0.5 bg-white/[0.08] border border-[rgba(140,130,255,0.15)] rounded-md text-[11px] font-bold uppercase tracking-wide text-[#c3c8ee]">
                           {p.outcome}
                         </span>
                       </td>
-                      <td className="px-5 py-4 text-right tabular-nums text-[#d0d6e0]">{(parseFloat(p.size) || 0).toLocaleString()}</td>
-                      <td className="px-5 py-4 text-right tabular-nums text-[#d0d6e0]">${parseFloat(p.avgPrice).toFixed(3)}</td>
+                      <td className="px-5 py-4 text-right tabular-nums text-[#c3c8ee]">{(parseFloat(p.size) || 0).toLocaleString()}</td>
+                      <td className="px-5 py-4 text-right tabular-nums text-[#c3c8ee]">${parseFloat(p.avgPrice).toFixed(3)}</td>
                       <td className="px-5 py-4 text-right tabular-nums font-medium text-white">${parseFloat(p.currentValue).toFixed(2)}</td>
-                      <td className={`px-5 py-4 text-right tabular-nums font-medium ${parseFloat(p.cashPnl) >= 0 ? 'text-[#10b981]' : 'text-[#fb7185]'}`}>
+                      <td className={`px-5 py-4 text-right tabular-nums font-medium ${parseFloat(p.cashPnl) >= 0 ? 'text-[#2ce5a7]' : 'text-[#ff6b9d]'}`}>
                         {parseFloat(p.cashPnl) >= 0 ? '+' : ''}${parseFloat(p.cashPnl).toFixed(2)} ({parseFloat(p.percentPnl).toFixed(1)}%)
                       </td>
                     </tr>
@@ -362,11 +362,11 @@ export default function UserProfile() {
       <Section id="resolved" title="Resolved Positions" count={resolved.length}
         open={sections.resolved} onToggle={() => toggleSection("resolved")}
         subtitle="settled markets still on hand (lost, or redeemable) · click headers to sort"
-        icon={<Archive className="w-5 h-5 text-[#62666d]" />}>
-        <div className="bg-white/[0.02] border border-white/[0.08] rounded-2xl overflow-hidden shadow-sm">
+        icon={<Archive className="w-5 h-5 text-[#5d628f]" />}>
+        <div className="bg-white/[0.08] border border-[rgba(140,130,255,0.15)] rounded-2xl overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm whitespace-nowrap">
-              <thead className="bg-black/30 backdrop-blur text-[#62666d] text-xs uppercase tracking-wider font-medium sticky top-0 z-10 border-b border-white/[0.08]">
+              <thead className="bg-[#0a0b1e]/70 backdrop-blur text-[#5d628f] text-xs uppercase tracking-wider font-medium sticky top-0 z-10 border-b border-[rgba(140,130,255,0.15)]">
                 <tr>
                   <SortHeader label="Market" col="market" sort={resSort} onSort={c => setResSort(flip(resSort, c))} />
                   <SortHeader label="Outcome" col="outcome" sort={resSort} onSort={c => setResSort(flip(resSort, c))} />
@@ -376,39 +376,39 @@ export default function UserProfile() {
                   <SortHeader label="Settled" col="settled" sort={resSort} onSort={c => setResSort(flip(resSort, c))} />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/[0.05]">
+              <tbody className="divide-y divide-[rgba(140,130,255,0.11)]">
                 {resSorted.length === 0 ? (
-                  <tr><td colSpan={6} className="p-8 text-center text-[#62666d]">No resolved positions.</td></tr>
+                  <tr><td colSpan={6} className="p-8 text-center text-[#5d628f]">No resolved positions.</td></tr>
                 ) : (
                   resSorted.map((p: any, i: number) => {
                     const inv = parseFloat(p.initialValue) || 0;
                     const back = parseFloat(p.currentValue) || 0;
                     const pnl = parseFloat(p.cashPnl) || 0;
                     return (
-                      <tr key={`${p.asset ?? 'r'}-${i}`} className="hover:bg-white/[0.05] transition-colors">
-                        <td className="px-5 py-4 max-w-[220px] truncate text-[#d0d6e0]" title={p.title}>{p.title}</td>
+                      <tr key={`${p.asset ?? 'r'}-${i}`} className="hover:bg-white/[0.08] transition-colors">
+                        <td className="px-5 py-4 max-w-[220px] truncate text-[#c3c8ee]" title={p.title}>{p.title}</td>
                         <td className="px-5 py-4">
-                          <span className="inline-flex items-center px-2 py-0.5 bg-white/[0.05] border border-white/[0.08] rounded-md text-[11px] font-bold uppercase tracking-wide text-[#8a8f98]">
+                          <span className="inline-flex items-center px-2 py-0.5 bg-white/[0.08] border border-[rgba(140,130,255,0.15)] rounded-md text-[11px] font-bold uppercase tracking-wide text-[#8b91c5]">
                             {p.outcome}
                           </span>
                         </td>
-                        <td className="px-5 py-4 text-right tabular-nums text-[#8a8f98]">${inv.toFixed(2)}</td>
-                        <td className="px-5 py-4 text-right tabular-nums text-[#8a8f98]">${back.toFixed(2)}</td>
-                        <td className={`px-5 py-4 text-right tabular-nums font-bold ${pnl >= 0 ? 'text-[#10b981]' : 'text-[#fb7185]'}`}>
+                        <td className="px-5 py-4 text-right tabular-nums text-[#8b91c5]">${inv.toFixed(2)}</td>
+                        <td className="px-5 py-4 text-right tabular-nums text-[#8b91c5]">${back.toFixed(2)}</td>
+                        <td className={`px-5 py-4 text-right tabular-nums font-bold ${pnl >= 0 ? 'text-[#2ce5a7]' : 'text-[#ff6b9d]'}`}>
                           {pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}
-                          {p.redeemable && <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-[#7170ff]/10 text-[#7170ff] border border-[#7170ff]/25">REDEEMABLE</span>}
+                          {p.redeemable && <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-[#8b7cff]/12 text-[#a99cff] border border-[#8b7cff]/30">REDEEMABLE</span>}
                         </td>
-                        <td className="px-5 py-4 text-[#62666d]">{p.endDate ? format(new Date(p.endDate), 'MMM d, HH:mm') : '—'}</td>
+                        <td className="px-5 py-4 text-[#5d628f]">{p.endDate ? format(new Date(p.endDate), 'MMM d, HH:mm') : '—'}</td>
                       </tr>
                     );
                   })
                 )}
                 {resolved.length > 0 && (
-                  <tr className="bg-black/40 border-t-2 border-white/[0.07]">
-                    <td className="px-5 py-4 font-semibold text-[#d0d6e0]" colSpan={2}>TOTAL — {resolved.length} settled</td>
-                    <td className="px-5 py-4 text-right tabular-nums font-semibold text-[#f7f8f8]">${resolvedInvested.toFixed(2)}</td>
-                    <td className="px-5 py-4 text-right tabular-nums font-semibold text-[#f7f8f8]">${resolvedReturned.toFixed(2)}</td>
-                    <td className={`px-5 py-4 text-right tabular-nums font-bold ${resolvedPnl >= 0 ? 'text-[#10b981]' : 'text-[#fb7185]'}`}>
+                  <tr className="bg-[#0a0b1e]/80 border-t-2 border-[rgba(140,130,255,0.13)]">
+                    <td className="px-5 py-4 font-semibold text-[#c3c8ee]" colSpan={2}>TOTAL — {resolved.length} settled</td>
+                    <td className="px-5 py-4 text-right tabular-nums font-semibold text-[#eef0ff]">${resolvedInvested.toFixed(2)}</td>
+                    <td className="px-5 py-4 text-right tabular-nums font-semibold text-[#eef0ff]">${resolvedReturned.toFixed(2)}</td>
+                    <td className={`px-5 py-4 text-right tabular-nums font-bold ${resolvedPnl >= 0 ? 'text-[#2ce5a7]' : 'text-[#ff6b9d]'}`}>
                       {resolvedPnl >= 0 ? '+' : ''}${resolvedPnl.toFixed(2)}
                     </td>
                     <td></td>
@@ -424,15 +424,15 @@ export default function UserProfile() {
       <Section id="closed" title="Closed Positions History" count={closedTotals.count}
         open={sections.closed} onToggle={() => toggleSection("closed")}
         subtitle={closedTotals.truncated ? "most recent 2000 closed markets (Polymarket API cap) — newest first · click headers to sort" : "every fully-exited market (same source as polymarket.com RESULT list) · click headers to sort"}
-        icon={<HistoryIcon className="w-5 h-5 text-[#7170ff]" />}
+        icon={<HistoryIcon className="w-5 h-5 text-[#a99cff]" />}
         actions={<>
           <ExportBtn kind="closed" format="csv" label="Closed Positions History" />
           <ExportBtn kind="closed" format="pdf" label="Closed Positions History" />
         </>}>
-        <div className="bg-white/[0.02] border border-white/[0.08] rounded-2xl overflow-hidden shadow-sm">
+        <div className="bg-white/[0.08] border border-[rgba(140,130,255,0.15)] rounded-2xl overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm whitespace-nowrap">
-              <thead className="bg-black/30 backdrop-blur text-[#8a8f98] text-xs uppercase tracking-wider font-medium sticky top-0 z-10 border-b border-white/[0.08]">
+              <thead className="bg-[#0a0b1e]/70 backdrop-blur text-[#8b91c5] text-xs uppercase tracking-wider font-medium sticky top-0 z-10 border-b border-[rgba(140,130,255,0.15)]">
                 <tr>
                   <SortHeader label="Market" col="market" sort={closedSort} onSort={c => setClosedSort(flip(closedSort, c))} />
                   <SortHeader label="Outcome" col="outcome" sort={closedSort} onSort={c => setClosedSort(flip(closedSort, c))} />
@@ -442,35 +442,35 @@ export default function UserProfile() {
                   <SortHeader label="Total Traded" col="traded" sort={closedSort} onSort={c => setClosedSort(flip(closedSort, c))} right />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/[0.05]">
+              <tbody className="divide-y divide-[rgba(140,130,255,0.11)]">
                 {closedSorted.length === 0 ? (
-                  <tr><td colSpan={6} className="p-8 text-center text-[#62666d]">No closed positions found.</td></tr>
+                  <tr><td colSpan={6} className="p-8 text-center text-[#5d628f]">No closed positions found.</td></tr>
                 ) : (
                   closedSorted.map((p: any, i: number) => (
-                    <tr key={`${p.conditionId}-${p.outcome}-${i}`} className="hover:bg-white/[0.05] transition-colors">
-                      <td className="px-5 py-4 max-w-[220px] truncate text-[#f7f8f8]" title={p.title}>{p.title}</td>
+                    <tr key={`${p.conditionId}-${p.outcome}-${i}`} className="hover:bg-white/[0.08] transition-colors">
+                      <td className="px-5 py-4 max-w-[220px] truncate text-[#eef0ff]" title={p.title}>{p.title}</td>
                       <td className="px-5 py-4">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wide border ${p.pnl > 0.01 ? "bg-[#10b981]/10 text-[#10b981] border-[#10b981]/25" : p.pnl < -0.01 ? "bg-[#fb7185]/10 text-[#fb7185] border-[#fb7185]/25" : "bg-slate-500/10 text-[#8a8f98] border-slate-500/20"}`}>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wide border ${p.pnl > 0.01 ? "bg-[#2ce5a7]/10 text-[#2ce5a7] border-[#2ce5a7]/30" : p.pnl < -0.01 ? "bg-[#ff6b9d]/10 text-[#ff6b9d] border-[#ff6b9d]/30" : "bg-slate-500/10 text-[#8b91c5] border-slate-500/20"}`}>
                           {p.result === "WON" ? "Won" : p.result === "LOST" ? "Lost" : "Flat"} · {p.outcome}
                         </span>
                       </td>
-                      <td className="px-5 py-4 text-right tabular-nums text-[#8a8f98]">${(p.invested ?? 0).toFixed(2)}</td>
-                      <td className="px-5 py-4 text-right tabular-nums text-[#8a8f98]">${(p.gotBack ?? 0).toFixed(2)}</td>
-                      <td className={`px-5 py-4 text-right tabular-nums font-bold ${(p.pnl ?? 0) >= 0 ? 'text-[#10b981]' : 'text-[#fb7185]'}`}>
+                      <td className="px-5 py-4 text-right tabular-nums text-[#8b91c5]">${(p.invested ?? 0).toFixed(2)}</td>
+                      <td className="px-5 py-4 text-right tabular-nums text-[#8b91c5]">${(p.gotBack ?? 0).toFixed(2)}</td>
+                      <td className={`px-5 py-4 text-right tabular-nums font-bold ${(p.pnl ?? 0) >= 0 ? 'text-[#2ce5a7]' : 'text-[#ff6b9d]'}`}>
                         {(p.pnl ?? 0) >= 0 ? '+' : ''}${(p.pnl ?? 0).toFixed(2)}
                       </td>
-                      <td className="px-5 py-4 text-right tabular-nums text-[#62666d]">${(((p.invested ?? 0)) + ((p.gotBack ?? 0))).toFixed(2)}</td>
+                      <td className="px-5 py-4 text-right tabular-nums text-[#5d628f]">${(((p.invested ?? 0)) + ((p.gotBack ?? 0))).toFixed(2)}</td>
                     </tr>
                   ))
                 )}
                 {closedTotals.count > 0 && (
-                  <tr className="bg-black/40 border-t-2 border-white/[0.07]">
-                    <td className="px-5 py-4 font-semibold text-[#d0d6e0]" colSpan={2}>
+                  <tr className="bg-[#0a0b1e]/80 border-t-2 border-[rgba(140,130,255,0.13)]">
+                    <td className="px-5 py-4 font-semibold text-[#c3c8ee]" colSpan={2}>
                       TOTAL — {closedTotals.count} closed ({closedTotals.wins} won)
                     </td>
-                    <td className="px-5 py-4 text-right tabular-nums font-semibold text-[#f7f8f8]">${(closedTotals.invested ?? 0).toFixed(2)}</td>
-                    <td className="px-5 py-4 text-right tabular-nums font-semibold text-[#f7f8f8]">${(closedTotals.gotBack ?? 0).toFixed(2)}</td>
-                    <td className={`px-5 py-4 text-right tabular-nums font-bold ${(closedTotals.pnl ?? 0) >= 0 ? 'text-[#10b981]' : 'text-[#fb7185]'}`}>
+                    <td className="px-5 py-4 text-right tabular-nums font-semibold text-[#eef0ff]">${(closedTotals.invested ?? 0).toFixed(2)}</td>
+                    <td className="px-5 py-4 text-right tabular-nums font-semibold text-[#eef0ff]">${(closedTotals.gotBack ?? 0).toFixed(2)}</td>
+                    <td className={`px-5 py-4 text-right tabular-nums font-bold ${(closedTotals.pnl ?? 0) >= 0 ? 'text-[#2ce5a7]' : 'text-[#ff6b9d]'}`}>
                       {(closedTotals.pnl ?? 0) >= 0 ? '+' : ''}${(closedTotals.pnl ?? 0).toFixed(2)}
                     </td>
                     <td></td>
@@ -486,15 +486,15 @@ export default function UserProfile() {
       <Section id="trades" title="Trade History" count={tradesData?.totals?.count ?? 0}
         open={sections.trades} onToggle={() => toggleSection("trades")}
         subtitle="full history live from Polymarket (not crawler cache) · click headers to sort"
-        icon={<Activity className="w-5 h-5 text-[#8a8f98]" />}
+        icon={<Activity className="w-5 h-5 text-[#8b91c5]" />}
         actions={<>
           <ExportBtn kind="trades" format="csv" label="Trade History" />
           <ExportBtn kind="trades" format="pdf" label="Trade History" />
         </>}>
-        <div className="bg-white/[0.02] border border-white/[0.08] rounded-2xl overflow-hidden shadow-sm">
+        <div className="bg-white/[0.08] border border-[rgba(140,130,255,0.15)] rounded-2xl overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm whitespace-nowrap">
-              <thead className="bg-black/30 backdrop-blur text-[#8a8f98] text-xs uppercase tracking-wider font-medium sticky top-0 z-10 border-b border-white/[0.08]">
+              <thead className="bg-[#0a0b1e]/70 backdrop-blur text-[#8b91c5] text-xs uppercase tracking-wider font-medium sticky top-0 z-10 border-b border-[rgba(140,130,255,0.15)]">
                 <tr>
                   <SortHeader label="Time" col="time" sort={tradeSort} onSort={c => setTradeSort(flip(tradeSort, c))} />
                   <SortHeader label="Side" col="side" sort={tradeSort} onSort={c => setTradeSort(flip(tradeSort, c))} />
@@ -505,28 +505,28 @@ export default function UserProfile() {
                   <SortHeader label="Notional" col="notional" sort={tradeSort} onSort={c => setTradeSort(flip(tradeSort, c))} right />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/[0.05]">
+              <tbody className="divide-y divide-[rgba(140,130,255,0.11)]">
                 {tradesSorted.length === 0 ? (
-                  <tr><td colSpan={7} className="p-8 text-center text-[#62666d]">No trades found.</td></tr>
+                  <tr><td colSpan={7} className="p-8 text-center text-[#5d628f]">No trades found.</td></tr>
                 ) : (
                   tradesSorted.map((t: any, i: number) => {
                     const notional = parseFloat(t.usdcSize) || (parseFloat(t.size) * parseFloat(t.price)) || 0;
                     return (
-                      <tr key={`${t.transactionHash ?? "t"}-${t.asset ?? "x"}-${t.timestamp ?? i}-${i}`} className="hover:bg-white/[0.05] transition-colors group">
-                        <td className="px-5 py-4 text-[#8a8f98] tabular-nums">{format(new Date(t.timestamp * 1000), "MMM d, HH:mm")}</td>
+                      <tr key={`${t.transactionHash ?? "t"}-${t.asset ?? "x"}-${t.timestamp ?? i}-${i}`} className="hover:bg-white/[0.08] transition-colors group">
+                        <td className="px-5 py-4 text-[#8b91c5] tabular-nums">{format(new Date(t.timestamp * 1000), "MMM d, HH:mm")}</td>
                         <td className="px-5 py-4">
                           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold tracking-wide uppercase border ${
                             t.side === 'BUY'
-                              ? 'bg-[#10b981]/10 text-[#10b981] border-[#10b981]/25'
-                              : 'bg-[#fb7185]/10 text-[#fb7185] border-[#fb7185]/25'
+                              ? 'bg-[#2ce5a7]/10 text-[#2ce5a7] border-[#2ce5a7]/30'
+                              : 'bg-[#ff6b9d]/10 text-[#ff6b9d] border-[#ff6b9d]/30'
                           }`}>
                             {t.side}
                           </span>
                         </td>
-                        <td className="px-5 py-4 max-w-[200px] truncate text-[#f7f8f8]" title={t.title}>{t.title}</td>
-                        <td className="px-5 py-4 text-[11px] text-[#8a8f98]">{t.outcome}</td>
-                        <td className="px-5 py-4 text-right tabular-nums text-[#d0d6e0]">{(parseFloat(t.size) || 0).toLocaleString()}</td>
-                        <td className="px-5 py-4 text-right tabular-nums text-[#d0d6e0]">${parseFloat(t.price).toFixed(3)}</td>
+                        <td className="px-5 py-4 max-w-[200px] truncate text-[#eef0ff]" title={t.title}>{t.title}</td>
+                        <td className="px-5 py-4 text-[11px] text-[#8b91c5]">{t.outcome}</td>
+                        <td className="px-5 py-4 text-right tabular-nums text-[#c3c8ee]">{(parseFloat(t.size) || 0).toLocaleString()}</td>
+                        <td className="px-5 py-4 text-right tabular-nums text-[#c3c8ee]">${parseFloat(t.price).toFixed(3)}</td>
                         <td className="px-5 py-4 text-right tabular-nums font-medium text-white">${notional.toFixed(2)}</td>
                       </tr>
                     );
