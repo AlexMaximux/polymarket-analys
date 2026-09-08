@@ -34,7 +34,7 @@ interface Node {
 
 const fmt = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 0 });
 const fmtSign = (n: number) => (n >= 0 ? "+" : "−") + "$" + fmt(Math.abs(n));
-const pnlColor = (n: number) => (n >= 0 ? "text-[#34D399]" : "text-[#FB7185]");
+const pnlColor = (n: number) => (n >= 0 ? "text-[#10b981]" : "text-[#fb7185]");
 
 export default function FlowPage() {
   const [input, setInput] = useState("");
@@ -126,31 +126,31 @@ export default function FlowPage() {
     <div className="space-y-6 animate-in fade-in duration-500">
       <div>
         <h1 className="text-2xl font-semibold mb-1 tracking-tight text-white flex items-center gap-2">
-          <GitBranch className="w-6 h-6 text-[#38BDF8]" /> Money Flow Graph
+          <GitBranch className="w-6 h-6 text-[#7170ff]" /> Money Flow Graph
         </h1>
-        <p className="text-sm text-slate-400 uppercase tracking-wide">Reveal money circulation between 2–6 wallets via shared markets</p>
-        <p className="text-xs text-slate-500 mt-1">Real cashflow per market: invested vs got-back (buys/sells/redemptions). Click an edge for the exact trades behind it.</p>
+        <p className="text-sm text-[#8a8f98] uppercase tracking-wide">Reveal money circulation between 2–6 wallets via shared markets</p>
+        <p className="text-xs text-[#62666d] mt-1">Real cashflow per market: invested vs got-back (buys/sells/redemptions). Click an edge for the exact trades behind it.</p>
       </div>
 
       {/* input */}
-      <div className="bg-[#111827] border border-slate-800/50 p-5 rounded-2xl shadow-sm">
-        <label className="block text-[11px] font-medium uppercase tracking-wider text-slate-400 mb-1.5">Wallet addresses (2–6, space/comma/newline separated)</label>
+      <div className="bg-white/[0.02] border border-white/[0.08] p-5 rounded-2xl shadow-sm">
+        <label className="block text-[11px] font-medium uppercase tracking-wider text-[#8a8f98] mb-1.5">Wallet addresses (2–6, space/comma/newline separated)</label>
         <textarea value={input} onChange={e => setInput(e.target.value)} rows={3}
           placeholder={"0x14e7752d2716cd3b5bcbe8c08d4561491d9ebb64\n0x78becf0a4e4f2640380af0c19ad32e2557e6bde0"}
-          className="w-full bg-[#1E2939] text-white border border-slate-700 rounded-xl px-4 py-2 text-sm font-mono focus:outline-none focus:border-[#38BDF8] placeholder:text-slate-500" />
+          className="w-full bg-white/[0.05] text-white border border-white/[0.08] rounded-xl px-4 py-2 text-sm font-mono focus:outline-none focus:border-[#7170ff] placeholder:text-[#62666d]" />
         <div className="flex items-center gap-3 mt-3">
           <button onClick={analyze} disabled={loading || walletList.length < 2}
             className="flex items-center gap-2 bg-[#38BDF8] hover:bg-[#38BDF8]/80 disabled:opacity-40 disabled:cursor-not-allowed text-[#0B1120] font-semibold rounded-xl px-5 py-2 text-sm transition-colors">
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <GitBranch className="w-4 h-4" />}
             {loading ? "Analyzing ledgers…" : "Analyze flow"}
           </button>
-          {error && <span className="text-[#FB7185] text-xs">{error}</span>}
+          {error && <span className="text-[#fb7185] text-xs">{error}</span>}
         </div>
       </div>
 
       {/* graph */}
       {nodes.length >= 2 && (
-        <div className="bg-[#111827] border border-slate-800/50 rounded-2xl p-4 shadow-sm overflow-x-auto">
+        <div className="bg-white/[0.02] border border-white/[0.08] rounded-2xl p-4 shadow-sm overflow-x-auto">
           <svg width={W} height={H} className="mx-auto block">
             {/* edges */}
             {edges.map((e, i) => {
@@ -191,10 +191,10 @@ export default function FlowPage() {
             })}
           </svg>
           {edges.length === 0 && (
-            <p className="text-center text-slate-500 text-sm pb-3">No shared markets between these wallets — no money circulation detected.</p>
+            <p className="text-center text-[#62666d] text-sm pb-3">No shared markets between these wallets — no money circulation detected.</p>
           )}
           {edges.length > 0 && (
-            <p className="text-center text-xs text-slate-500 flex items-center justify-center gap-1.5">
+            <p className="text-center text-xs text-[#62666d] flex items-center justify-center gap-1.5">
               <MousePointerClick className="w-3.5 h-3.5" /> Click an edge (number = shared markets) to drill into the exact trades
             </p>
           )}
@@ -203,10 +203,10 @@ export default function FlowPage() {
 
       {/* edge summary table */}
       {edges.length > 0 && (
-        <div className="bg-[#111827] border border-slate-800/50 rounded-2xl overflow-hidden shadow-sm">
+        <div className="bg-white/[0.02] border border-white/[0.08] rounded-2xl overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm whitespace-nowrap">
-              <thead className="bg-[#0B1120]/80 text-slate-400 text-xs uppercase tracking-wider font-medium border-b border-slate-800/80">
+              <thead className="bg-black/30 text-[#8a8f98] text-xs uppercase tracking-wider font-medium border-b border-white/[0.08]">
                 <tr>
                   <th className="px-5 py-3">Pair</th>
                   <th className="px-5 py-3 text-right">Shared Markets</th>
@@ -215,23 +215,23 @@ export default function FlowPage() {
                   <th className="px-5 py-3"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/50">
+              <tbody className="divide-y divide-white/[0.05]">
                 {edges.map((e, i) => (
-                  <tr key={i} className={`hover:bg-[#1E2939]/60 ${selectedEdge === e ? "bg-[#1E2939]/80" : ""}`}>
+                  <tr key={i} className={`hover:bg-white/[0.05] ${selectedEdge === e ? "bg-white/[0.05]" : ""}`}>
                     <td className="px-5 py-3">
                       <span style={{ color: colorOf(e.a) }} className="font-mono font-medium">{label(e.a)}</span>
-                      <span className="text-slate-500 mx-1.5">↔</span>
+                      <span className="text-[#62666d] mx-1.5">↔</span>
                       <span style={{ color: colorOf(e.b) }} className="font-mono font-medium">{label(e.b)}</span>
                     </td>
-                    <td className="px-5 py-3 text-right tabular-nums text-slate-200 font-semibold">{e.sharedMarkets}</td>
-                    <td className="px-5 py-3 text-right tabular-nums text-slate-400">${fmt(e.combinedVolume)}</td>
+                    <td className="px-5 py-3 text-right tabular-nums text-[#f7f8f8] font-semibold">{e.sharedMarkets}</td>
+                    <td className="px-5 py-3 text-right tabular-nums text-[#8a8f98]">${fmt(e.combinedVolume)}</td>
                     <td className="px-5 py-3 text-right tabular-nums">
                       <span className={pnlColor(e.aNetOnShared)}>{label(e.a)} {fmtSign(e.aNetOnShared)}</span>
-                      <span className="text-slate-600 mx-1">/</span>
+                      <span className="text-[#62666d] mx-1">/</span>
                       <span className={pnlColor(e.bNetOnShared)}>{label(e.b)} {fmtSign(e.bNetOnShared)}</span>
                     </td>
                     <td className="px-5 py-3 text-right">
-                      <button onClick={() => openEdge(e)} className="text-[#38BDF8] hover:underline text-xs font-medium">Details →</button>
+                      <button onClick={() => openEdge(e)} className="text-[#7170ff] hover:underline text-xs font-medium">Details →</button>
                     </td>
                   </tr>
                 ))}
@@ -243,11 +243,11 @@ export default function FlowPage() {
 
       {/* drill-down panel */}
       {selectedEdge && (
-        <div className="bg-[#111827] border border-yellow-400/30 rounded-2xl shadow-sm relative overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-3 border-b border-slate-800/80">
-            <h3 className="text-sm font-semibold text-slate-200">
+        <div className="bg-white/[0.02] border border-yellow-400/30 rounded-2xl shadow-sm relative overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-3 border-b border-white/[0.08]">
+            <h3 className="text-sm font-semibold text-[#f7f8f8]">
               Shared markets: <span style={{ color: colorOf(selectedEdge.a) }} className="font-mono">{label(selectedEdge.a)}</span>
-              <span className="text-slate-500 mx-1.5">↔</span>
+              <span className="text-[#62666d] mx-1.5">↔</span>
               <span style={{ color: colorOf(selectedEdge.b) }} className="font-mono">{label(selectedEdge.b)}</span>
             </h3>
             <div className="flex items-center gap-2">
@@ -255,20 +255,20 @@ export default function FlowPage() {
                 onClick={() => downloadExport("csv")}
                 disabled={!!exporting}
                 title="Download full shared-market trade ledger as CSV"
-                className="flex items-center gap-1.5 text-xs font-medium text-slate-300 hover:text-[#38BDF8] border border-slate-700 hover:border-[#38BDF8]/40 rounded-lg px-2.5 py-1.5 transition-colors disabled:opacity-40">
+                className="flex items-center gap-1.5 text-xs font-medium text-[#d0d6e0] hover:text-[#7170ff] border border-white/[0.08] hover:border-[#38BDF8]/40 rounded-lg px-2.5 py-1.5 transition-colors disabled:opacity-40">
                 {exporting === "csv" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} CSV
               </button>
               <button
                 onClick={() => downloadExport("pdf")}
                 disabled={!!exporting}
                 title="Download print-ready PDF report"
-                className="flex items-center gap-1.5 text-xs font-medium text-slate-300 hover:text-[#38BDF8] border border-slate-700 hover:border-[#38BDF8]/40 rounded-lg px-2.5 py-1.5 transition-colors disabled:opacity-40">
+                className="flex items-center gap-1.5 text-xs font-medium text-[#d0d6e0] hover:text-[#7170ff] border border-white/[0.08] hover:border-[#38BDF8]/40 rounded-lg px-2.5 py-1.5 transition-colors disabled:opacity-40">
                 {exporting === "pdf" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />} PDF
               </button>
-              <button onClick={() => { setSelectedEdge(null); setDrill(null); }} className="text-slate-500 hover:text-slate-200"><X className="w-4 h-4" /></button>
+              <button onClick={() => { setSelectedEdge(null); setDrill(null); }} className="text-[#62666d] hover:text-[#f7f8f8]"><X className="w-4 h-4" /></button>
             </div>
           </div>
-          <div className="max-h-[480px] overflow-y-auto divide-y divide-slate-800/50">
+          <div className="max-h-[480px] overflow-y-auto divide-y divide-white/[0.05]">
             {selectedEdge.markets.map(m => (
               <MarketDetail key={m.conditionId} m={m} e={selectedEdge} colorA={colorOf(selectedEdge.a)} colorB={colorOf(selectedEdge.b)} labelA={label(selectedEdge.a)} labelB={label(selectedEdge.b)} drill={drill} setDrill={setDrill} />
             ))}
@@ -300,22 +300,22 @@ function MarketDetail({ m, e, colorA, colorB, labelA, labelB, drill, setDrill }:
     <div className="px-5 py-3">
       <button onClick={load} className="w-full flex items-center justify-between gap-3 text-left">
         <div className="min-w-0">
-          <p className="text-sm text-slate-200 truncate" title={m.title}>{m.title || m.conditionId.slice(0, 18)}</p>
+          <p className="text-sm text-[#f7f8f8] truncate" title={m.title}>{m.title || m.conditionId.slice(0, 18)}</p>
           <p className="text-[11px] mt-0.5">
             <span style={{ color: colorA }}>{labelA} {fmtSign(m.a.pnl)}</span>
-            <span className="text-slate-600 mx-1.5">·</span>
+            <span className="text-[#62666d] mx-1.5">·</span>
             <span className={pnlColor(m.a.pnl)}>${fmt(m.a.invested)} → ${fmt(m.a.returned)}</span>
-            <span className="text-slate-600 mx-1.5">vs</span>
+            <span className="text-[#62666d] mx-1.5">vs</span>
             <span style={{ color: colorB }}>{labelB} {fmtSign(m.b.pnl)}</span>
-            <span className="text-slate-600 mx-1.5">·</span>
+            <span className="text-[#62666d] mx-1.5">·</span>
             <span className={pnlColor(m.b.pnl)}>${fmt(m.b.invested)} → ${fmt(m.b.returned)}</span>
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <span className="text-[10px] px-2 py-0.5 rounded-full border border-slate-700 text-slate-400">
+          <span className="text-[10px] px-2 py-0.5 rounded-full border border-white/[0.08] text-[#8a8f98]">
             {m.leader === "a" ? `◀ ${labelA} led` : m.leader === "b" ? `${labelB} led ▶` : "tie"}
           </span>
-          <ChevronRight className={`w-4 h-4 text-slate-500 transition-transform ${open ? "rotate-90" : ""}`} />
+          <ChevronRight className={`w-4 h-4 text-[#62666d] transition-transform ${open ? "rotate-90" : ""}`} />
         </div>
       </button>
 
@@ -323,24 +323,24 @@ function MarketDetail({ m, e, colorA, colorB, labelA, labelB, drill, setDrill }:
         <div className="mt-3 grid md:grid-cols-2 gap-3">
           {[{ k: "a", label: labelA, color: colorA, rows: drill?.key === m.conditionId ? drill.a : undefined },
             { k: "b", label: labelB, color: colorB, rows: drill?.key === m.conditionId ? drill.b : undefined }].map(col => (
-            <div key={col.k} className="bg-[#0B1120] border border-slate-800 rounded-xl p-3">
+            <div key={col.k} className="bg-[#0f1011] border border-white/[0.08] rounded-xl p-3">
               <p className="text-xs font-bold mb-2" style={{ color: col.color }}>{col.label} — exact trades</p>
               {!col.rows ? (
-                <p className="text-xs text-slate-500">Loading…</p>
+                <p className="text-xs text-[#62666d]">Loading…</p>
               ) : col.rows.length === 0 ? (
-                <p className="text-xs text-slate-500">No activity rows.</p>
+                <p className="text-xs text-[#62666d]">No activity rows.</p>
               ) : (
                 <table className="w-full text-[11px]">
                   <tbody>
                     {col.rows.map((r: any, i: number) => (
-                      <tr key={i} className="border-b border-slate-800/50 last:border-0">
-                        <td className="py-1 pr-2 text-slate-500">{format(new Date(r.timestamp * 1000), "MMM d HH:mm")}</td>
-                        <td className={`py-1 pr-2 font-bold ${r.type === "REDEEM" ? "text-[#38BDF8]" : r.side === "BUY" ? "text-[#34D399]" : "text-[#FB7185]"}`}>
+                      <tr key={i} className="border-b border-white/[0.08] last:border-0">
+                        <td className="py-1 pr-2 text-[#62666d]">{format(new Date(r.timestamp * 1000), "MMM d HH:mm")}</td>
+                        <td className={`py-1 pr-2 font-bold ${r.type === "REDEEM" ? "text-[#7170ff]" : r.side === "BUY" ? "text-[#10b981]" : "text-[#fb7185]"}`}>
                           {r.type === "REDEEM" ? "REDEEM" : r.side}
                         </td>
-                        <td className="py-1 pr-2 text-slate-400">{r.outcome}</td>
-                        <td className="py-1 pr-2 text-right tabular-nums text-slate-300">{fmt(r.size)} sh</td>
-                        <td className="py-1 pr-2 text-right tabular-nums text-slate-400">{(r.price * 100).toFixed(1)}¢</td>
+                        <td className="py-1 pr-2 text-[#8a8f98]">{r.outcome}</td>
+                        <td className="py-1 pr-2 text-right tabular-nums text-[#d0d6e0]">{fmt(r.size)} sh</td>
+                        <td className="py-1 pr-2 text-right tabular-nums text-[#8a8f98]">{(r.price * 100).toFixed(1)}¢</td>
                         <td className="py-1 text-right tabular-nums text-white font-medium">${fmt(r.usdcSize)}</td>
                       </tr>
                     ))}

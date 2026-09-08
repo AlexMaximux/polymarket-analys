@@ -18,12 +18,12 @@ function Collapsible({ id, openState, toggle, color, title, subtitle, badge, chi
   badge?: React.ReactNode; children: React.ReactNode;
 }) {
   return (
-    <div className="bg-[#111827] border border-slate-800/50 rounded-2xl shadow-sm overflow-hidden">
-      <button onClick={toggle} className="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-[#1E2939]/40 transition-colors">
+    <div className="bg-white/[0.02] border border-white/[0.08] rounded-2xl shadow-sm overflow-hidden">
+      <button onClick={toggle} className="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-white/[0.04] transition-colors">
         <span className="flex items-center gap-2 min-w-0">
-          <ChevronRight className={`w-4 h-4 text-slate-500 transition-transform shrink-0 ${openState ? "rotate-90" : ""}`} />
+          <ChevronRight className={`w-4 h-4 text-[#62666d] transition-transform shrink-0 ${openState ? "rotate-90" : ""}`} />
           <span className="text-base font-medium flex items-center gap-2 truncate" style={{ color: openState ? "#fff" : color }}>
-            {title} {subtitle && <span className="text-xs text-slate-500 font-normal">{subtitle}</span>}
+            {title} {subtitle && <span className="text-xs text-[#62666d] font-normal">{subtitle}</span>}
           </span>
         </span>
         <span className="shrink-0 ml-3">{badge}</span>
@@ -104,7 +104,7 @@ export default function UpDownPage() {
   const edge = m?.edge ?? null;
 
   const badge15 = fair != null && (
-    <span className={`text-sm font-bold tabular-nums ${edge != null && Math.abs(edge) > 0.03 ? (edge > 0 ? "text-[#34D399]" : "text-[#FB7185]") : "text-slate-400"}`}>
+    <span className={`text-sm font-bold tabular-nums ${edge != null && Math.abs(edge) > 0.03 ? (edge > 0 ? "text-[#10b981]" : "text-[#fb7185]") : "text-[#8a8f98]"}`}>
       {(fair * 100).toFixed(1)}¢{edge != null && (edge > 0 ? " ↑" : " ↓")}
     </span>
   );
@@ -164,35 +164,35 @@ export default function UpDownPage() {
   };
 
   const Row = ({ title, row, next }: { title: string; row: MarketRow | null; next?: MarketRow | null }) => (
-    <div className="bg-[#111827] border border-slate-800/50 rounded-2xl p-5 shadow-sm">
+    <div className="bg-white/[0.02] border border-white/[0.08] rounded-2xl p-5 shadow-sm">
       <div className="flex items-center justify-between mb-3">
-        <p className="text-xs uppercase tracking-wider text-slate-400 font-medium">{title}</p>
+        <p className="text-xs uppercase tracking-wider text-[#8a8f98] font-medium">{title}</p>
         {row?.accepting ? (
-          <span className="inline-flex items-center gap-1 text-[10px] text-[#34D399]"><span className="w-1.5 h-1.5 rounded-full bg-[#34D399] animate-pulse" /> OPEN</span>
+          <span className="inline-flex items-center gap-1 text-[10px] text-[#10b981]"><span className="w-1.5 h-1.5 rounded-full bg-[#10b981] animate-pulse" /> OPEN</span>
         ) : (
-          <span className="text-[10px] text-slate-500">CLOSED</span>
+          <span className="text-[10px] text-[#62666d]">CLOSED</span>
         )}
       </div>
       {row ? (
         <>
-          <p className="text-sm text-slate-200 font-medium mb-3 truncate" title={row.title}>{row.title}</p>
+          <p className="text-sm text-[#f7f8f8] font-medium mb-3 truncate" title={row.title}>{row.title}</p>
           <div className="grid grid-cols-2 gap-3">
-            <div className={`rounded-xl p-3 border ${ (row.live ?? row.up) >= 0.5 ? "bg-[#34D399]/10 border-[#34D399]/30" : "bg-[#1E2939]/60 border-slate-700/50"}`}>
-              <p className="text-[10px] uppercase text-slate-400 mb-1">Up</p>
-              <p className={`text-2xl font-bold tabular-nums ${(row.live ?? row.up) >= 0.5 ? "text-[#34D399]" : "text-slate-300"}`}>{pct(row.live ?? row.up)}</p>
+            <div className={`rounded-xl p-3 border ${ (row.live ?? row.up) >= 0.5 ? "bg-[#10b981]/10 border-[#10b981]/30" : "bg-white/[0.05] border-white/[0.07]"}`}>
+              <p className="text-[10px] uppercase text-[#8a8f98] mb-1">Up</p>
+              <p className={`text-2xl font-bold tabular-nums ${(row.live ?? row.up) >= 0.5 ? "text-[#10b981]" : "text-[#d0d6e0]"}`}>{pct(row.live ?? row.up)}</p>
             </div>
-            <div className={`rounded-xl p-3 border ${ (row.liveDown ?? 1 - (row.live ?? row.up)) > 0.5 ? "bg-[#FB7185]/10 border-[#FB7185]/30" : "bg-[#1E2939]/60 border-slate-700/50"}`}>
-              <p className="text-[10px] uppercase text-slate-400 mb-1">Down</p>
-              <p className={`text-2xl font-bold tabular-nums ${(row.liveDown ?? 1 - (row.live ?? row.up)) > 0.5 ? "text-[#FB7185]" : "text-slate-300"}`}>{pct(row.liveDown ?? 1 - (row.live ?? row.up))}</p>
+            <div className={`rounded-xl p-3 border ${ (row.liveDown ?? 1 - (row.live ?? row.up)) > 0.5 ? "bg-[#fb7185]/10 border-[#fb7185]/30" : "bg-white/[0.05] border-white/[0.07]"}`}>
+              <p className="text-[10px] uppercase text-[#8a8f98] mb-1">Down</p>
+              <p className={`text-2xl font-bold tabular-nums ${(row.liveDown ?? 1 - (row.live ?? row.up)) > 0.5 ? "text-[#fb7185]" : "text-[#d0d6e0]"}`}>{pct(row.liveDown ?? 1 - (row.live ?? row.up))}</p>
             </div>
           </div>
         </>
       ) : next ? (
-        <p className="text-xs text-slate-500">
-          no active market — next opens: <span className="text-slate-300">{next.title?.replace(/^.*? - /, "")}</span>
+        <p className="text-xs text-[#62666d]">
+          no active market — next opens: <span className="text-[#d0d6e0]">{next.title?.replace(/^.*? - /, "")}</span>
         </p>
       ) : (
-        <p className="text-xs text-slate-500">market not found</p>
+        <p className="text-xs text-[#62666d]">market not found</p>
       )}
     </div>
   );
@@ -204,16 +204,16 @@ export default function UpDownPage() {
           <h1 className="text-2xl font-semibold mb-1 tracking-tight text-white flex items-center gap-2">
             <Zap className="w-6 h-6 text-[#FBBF24]" /> Up/Down Markets — Live Fair Value
           </h1>
-          <p className="text-sm text-slate-400">Polymarket hourly &amp; sub-hourly crypto markets, synced live · drift-extraction fair value for the 1H</p>
+          <p className="text-sm text-[#8a8f98]">Polymarket hourly &amp; sub-hourly crypto markets, synced live · drift-extraction fair value for the 1H</p>
         </div>
         <div className="flex items-center gap-2">
-          {loading && <RefreshCw className="w-4 h-4 animate-spin text-slate-500" />}
-          {auto && !loading && <span className="text-xs text-slate-500 tabular-nums">next refresh {countdown}s</span>}
+          {loading && <RefreshCw className="w-4 h-4 animate-spin text-[#62666d]" />}
+          {auto && !loading && <span className="text-xs text-[#62666d] tabular-nums">next refresh {countdown}s</span>}
           <button onClick={() => setAuto(a => !a)}
-            className={`text-xs font-medium rounded-lg px-3 py-1.5 border ${auto ? "bg-[#34D399]/10 text-[#34D399] border-[#34D399]/30" : "text-slate-400 border-slate-700"}`}>
+            className={`text-xs font-medium rounded-lg px-3 py-1.5 border ${auto ? "bg-[#10b981]/10 text-[#10b981] border-[#10b981]/30" : "text-[#8a8f98] border-white/[0.08]"}`}>
             {auto ? "Auto 5s ON" : "Auto OFF"}
           </button>
-          <button onClick={load} className="text-xs font-medium rounded-lg px-3 py-1.5 border border-slate-700 text-slate-300 hover:border-slate-500">
+          <button onClick={load} className="text-xs font-medium rounded-lg px-3 py-1.5 border border-white/[0.08] text-[#d0d6e0] hover:border-white/[0.14]">
             Refresh
           </button>
         </div>
@@ -223,14 +223,14 @@ export default function UpDownPage() {
       <div className="flex flex-wrap gap-2">
         {COINS.map(c => (
           <button key={c.key} onClick={() => setCoin(c.key)}
-            className={`inline-flex items-center gap-1.5 text-sm font-medium rounded-full px-4 py-1.5 border transition-colors ${coin === c.key ? "text-[#0B1120] border-transparent" : "text-slate-400 border-slate-700 hover:border-slate-500"}`}
+            className={`inline-flex items-center gap-1.5 text-sm font-medium rounded-full px-4 py-1.5 border transition-colors ${coin === c.key ? "text-[#0B1120] border-transparent" : "text-[#8a8f98] border-white/[0.08] hover:border-white/[0.14]"}`}
             style={coin === c.key ? { background: c.color } : {}}>
             <span>{c.sym}</span> {c.label}
           </button>
         ))}
       </div>
 
-      {err && <div className="bg-[#FB7185]/10 border border-[#FB7185]/30 text-[#FB7185] rounded-xl px-4 py-3 text-sm">{err}</div>}
+      {err && <div className="bg-[#fb7185]/10 border border-[#fb7185]/30 text-[#fb7185] rounded-xl px-4 py-3 text-sm">{err}</div>}
 
       {/* three market cards */}
       <div className="grid md:grid-cols-3 gap-4">
@@ -243,56 +243,56 @@ export default function UpDownPage() {
       <Collapsible id="open15" openState={open15} toggle={() => setOpen15(!open15)}
         color="#38BDF8" title="Fair Value — 1H Up (μ from 15m)" subtitle="مدل ۱۵ دقیقه‌ای" badge={badge15}>
         <div className="flex items-center justify-end mb-4">
-          <label className="flex items-center gap-2 text-xs text-slate-400">
+          <label className="flex items-center gap-2 text-xs text-[#8a8f98]">
             σ₁ₕ (hourly vol):
             <input type="number" step="0.005" min="0.005" max="0.2" value={sigma}
               onChange={e => setSigma(parseFloat(e.target.value) || 0.02)}
-              className="w-20 bg-[#1E2939] border border-slate-700 rounded-lg px-2 py-1 text-white tabular-nums focus:outline-none focus:border-[#38BDF8]" />
+              className="w-20 bg-white/[0.05] border border-white/[0.08] rounded-lg px-2 py-1 text-white tabular-nums focus:outline-none focus:border-[#7170ff]" />
           </label>
         </div>
 
         {m ? (
           <div className="space-y-4">
             <div className="grid md:grid-cols-3 gap-4">
-              <div className="bg-[#0B1120] rounded-xl p-4 border border-slate-800/60">
-                <p className="text-[10px] uppercase text-slate-500 mb-1">Model fair value (Up)</p>
-                <p className="text-3xl font-bold text-[#38BDF8] tabular-nums">{(fair * 100).toFixed(1)}¢</p>
+              <div className="bg-[#0f1011] rounded-xl p-4 border border-white/[0.07]">
+                <p className="text-[10px] uppercase text-[#62666d] mb-1">Model fair value (Up)</p>
+                <p className="text-3xl font-bold text-[#7170ff] tabular-nums">{(fair * 100).toFixed(1)}¢</p>
               </div>
-              <div className="bg-[#0B1120] rounded-xl p-4 border border-slate-800/60">
-                <p className="text-[10px] uppercase text-slate-500 mb-1">Market price (Up)</p>
+              <div className="bg-[#0f1011] rounded-xl p-4 border border-white/[0.07]">
+                <p className="text-[10px] uppercase text-[#62666d] mb-1">Market price (Up)</p>
                 <p className="text-3xl font-bold text-white tabular-nums">{market1h != null ? (market1h * 100).toFixed(1) + "¢" : "—"}</p>
               </div>
-              <div className={`bg-[#0B1120] rounded-xl p-4 border ${edge != null && Math.abs(edge) > 0.03 ? (edge > 0 ? "border-[#34D399]/40" : "border-[#FB7185]/40") : "border-slate-800/60"}`}>
-                <p className="text-[10px] uppercase text-slate-500 mb-1">Edge (fair − market)</p>
-                <p className={`text-3xl font-bold tabular-nums ${edge == null ? "text-slate-500" : edge > 0.03 ? "text-[#34D399]" : edge < -0.03 ? "text-[#FB7185]" : "text-slate-300"}`}>
+              <div className={`bg-[#0f1011] rounded-xl p-4 border ${edge != null && Math.abs(edge) > 0.03 ? (edge > 0 ? "border-[#10b981]/40" : "border-[#fb7185]/40") : "border-white/[0.07]"}`}>
+                <p className="text-[10px] uppercase text-[#62666d] mb-1">Edge (fair − market)</p>
+                <p className={`text-3xl font-bold tabular-nums ${edge == null ? "text-[#62666d]" : edge > 0.03 ? "text-[#10b981]" : edge < -0.03 ? "text-[#fb7185]" : "text-[#d0d6e0]"}`}>
                   {edge == null ? "—" : (edge > 0 ? "+" : "") + (edge * 100).toFixed(1) + "¢"}
                 </p>
-                <p className="text-[10px] text-slate-500 mt-1">{edge != null && Math.abs(edge) > 0.03 ? (edge > 0 ? "Up looks underpriced" : "Down looks underpriced") : "within noise band ±3¢"}</p>
+                <p className="text-[10px] text-[#62666d] mt-1">{edge != null && Math.abs(edge) > 0.03 ? (edge > 0 ? "Up looks underpriced" : "Down looks underpriced") : "within noise band ±3¢"}</p>
               </div>
             </div>
 
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs whitespace-nowrap">
-                <thead className="text-slate-500 uppercase tracking-wider border-b border-slate-800/80">
+                <thead className="text-[#62666d] uppercase tracking-wider border-b border-white/[0.08]">
                   <tr><th className="py-2 pr-4">input</th><th className="py-2 pr-4">value</th><th className="py-2 pr-4">input</th><th className="py-2">value</th></tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/40 text-slate-300 tabular-nums">
+                <tbody className="divide-y divide-white/[0.04] text-[#d0d6e0] tabular-nums">
                   <tr><td className="py-1.5 pr-4">t (min into hour)</td><td className="py-1.5 pr-4">{m.t.toFixed(2)}</td><td className="py-1.5 pr-4">S₀ (hour open)</td><td className="py-1.5">${m.s0?.toLocaleString()}</td></tr>
                   <tr><td className="py-1.5 pr-4">a (15m block start)</td><td className="py-1.5 pr-4">:{String(Math.floor(m.a)).padStart(2, "0")}</td><td className="py-1.5 pr-4">Sₐ (block open)</td><td className="py-1.5">${m.sa?.toLocaleString()}</td></tr>
                   <tr><td className="py-1.5 pr-4">q (into block)</td><td className="py-1.5 pr-4">{m.q.toFixed(2)}</td><td className="py-1.5 pr-4">Sₜ (now)</td><td className="py-1.5">${m.st?.toLocaleString()}</td></tr>
                   <tr><td className="py-1.5 pr-4">τ₁₅ remaining</td><td className="py-1.5 pr-4">{m.tau15.toFixed(2)} min</td><td className="py-1.5 pr-4">xₜ = ln(Sₜ/S₀)</td><td>{m.xt.toFixed(5)}</td></tr>
                   <tr><td className="py-1.5 pr-4">τ₆₀ remaining</td><td className="py-1.5 pr-4">{m.tau60.toFixed(2)} min</td><td className="py-1.5 pr-4">y = ln(Sₜ/Sₐ)</td><td>{m.y.toFixed(5)}</td></tr>
                   <tr><td className="py-1.5 pr-4">σ₁ₕ / σₘ</td><td className="py-1.5 pr-4">{m.sigma1h} / {m.sigmaM.toFixed(5)}</td><td className="py-1.5 pr-4">p₁₅ (live 15m Up)</td><td>{(m.p15 * 100).toFixed(1)}¢</td></tr>
-                  <tr><td className="py-1.5 pr-4">z₁₅ = Φ⁻¹(p₁₅)</td><td className="py-1.5 pr-4">{m.z15.toFixed(4)}</td><td className="py-1.5 pr-4">μ (implied drift)</td><td className={m.mu >= 0 ? "text-[#34D399]" : "text-[#FB7185]"}>{m.mu.toFixed(6)}/min</td></tr>
+                  <tr><td className="py-1.5 pr-4">z₁₅ = Φ⁻¹(p₁₅)</td><td className="py-1.5 pr-4">{m.z15.toFixed(4)}</td><td className="py-1.5 pr-4">μ (implied drift)</td><td className={m.mu >= 0 ? "text-[#10b981]" : "text-[#fb7185]"}>{m.mu.toFixed(6)}/min</td></tr>
                 </tbody>
               </table>
             </div>
-            <p className="text-[11px] text-slate-500">
+            <p className="text-[11px] text-[#62666d]">
               μ extracted from the live 15¢ market: μ = (z₁₅·σₘ·√τ₁₅ − y) / τ₁₅ · fair = Φ((xₜ + μ·τ₆₀)/(σₘ·√τ₆₀)) · spot: Binance 1m klines (S₀ = hour open, Sₐ = active 15m block open) · market: CLOB midpoints
             </p>
           </div>
         ) : (
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-[#62666d]">
             {m1h?.closed
               ? "1H market already settled — model needs an active hour market."
               : "Waiting for spot + market data (need S₀, Sₜ and a live 15m price in (0,1))."}
@@ -306,37 +306,37 @@ export default function UpDownPage() {
         {m5model ? (
         <>
           <div className="grid md:grid-cols-3 gap-4">
-            <div className="bg-[#0B1120] rounded-xl p-4 border border-slate-800/60">
-              <p className="text-[10px] uppercase text-slate-500 mb-1">Model fair value (Up) — 5m calib</p>
+            <div className="bg-[#0f1011] rounded-xl p-4 border border-white/[0.07]">
+              <p className="text-[10px] uppercase text-[#62666d] mb-1">Model fair value (Up) — 5m calib</p>
               <p className="text-3xl font-bold text-[#FBBF24] tabular-nums">{(m5model.fairUp * 100).toFixed(1)}¢</p>
             </div>
-            <div className="bg-[#0B1120] rounded-xl p-4 border border-slate-800/60">
-              <p className="text-[10px] uppercase text-slate-500 mb-1">Market price (Up)</p>
+            <div className="bg-[#0f1011] rounded-xl p-4 border border-white/[0.07]">
+              <p className="text-[10px] uppercase text-[#62666d] mb-1">Market price (Up)</p>
               <p className="text-3xl font-bold text-white tabular-nums">{market1h != null ? (market1h * 100).toFixed(1) + "¢" : "—"}</p>
             </div>
-            <div className={`bg-[#0B1120] rounded-xl p-4 border ${m5model.edge != null && Math.abs(m5model.edge) > 0.03 ? (m5model.edge > 0 ? "border-[#34D399]/40" : "border-[#FB7185]/40") : "border-slate-800/60"}`}>
-              <p className="text-[10px] uppercase text-slate-500 mb-1">Edge (fair − market)</p>
-              <p className={`text-3xl font-bold tabular-nums ${m5model.edge == null ? "text-slate-500" : m5model.edge > 0.03 ? "text-[#34D399]" : m5model.edge < -0.03 ? "text-[#FB7185]" : "text-slate-300"}`}>
+            <div className={`bg-[#0f1011] rounded-xl p-4 border ${m5model.edge != null && Math.abs(m5model.edge) > 0.03 ? (m5model.edge > 0 ? "border-[#10b981]/40" : "border-[#fb7185]/40") : "border-white/[0.07]"}`}>
+              <p className="text-[10px] uppercase text-[#62666d] mb-1">Edge (fair − market)</p>
+              <p className={`text-3xl font-bold tabular-nums ${m5model.edge == null ? "text-[#62666d]" : m5model.edge > 0.03 ? "text-[#10b981]" : m5model.edge < -0.03 ? "text-[#fb7185]" : "text-[#d0d6e0]"}`}>
                 {m5model.edge == null ? "—" : (m5model.edge > 0 ? "+" : "") + (m5model.edge * 100).toFixed(1) + "¢"}
               </p>
             </div>
           </div>
           <div className="overflow-x-auto mt-4">
             <table className="w-full text-left text-xs whitespace-nowrap">
-              <tbody className="divide-y divide-slate-800/40 text-slate-300 tabular-nums">
+              <tbody className="divide-y divide-white/[0.04] text-[#d0d6e0] tabular-nums">
                 <tr><td className="py-1.5 pr-4">a₅ (5m block start)</td><td className="py-1.5 pr-4">:{String(Math.floor(m5model.a5)).padStart(2, "0")}</td><td className="py-1.5 pr-4">Sₐ₅ (block open)</td><td className="py-1.5">${m5model.sa5?.toLocaleString()}</td></tr>
                 <tr><td className="py-1.5 pr-4">q₅ (into block)</td><td className="py-1.5 pr-4">{m5model.q5.toFixed(2)}</td><td className="py-1.5 pr-4">y₅ = ln(Sₜ/Sₐ₅)</td><td>{m5model.y5.toFixed(5)}</td></tr>
                 <tr><td className="py-1.5 pr-4">τ₅ remaining</td><td className="py-1.5 pr-4">{m5model.tau5.toFixed(2)} min</td><td className="py-1.5 pr-4">p₅ (live 5m Up)</td><td>{(m5model.p5 * 100).toFixed(1)}¢</td></tr>
-                <tr><td className="py-1.5 pr-4">z₅ = Φ⁻¹(p₅)</td><td className="py-1.5 pr-4">{m5model.z5.toFixed(4)}</td><td className="py-1.5 pr-4">μ₅ (implied drift)</td><td className={m5model.mu5 >= 0 ? "text-[#34D399]" : "text-[#FB7185]"}>{m5model.mu5.toFixed(6)}/min</td></tr>
+                <tr><td className="py-1.5 pr-4">z₅ = Φ⁻¹(p₅)</td><td className="py-1.5 pr-4">{m5model.z5.toFixed(4)}</td><td className="py-1.5 pr-4">μ₅ (implied drift)</td><td className={m5model.mu5 >= 0 ? "text-[#10b981]" : "text-[#fb7185]"}>{m5model.mu5.toFixed(6)}/min</td></tr>
                 <tr><td className="py-1.5 pr-4">τ₆₀ remaining</td><td className="py-1.5 pr-4">{m?.tau60?.toFixed(2) ?? "—"} min</td><td className="py-1.5 pr-4">xₜ = ln(Sₜ/S₀)</td><td>{m?.xt?.toFixed(5) ?? "—"}</td></tr>
               </tbody>
             </table>
           </div>
-          <p className="text-[11px] text-slate-500 mt-3">
+          <p className="text-[11px] text-[#62666d] mt-3">
             Same formula as the 15m panel, but μ extracted from the live 5¢ market: μ₅ = (z₅·σₘ·√τ₅ − y₅) / τ₅ · fair = Φ((xₜ + μ₅·τ₆₀)/(σₘ·√τ₆₀))
           </p>
         </>
-        ) : <p className="text-xs text-slate-500">5m model inactive (market near resolution or missing data).</p>}
+        ) : <p className="text-xs text-[#62666d]">5m model inactive (market near resolution or missing data).</p>}
       </Collapsible>
 
       {/* الف — Base (no drift) — collapsible */}
@@ -345,30 +345,30 @@ export default function UpDownPage() {
         {modelA ? (
         <>
           <div className="grid md:grid-cols-3 gap-4">
-            <div className="bg-[#0B1120] rounded-xl p-4 border border-slate-800/60">
-              <p className="text-[10px] uppercase text-slate-500 mb-1">Fair value (Up)</p>
+            <div className="bg-[#0f1011] rounded-xl p-4 border border-white/[0.07]">
+              <p className="text-[10px] uppercase text-[#62666d] mb-1">Fair value (Up)</p>
               <p className="text-3xl font-bold text-[#A78BFA] tabular-nums">{(modelA.fairUp * 100).toFixed(1)}¢</p>
             </div>
-            <div className="bg-[#0B1120] rounded-xl p-4 border border-slate-800/60">
-              <p className="text-[10px] uppercase text-slate-500 mb-1">Market price (Up)</p>
+            <div className="bg-[#0f1011] rounded-xl p-4 border border-white/[0.07]">
+              <p className="text-[10px] uppercase text-[#62666d] mb-1">Market price (Up)</p>
               <p className="text-3xl font-bold text-white tabular-nums">{market1h != null ? (market1h * 100).toFixed(1) + "¢" : "—"}</p>
             </div>
-            <div className={`bg-[#0B1120] rounded-xl p-4 border ${modelA.edge != null && Math.abs(modelA.edge) > 0.03 ? (modelA.edge > 0 ? "border-[#34D399]/40" : "border-[#FB7185]/40") : "border-slate-800/60"}`}>
-              <p className="text-[10px] uppercase text-slate-500 mb-1">Edge (fair − market)</p>
-              <p className={`text-3xl font-bold tabular-nums ${modelA.edge == null ? "text-slate-500" : modelA.edge > 0.03 ? "text-[#34D399]" : modelA.edge < -0.03 ? "text-[#FB7185]" : "text-slate-300"}`}>
+            <div className={`bg-[#0f1011] rounded-xl p-4 border ${modelA.edge != null && Math.abs(modelA.edge) > 0.03 ? (modelA.edge > 0 ? "border-[#10b981]/40" : "border-[#fb7185]/40") : "border-white/[0.07]"}`}>
+              <p className="text-[10px] uppercase text-[#62666d] mb-1">Edge (fair − market)</p>
+              <p className={`text-3xl font-bold tabular-nums ${modelA.edge == null ? "text-[#62666d]" : modelA.edge > 0.03 ? "text-[#10b981]" : modelA.edge < -0.03 ? "text-[#fb7185]" : "text-[#d0d6e0]"}`}>
                 {modelA.edge == null ? "—" : (modelA.edge > 0 ? "+" : "") + (modelA.edge * 100).toFixed(1) + "¢"}
               </p>
             </div>
           </div>
           <div className="mt-4 overflow-x-auto">
             <table className="w-full text-left text-xs whitespace-nowrap">
-              <tbody className="divide-y divide-slate-800/40 text-slate-300 tabular-nums">
+              <tbody className="divide-y divide-white/[0.04] text-[#d0d6e0] tabular-nums">
                 <tr><td className="py-1.5 pr-4">xₜ = ln(Sₜ/S₀)</td><td className="py-1.5 pr-4">{modelA.x_t.toFixed(5)}</td><td className="py-1.5 pr-4">τ (hours)</td><td className="py-1.5 pr-4">{modelA.tauHours.toFixed(4)} h</td><td className="py-1.5 pr-4">σ₁ₕ</td><td className="py-1.5">{modelA.sigma1h}</td></tr>
               </tbody>
             </table>
           </div>
         </>
-        ) : <p className="text-xs text-slate-500">مدل الف نیاز به S₀ و Sₜ زنده دارد.</p>}
+        ) : <p className="text-xs text-[#62666d]">مدل الف نیاز به S₀ و Sₜ زنده دارد.</p>}
       </Collapsible>
 
       {/* Joint Solve — σ & μ — collapsible */}
@@ -376,37 +376,37 @@ export default function UpDownPage() {
         color="#F472B6" title="Joint Solve — σ & μ" subtitle="حل دستگاه" badge={badgeC}>
         {modelC && modelC.valid ? (
         <>
-          <p className="text-[11px] text-slate-500 mb-4">
+          <p className="text-[11px] text-[#62666d] mb-4">
             Φ⁻¹(p₅) = (y₅ + μ·τ₅)/(σₘ·√τ₅) · Φ⁻¹(p₁₅) = (y₁₅ + μ·τ₁₅)/(σₘ·√τ₁₅) → solves σₘ and μ simultaneously, then fair = Φ((xₜ + μ·τ₆₀)/(σₘ·√τ₆₀))
           </p>
           <div className="grid md:grid-cols-3 gap-4">
-            <div className="bg-[#0B1120] rounded-xl p-4 border border-slate-800/60">
-              <p className="text-[10px] uppercase text-slate-500 mb-1">Fair value (Up)</p>
+            <div className="bg-[#0f1011] rounded-xl p-4 border border-white/[0.07]">
+              <p className="text-[10px] uppercase text-[#62666d] mb-1">Fair value (Up)</p>
               <p className="text-3xl font-bold text-[#F472B6] tabular-nums">{(modelC.fairUp * 100).toFixed(1)}¢</p>
             </div>
-            <div className="bg-[#0B1120] rounded-xl p-4 border border-slate-800/60">
-              <p className="text-[10px] uppercase text-slate-500 mb-1">Implied σ₁ₕ (joint)</p>
+            <div className="bg-[#0f1011] rounded-xl p-4 border border-white/[0.07]">
+              <p className="text-[10px] uppercase text-[#62666d] mb-1">Implied σ₁ₕ (joint)</p>
               <p className="text-3xl font-bold text-white tabular-nums">{modelC.sigma1h.toFixed(4)}</p>
             </div>
-            <div className={`bg-[#0B1120] rounded-xl p-4 border ${modelC.edge != null && Math.abs(modelC.edge) > 0.03 ? (modelC.edge > 0 ? "border-[#34D399]/40" : "border-[#FB7185]/40") : "border-slate-800/60"}`}>
-              <p className="text-[10px] uppercase text-slate-500 mb-1">Edge (fair − market)</p>
-              <p className={`text-3xl font-bold tabular-nums ${modelC.edge == null ? "text-slate-500" : modelC.edge > 0.03 ? "text-[#34D399]" : modelC.edge < -0.03 ? "text-[#FB7185]" : "text-slate-300"}`}>
+            <div className={`bg-[#0f1011] rounded-xl p-4 border ${modelC.edge != null && Math.abs(modelC.edge) > 0.03 ? (modelC.edge > 0 ? "border-[#10b981]/40" : "border-[#fb7185]/40") : "border-white/[0.07]"}`}>
+              <p className="text-[10px] uppercase text-[#62666d] mb-1">Edge (fair − market)</p>
+              <p className={`text-3xl font-bold tabular-nums ${modelC.edge == null ? "text-[#62666d]" : modelC.edge > 0.03 ? "text-[#10b981]" : modelC.edge < -0.03 ? "text-[#fb7185]" : "text-[#d0d6e0]"}`}>
                 {modelC.edge == null ? "—" : (modelC.edge > 0 ? "+" : "") + (modelC.edge * 100).toFixed(1) + "¢"}
               </p>
             </div>
           </div>
           <div className="mt-4 overflow-x-auto">
             <table className="w-full text-left text-xs whitespace-nowrap">
-              <tbody className="divide-y divide-slate-800/40 text-slate-300 tabular-nums">
+              <tbody className="divide-y divide-white/[0.04] text-[#d0d6e0] tabular-nums">
                 <tr><td className="py-1.5 pr-4">τ₅ / τ₁₅</td><td className="py-1.5 pr-4">{modelC.tau5.toFixed(2)} / {modelC.tau15.toFixed(2)} min</td><td className="py-1.5 pr-4">y₅ / y₁₅</td><td className="py-1.5 pr-4">{modelC.y5.toFixed(5)} / {modelC.y15.toFixed(5)}</td></tr>
                 <tr><td className="py-1.5 pr-4">p₅ / p₁₅</td><td className="py-1.5 pr-4">{(modelC.p5 * 100).toFixed(1)}¢ / {(modelC.p15 * 100).toFixed(1)}¢</td><td className="py-1.5 pr-4">z₅ / z₁₅</td><td className="py-1.5 pr-4">{modelC.z5.toFixed(4)} / {modelC.z15.toFixed(4)}</td></tr>
-                <tr><td className="py-1.5 pr-4">σₘ (solved)</td><td className="py-1.5 pr-4">{modelC.sigmaM.toFixed(6)}</td><td className="py-1.5 pr-4">μ (solved)</td><td className={modelC.mu >= 0 ? "text-[#34D399]" : "text-[#FB7185]"}>{modelC.mu.toFixed(6)}/min</td></tr>
+                <tr><td className="py-1.5 pr-4">σₘ (solved)</td><td className="py-1.5 pr-4">{modelC.sigmaM.toFixed(6)}</td><td className="py-1.5 pr-4">μ (solved)</td><td className={modelC.mu >= 0 ? "text-[#10b981]" : "text-[#fb7185]"}>{modelC.mu.toFixed(6)}/min</td></tr>
               </tbody>
             </table>
           </div>
         </>
         ) : (
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-[#8a8f98]">
           Joint solve needs both 5m &amp; 15m markets live (or they disagree → σ ≤ 0). System inputs this minute: τ₅={modelC?.tau5?.toFixed(1) ?? "—"}m τ₁₅={modelC?.tau15?.toFixed(1) ?? "—"}m y₅={modelC?.y5?.toFixed(5) ?? "—"} y₁₅={modelC?.y15?.toFixed(5) ?? "—"} z₅={modelC?.z5?.toFixed(3) ?? "—"} z₁₅={modelC?.z15?.toFixed(3) ?? "—"}
         </p>
         )}
@@ -417,18 +417,18 @@ export default function UpDownPage() {
         color="#94a3b8" title="Snapshot (S₀/SA/ST/P15/P5)" subtitle="کپی سریع" badge={null}>
         <div className="flex items-center justify-end mb-3">
           <button onClick={copySnapshot}
-            className={`text-xs font-medium rounded-lg px-3 py-1.5 border transition-colors ${copied ? "bg-[#34D399]/10 text-[#34D399] border-[#34D399]/30" : "text-slate-300 border-slate-700 hover:border-slate-500"}`}>
+            className={`text-xs font-medium rounded-lg px-3 py-1.5 border transition-colors ${copied ? "bg-[#10b981]/10 text-[#10b981] border-[#10b981]/30" : "text-[#d0d6e0] border-white/[0.08] hover:border-white/[0.14]"}`}>
             {copied ? "✓ Copied" : "Copy all"}
           </button>
         </div>
         <table className="w-full text-left text-sm whitespace-nowrap">
-          <tbody className="divide-y divide-slate-800/40 text-slate-300 tabular-nums">
-            <tr><td className="py-2 pr-6 text-slate-500">1- Current time</td><td className="py-2">{nowClk}</td></tr>
-            <tr><td className="py-2 pr-6 text-slate-500">2- S0</td><td className="py-2">${fmt(m?.s0)}</td><td className="py-2 pl-6 text-[10px] text-slate-600">hour open ({data?.openSources?.s0 === "polymarket-chainlink" ? "Chainlink" : "Binance"})</td></tr>
-            <tr><td className="py-2 pr-6 text-slate-500">3- SA</td><td className="py-2">${fmt(m?.sa)}</td><td className="py-2 pl-6 text-[10px] text-slate-600">15m block open ({data?.openSources?.sa === "polymarket-chainlink" ? "Chainlink" : "Binance"})</td></tr>
-            <tr><td className="py-2 pr-6 text-slate-500">4- ST</td><td className="py-2">${fmt(m?.st)}</td><td className="py-2 pl-6 text-[10px] text-slate-600">live spot (Binance)</td></tr>
-            <tr><td className="py-2 pr-6 text-slate-500">5- P15</td><td className="py-2">{m?.p15 != null ? (m.p15 * 100).toFixed(2) + "¢" : "—"}</td><td className="py-2 pl-6 text-[10px] text-slate-600">live 15m Up (CLOB mid)</td></tr>
-            <tr><td className="py-2 pr-6 text-slate-500">6- P5</td><td className="py-2">{m5?.live != null ? (m5.live * 100).toFixed(2) + "¢" : "—"}</td><td className="py-2 pl-6 text-[10px] text-slate-600">live 5m Up (CLOB mid)</td></tr>
+          <tbody className="divide-y divide-white/[0.04] text-[#d0d6e0] tabular-nums">
+            <tr><td className="py-2 pr-6 text-[#62666d]">1- Current time</td><td className="py-2">{nowClk}</td></tr>
+            <tr><td className="py-2 pr-6 text-[#62666d]">2- S0</td><td className="py-2">${fmt(m?.s0)}</td><td className="py-2 pl-6 text-[10px] text-[#62666d]">hour open ({data?.openSources?.s0 === "polymarket-chainlink" ? "Chainlink" : "Binance"})</td></tr>
+            <tr><td className="py-2 pr-6 text-[#62666d]">3- SA</td><td className="py-2">${fmt(m?.sa)}</td><td className="py-2 pl-6 text-[10px] text-[#62666d]">15m block open ({data?.openSources?.sa === "polymarket-chainlink" ? "Chainlink" : "Binance"})</td></tr>
+            <tr><td className="py-2 pr-6 text-[#62666d]">4- ST</td><td className="py-2">${fmt(m?.st)}</td><td className="py-2 pl-6 text-[10px] text-[#62666d]">live spot (Binance)</td></tr>
+            <tr><td className="py-2 pr-6 text-[#62666d]">5- P15</td><td className="py-2">{m?.p15 != null ? (m.p15 * 100).toFixed(2) + "¢" : "—"}</td><td className="py-2 pl-6 text-[10px] text-[#62666d]">live 15m Up (CLOB mid)</td></tr>
+            <tr><td className="py-2 pr-6 text-[#62666d]">6- P5</td><td className="py-2">{m5?.live != null ? (m5.live * 100).toFixed(2) + "¢" : "—"}</td><td className="py-2 pl-6 text-[10px] text-[#62666d]">live 5m Up (CLOB mid)</td></tr>
           </tbody>
         </table>
       </Collapsible>
@@ -438,14 +438,14 @@ export default function UpDownPage() {
         color="#94a3b8" title="Formula Audit — ورودی‌های سه مدل" subtitle="کپی کامل" badge={null}>
         <div className="flex items-center justify-end mb-3">
           <button onClick={copyAudit}
-            className={`text-xs font-medium rounded-lg px-3 py-1.5 border transition-colors ${copiedAudit ? "bg-[#34D399]/10 text-[#34D399] border-[#34D399]/30" : "text-slate-300 border-slate-700 hover:border-slate-500"}`}>
+            className={`text-xs font-medium rounded-lg px-3 py-1.5 border transition-colors ${copiedAudit ? "bg-[#10b981]/10 text-[#10b981] border-[#10b981]/30" : "text-[#d0d6e0] border-white/[0.08] hover:border-white/[0.14]"}`}>
             {copiedAudit ? "✓ Copied" : "Copy all"}
           </button>
         </div>
         <div className="space-y-4 text-sm">
           <div>
             <p className="text-xs font-semibold text-[#A78BFA] uppercase tracking-wide mb-1.5">۱. ورودی‌های فرمول پایه‌ی ۱ ساعته (مدل الف)</p>
-            <ul className="text-slate-300 space-y-1 text-[13px] tabular-nums">
+            <ul className="text-[#d0d6e0] space-y-1 text-[13px] tabular-nums">
               <li>• S₀ (قیمت شروع ساعت) = <b className="text-white">{fmt(m?.s0)}</b> · Sₜ (قیمت لحظه‌ای) = <b className="text-white">{fmt(m?.st)}</b> → xₜ = ln(Sₜ/S₀) = <b className="text-white">{m?.xt != null ? m.xt.toFixed(6) : "—"}</b></li>
               <li>• τ (hours) = <b className="text-white">{modelA ? modelA.tauHours.toFixed(4) : "—"}</b></li>
               <li>• σ₁ₕ = <b className="text-white">{sigma}</b></li>
@@ -453,7 +453,7 @@ export default function UpDownPage() {
           </div>
           <div>
             <p className="text-xs font-semibold text-[#FBBF24] uppercase tracking-wide mb-1.5">۲. ورودی‌های حل دستگاه (مدل ب — ۵ و ۱۵ دقیقه‌ای)</p>
-            <ul className="text-slate-300 space-y-1 text-[13px] tabular-nums">
+            <ul className="text-[#d0d6e0] space-y-1 text-[13px] tabular-nums">
               <li>• τ₅ = <b className="text-white">{m5model ? m5model.tau5.toFixed(2) : "—"}</b> دقیقه · τ₁₅ = <b className="text-white">{m ? m.tau15.toFixed(2) : "—"}</b> دقیقه</li>
               <li>• Sₐ₅ (شروع بلاک ۵m) = <b className="text-white">{fmt(m5model?.sa5 ?? m5model?.sa5)}</b> → y₅ = ln(Sₜ/Sₐ₅) = <b className="text-white">{m5model ? m5model.y5.toFixed(6) : "—"}</b></li>
               <li>• Sₐ₁₅ (شروع بلاک ۱۵m) = <b className="text-white">{fmt(m?.sa)}</b> → y₁₅ = ln(Sₜ/Sₐ₁₅) = <b className="text-white">{m ? m.y.toFixed(6) : "—"}</b></li>
@@ -462,11 +462,11 @@ export default function UpDownPage() {
           </div>
           <div>
             <p className="text-xs font-semibold text-[#F472B6] uppercase tracking-wide mb-1.5">۳. ورودی‌های ارزش منصفانه‌ی نهایی (با رانش)</p>
-            <ul className="text-slate-300 space-y-1 text-[13px] tabular-nums">
+            <ul className="text-[#d0d6e0] space-y-1 text-[13px] tabular-nums">
               <li>• xₜ = <b className="text-white">{m?.xt != null ? m.xt.toFixed(6) : "—"}</b></li>
               <li>• τ₆₀ = <b className="text-white">{m ? m.tau60.toFixed(2) + " دقیقه" : "—"}</b></li>
               <li>• σₘ (حل‌شده از دستگاه) = <b className="text-white">{modelC ? modelC.sigmaM.toFixed(6) : "—"}</b> · μ = <b className="text-white">{modelC ? modelC.mu.toFixed(6) : "—"}</b></li>
-              <li className="text-slate-500 text-xs">(اگر مستقیماً همین خروجی را بفرستی، نیازی به محاسبه‌ی مجدد مرحله‌ی ۲ نیست)</li>
+              <li className="text-[#62666d] text-xs">(اگر مستقیماً همین خروجی را بفرستی، نیازی به محاسبه‌ی مجدد مرحله‌ی ۲ نیست)</li>
             </ul>
           </div>
         </div>
@@ -474,7 +474,7 @@ export default function UpDownPage() {
 
 {/* debug slugs */}
       {data && (
-        <p className="text-[10px] text-slate-600 font-mono">
+        <p className="text-[10px] text-[#62666d] font-mono">
           slugs · 1h: {m1h?.slug || "—"} · 15m: {m15?.slug || "—"} · 5m: {m5?.slug || "—"} · server t={data.t?.toFixed(1)}m
         </p>
       )}

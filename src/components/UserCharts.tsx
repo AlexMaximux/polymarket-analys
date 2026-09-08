@@ -18,14 +18,14 @@ export default function UserCharts({ wallet }: { wallet: string }) {
   }, [wallet]);
 
   if (loading) {
-    return <div className="p-8 text-center text-slate-500 animate-pulse bg-[#111827] border border-slate-800/50 rounded-2xl">Loading charts...</div>;
+    return <div className="p-8 text-center text-[#62666d] animate-pulse bg-white/[0.02] border border-white/[0.08] rounded-2xl">Loading charts...</div>;
   }
 
   if (!data || !data.series || data.series.length === 0) {
     return (
-      <div className="p-8 text-center text-slate-500 bg-[#111827] border border-slate-800/50 rounded-2xl shadow-sm">
-        <p className="text-sm font-medium text-slate-400">Estimated from stored trade history — mark-to-market uses last traded price</p>
-        <p className="mt-2 text-slate-600">No chart data available for this user.</p>
+      <div className="p-8 text-center text-[#62666d] bg-white/[0.02] border border-white/[0.08] rounded-2xl shadow-sm">
+        <p className="text-sm font-medium text-[#8a8f98]">Estimated from stored trade history — mark-to-market uses last traded price</p>
+        <p className="mt-2 text-[#62666d]">No chart data available for this user.</p>
       </div>
     );
   }
@@ -81,21 +81,21 @@ export default function UserCharts({ wallet }: { wallet: string }) {
   const lastSeries = series[series.length - 1];
 
   return (
-    <div className="space-y-6 mt-8 pt-8 border-t border-slate-800/50 animate-in fade-in">
+    <div className="space-y-6 mt-8 pt-8 border-t border-white/[0.08] animate-in fade-in">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-medium text-white flex items-center gap-2"><TrendingUp className="w-5 h-5 text-slate-400"/> Performance</h2>
-        <div className="text-xs text-slate-500 uppercase tracking-wide px-3 py-1 bg-slate-800/30 rounded-full border border-slate-700/50">
+        <h2 className="text-lg font-medium text-white flex items-center gap-2"><TrendingUp className="w-5 h-5 text-[#8a8f98]"/> Performance</h2>
+        <div className="text-xs text-[#62666d] uppercase tracking-wide px-3 py-1 bg-slate-800/30 rounded-full border border-white/[0.07]">
           Estimated from stored trade history — mark-to-market uses last traded price
         </div>
       </div>
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* PnL Chart */}
-        <div className="bg-[#111827] border border-slate-800/50 rounded-2xl p-5 shadow-sm">
+        <div className="bg-white/[0.02] border border-white/[0.08] rounded-2xl p-5 shadow-sm">
           <div className="flex justify-between items-start mb-4">
             <div>
-              <h3 className="text-sm font-medium text-slate-400">Cumulative PnL %</h3>
-              <p className={`text-2xl font-bold tabular-nums tracking-tight mt-1 ${isPositive ? 'text-[#34D399]' : 'text-[#FB7185]'}`}>
+              <h3 className="text-sm font-medium text-[#8a8f98]">Cumulative PnL %</h3>
+              <p className={`text-2xl font-bold tabular-nums tracking-tight mt-1 ${isPositive ? 'text-[#10b981]' : 'text-[#fb7185]'}`}>
                 {currentPnl > 0 ? '+' : ''}{currentPnl.toFixed(2)}%
               </p>
             </div>
@@ -118,26 +118,26 @@ export default function UserCharts({ wallet }: { wallet: string }) {
             </svg>
             
             {hoverIndex !== null && (
-              <div className="absolute bg-[#1E2939] border border-slate-700 text-white text-xs px-3 py-2 rounded shadow-lg pointer-events-none whitespace-nowrap z-10"
+              <div className="absolute bg-white/[0.05] border border-white/[0.08] text-white text-xs px-3 py-2 rounded shadow-lg pointer-events-none whitespace-nowrap z-10"
                    style={{ left: `${(getX(hoverIndex, series.length) / width) * 100}%`, top: '10px', transform: 'translateX(-50%)' }}>
-                <div className="font-medium text-slate-300 mb-1">{series[hoverIndex].t}</div>
-                <div className={`tabular-nums ${series[hoverIndex].pnlPct >= 0 ? 'text-[#34D399]' : 'text-[#FB7185]'}`}>
+                <div className="font-medium text-[#d0d6e0] mb-1">{series[hoverIndex].t}</div>
+                <div className={`tabular-nums ${series[hoverIndex].pnlPct >= 0 ? 'text-[#10b981]' : 'text-[#fb7185]'}`}>
                   PnL: {series[hoverIndex].pnlPct.toFixed(2)}%
                 </div>
-                <div className="tabular-nums text-slate-400">Deployed: ${series[hoverIndex].deployed.toLocaleString(undefined, {maximumFractionDigits:0})}</div>
-                <div className="tabular-nums text-slate-400">Recovered: ${series[hoverIndex].recovered.toLocaleString(undefined, {maximumFractionDigits:0})}</div>
-                <div className="tabular-nums text-slate-400">Mark: ${series[hoverIndex].markValue.toLocaleString(undefined, {maximumFractionDigits:0})}</div>
+                <div className="tabular-nums text-[#8a8f98]">Deployed: ${series[hoverIndex].deployed.toLocaleString(undefined, {maximumFractionDigits:0})}</div>
+                <div className="tabular-nums text-[#8a8f98]">Recovered: ${series[hoverIndex].recovered.toLocaleString(undefined, {maximumFractionDigits:0})}</div>
+                <div className="tabular-nums text-[#8a8f98]">Mark: ${series[hoverIndex].markValue.toLocaleString(undefined, {maximumFractionDigits:0})}</div>
               </div>
             )}
           </div>
         </div>
 
         {/* Volume Chart */}
-        <div className="bg-[#111827] border border-slate-800/50 rounded-2xl p-5 shadow-sm">
+        <div className="bg-white/[0.02] border border-white/[0.08] rounded-2xl p-5 shadow-sm">
           <div className="flex justify-between items-start mb-4">
             <div>
-              <h3 className="text-sm font-medium text-slate-400">Cumulative Volume Deployed</h3>
-              <p className="text-2xl font-bold tabular-nums tracking-tight mt-1 text-[#38BDF8]">
+              <h3 className="text-sm font-medium text-[#8a8f98]">Cumulative Volume Deployed</h3>
+              <p className="text-2xl font-bold tabular-nums tracking-tight mt-1 text-[#7170ff]">
                 ${(lastSeries?.deployed || 0).toLocaleString(undefined, {maximumFractionDigits:0})}
               </p>
             </div>
@@ -161,10 +161,10 @@ export default function UserCharts({ wallet }: { wallet: string }) {
         </div>
         
         {/* Daily Bet-Size Histogram */}
-        <div className="bg-[#111827] border border-slate-800/50 rounded-2xl p-5 shadow-sm lg:col-span-2">
+        <div className="bg-white/[0.02] border border-white/[0.08] rounded-2xl p-5 shadow-sm lg:col-span-2">
           <div className="flex justify-between items-start mb-4">
             <div>
-              <h3 className="text-sm font-medium text-slate-400 flex items-center gap-2"><BarChart2 className="w-4 h-4"/> Daily Avg Bet Size (Last 30 Days)</h3>
+              <h3 className="text-sm font-medium text-[#8a8f98] flex items-center gap-2"><BarChart2 className="w-4 h-4"/> Daily Avg Bet Size (Last 30 Days)</h3>
               <p className="text-xl font-bold tabular-nums tracking-tight mt-1 text-indigo-400">
                 ${(last30[last30.length - 1]?.betCount > 0 ? (last30[last30.length - 1].singleBetSum / last30[last30.length - 1].betCount) : 0).toLocaleString(undefined, {maximumFractionDigits:0})}
               </p>
