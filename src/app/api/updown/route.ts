@@ -16,14 +16,15 @@ export const dynamic = 'force-dynamic';
  *    sigma_1h defaults to 0.02, overridable via ?sigma=
  */
 
-const COINS: Record<string, { binance: string; label: string; slugPrefix: string }> = {
-  btc: { binance: 'BTCUSDT', label: 'Bitcoin', slugPrefix: 'btc-updown' },
-  eth: { binance: 'ETHUSDT', label: 'Ethereum', slugPrefix: 'eth-updown' },
-  sol: { binance: 'SOLUSDT', label: 'Solana', slugPrefix: 'sol-updown' },
-  xrp: { binance: 'XRPUSDT', label: 'XRP', slugPrefix: 'xrp-updown' },
-  doge: { binance: 'DOGEUSDT', label: 'Dogecoin', slugPrefix: 'doge-updown' },
-  hype: { binance: 'HYPEUSDT', label: 'Hyperliquid', slugPrefix: 'hype-updown' },
-  zec: { binance: 'ZECUSDT', label: 'ZCash', slugPrefix: 'zec-updown' },
+const COINS: Record<string, { binance: string; label: string; slugPrefix: string; hourWord: string }> = {
+  btc: { binance: 'BTCUSDT', label: 'Bitcoin', slugPrefix: 'btc-updown', hourWord: 'bitcoin' },
+  eth: { binance: 'ETHUSDT', label: 'Ethereum', slugPrefix: 'eth-updown', hourWord: 'ethereum' },
+  sol: { binance: 'SOLUSDT', label: 'Solana', slugPrefix: 'sol-updown', hourWord: 'solana' },
+  xrp: { binance: 'XRPUSDT', label: 'XRP', slugPrefix: 'xrp-updown', hourWord: 'xrp' },
+  doge: { binance: 'DOGEUSDT', label: 'Dogecoin', slugPrefix: 'doge-updown', hourWord: 'dogecoin' },
+  hype: { binance: '', label: 'Hyperliquid', slugPrefix: 'hype-updown', hourWord: 'hype' },
+  zec: { binance: 'ZECUSDT', label: 'ZCash', slugPrefix: 'zec-updown', hourWord: 'zcash' },
+  bnb: { binance: 'BNBUSDT', label: 'BNB', slugPrefix: 'bnb-updown', hourWord: 'bnb' },
 };
 
 function etParts(d: Date) {
@@ -144,11 +145,7 @@ export async function GET(request: Request) {
 
   // ---- Polymarket events (constructed slugs, hour/15m/5m) ----
   const { month, day, h12, ampm, hour } = etParts(now);
-  const hourSlug = `bitcoin-up-or-down-${month}-${day}-2026-${h12}${ampm}-et`
-    .replace('bitcoin', cfg.slugPrefix.split('-')[0] === 'btc' ? 'bitcoin' : cfg.label.toLowerCase());
-  const genericHourSlug = cfg.slugPrefix.split('-')[0] === 'btc'
-    ? `bitcoin-up-or-down-${month}-${day}-2026-${h12}${ampm}-et`
-    : `${cfg.slugPrefix.split('-')[0]}-up-or-down-${month}-${day}-2026-${h12}${ampm}-et`;
+  const genericHourSlug = `${cfg.hourWord}-up-or-down-${month}-${day}-2026-${h12}${ampm}-et`;
 
   const [m1h, m15, m5, n15, n5] = await Promise.all([
     eventBySlug(genericHourSlug),
@@ -172,7 +169,16 @@ export async function GET(request: Request) {
   const s0 = s0pm ?? s0b;
   const sa = sapm ?? sab;
   const sa5 = sa5pm ?? sa5b;
-  const st = stRaw?.price ? parseFloat(stRaw.price) : null;
+  let st = stRaw?.price ? parseFloat(stRaw.price) : null;
+  if (st == null) {
+    // coins not on Binance (HYPE): OKX then Gate.io public tickers
+    const okx = await j('https://www.okx.com/api/v5/market/ticker?instId=HYPE-USDT', 5000);
+    st = okx?.data?.[0]?.last ? parseFloat(okx.data[0].last) : null;
+    if (st == null) {
+      const gate = await j('https://api.gateio.ws/api/v4/spot/tickers?currency_pair=HYPE_USDT', 5000);
+      st = Array.isArray(gate) && gate[0]?.last ? parseFloat(gate[0].last) : null;
+    }
+  }
 
   // ---- CLOB midpoints (true live market prices) ----
   const [mid1hUp, mid1hDn, mid15Up, mid15Dn, mid5Up, mid5Dn] = await Promise.all([
@@ -204,7 +210,7 @@ export async function GET(request: Request) {
   const tau5 = 5 - q5;
   const y5 = xt != null && sa5 && st != null ? Math.log(st / sa5) : null;
 
-  if (s0 && st && p15 && p15 > 0.001 && p15 < 0.999 && xt != null && y != null) {
+  if (s0 && st && p15 && p15 > 0.0005 && p15 < 0.9995 && xt != null && y != null) {
     const z15 = normInv(p15);
     const mu = tau15 > 0.01 ? (z15 * sigmaM * Math.sqrt(tau15) - y) / tau15 : 0;
     const fair = normCdf((xt + mu * tau60) / (sigmaM * Math.sqrt(tau60)));
@@ -218,7 +224,7 @@ export async function GET(request: Request) {
   }
 
   // 5m-calibrated variant: drift implied by the live 5-minute market
-  if (s0 && st && p5 && p5 > 0.001 && p5 < 0.999 && xt != null && y5 != null) {
+  if (s0 && st && p5 && p5 > 0.0005 && p5 < 0.9995 && xt != null && y5 != null) {
     const z5 = normInv(p5);
     const mu5 = tau5 > 0.01 ? (z5 * sigmaM * Math.sqrt(tau5) - y5) / tau5 : 0;
     const fair5 = normCdf((xt + mu5 * tau60) / (sigmaM * Math.sqrt(tau60)));
