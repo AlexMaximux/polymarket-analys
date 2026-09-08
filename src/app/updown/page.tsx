@@ -32,6 +32,7 @@ export default function UpDownPage() {
   const [countdown, setCountdown] = useState(5);
   const [liveMode, setLiveMode] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [copiedAudit, setCopiedAudit] = useState(false);
   const esRef = useRef<EventSource | null>(null);
   const timerRef = useRef<any>(null);
 
@@ -70,6 +71,7 @@ export default function UpDownPage() {
   const m1h: MarketRow | null = data?.m1h;
   const m15: MarketRow | null = data?.m15;
   const m5: MarketRow | null = data?.m5;
+  const m5m: MarketRow | null = data?.m5;
   const n15 = data?.n15, n5 = data?.n5;
   const market1h = m1h?.live ?? m1h?.up ?? null;
   const fair = m?.fairUp ?? null;
@@ -91,6 +93,32 @@ export default function UpDownPage() {
       await navigator.clipboard.writeText(snapshot);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
+    } catch {}
+  };
+
+  const auditText = [
+    "۱. ورودی‌های فرمول پایه‌ی ۱ ساعته (مدل الف):",
+    `• S₀ = ${fmt(m?.s0)} | Sₜ = ${fmt(m?.st)} | xₜ = ln(Sₜ/S₀) = ${m?.xt != null ? m.xt.toFixed(6) : "—"}`,
+    `• τ (hours) = ${modelA ? modelA.tauHours.toFixed(4) : "—"}`,
+    `• σ₁ₕ = ${sigma}`,
+    "",
+    "۲. ورودی‌های حل دستگاه (مدل ب — ۵ و ۱۵ دقیقه‌ای):",
+    `• τ₅ = ${m5model ? m5model.tau5.toFixed(2) : "—"} دقیقه | τ₁₅ = ${m ? m.tau15.toFixed(2) : "—"} دقیقه`,
+    `• Sₐ₅ = ${fmt(m5model?.sa5)} | y₅ = ln(Sₜ/Sₐ₅) = ${m5model ? m5model.y5.toFixed(6) : "—"}`,
+    `• Sₐ₁₅ = ${fmt(m?.sa)} | y₁₅ = ln(Sₜ/Sₐ₁₅) = ${m ? m.y.toFixed(6) : "—"}`,
+    `• p₅ = ${m5m?.live != null ? (m5m.live * 100).toFixed(2) + "¢" : "—"} | p₁₅ = ${m?.p15 != null ? (m.p15 * 100).toFixed(2) + "¢" : "—"}`,
+    "",
+    "۳. ورودی‌های ارزش منصفانه‌ی نهایی (با رانش):",
+    `• xₜ = ${m?.xt != null ? m.xt.toFixed(6) : "—"}`,
+    `• τ₆₀ = ${m ? m.tau60.toFixed(2) : "—"} دقیقه`,
+    `• σₘ (حل‌شده) = ${modelC ? modelC.sigmaM.toFixed(6) : "—"} | μ (حل‌شده) = ${modelC ? modelC.mu.toFixed(6) : "—"}`,
+  ].join("\n");
+
+  const copyAudit = async () => {
+    try {
+      await navigator.clipboard.writeText(auditText);
+      setCopiedAudit(true);
+      setTimeout(() => setCopiedAudit(false), 1500);
     } catch {}
   };
 
@@ -376,7 +404,46 @@ export default function UpDownPage() {
         </table>
       </div>
 
-      {/* debug slugs */}
+            {/* formula audit snapshot — three sections, copyable */}
+      <div className="bg-[#111827] border border-slate-800/50 rounded-2xl p-5 shadow-sm">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-medium text-slate-300 uppercase tracking-wider">Formula Audit — Inputs Snapshot</h3>
+          <button onClick={copyAudit}
+            className={`text-xs font-medium rounded-lg px-3 py-1.5 border transition-colors ${copiedAudit ? "bg-[#34D399]/10 text-[#34D399] border-[#34D399]/30" : "text-slate-300 border-slate-700 hover:border-slate-500"}`}>
+            {copiedAudit ? "✓ Copied" : "Copy all"}
+          </button>
+        </div>
+        <div className="space-y-4 text-sm">
+          <div>
+            <p className="text-xs font-semibold text-[#A78BFA] uppercase tracking-wide mb-1.5">۱. ورودی‌های فرمول پایه‌ی ۱ ساعته (مدل الف)</p>
+            <ul className="text-slate-300 space-y-1 text-[13px] tabular-nums">
+              <li>• S₀ (قیمت شروع ساعت) = <b className="text-white">{fmt(m?.s0)}</b> · Sₜ (قیمت لحظه‌ای) = <b className="text-white">{fmt(m?.st)}</b> → xₜ = ln(Sₜ/S₀) = <b className="text-white">{m?.xt != null ? m.xt.toFixed(6) : "—"}</b></li>
+              <li>• τ (hours) = <b className="text-white">{modelA ? modelA.tauHours.toFixed(4) : "—"}</b></li>
+              <li>• σ₁ₕ = <b className="text-white">{sigma}</b></li>
+            </ul>
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-[#FBBF24] uppercase tracking-wide mb-1.5">۲. ورودی‌های حل دستگاه (مدل ب — ۵ و ۱۵ دقیقه‌ای)</p>
+            <ul className="text-slate-300 space-y-1 text-[13px] tabular-nums">
+              <li>• τ₅ = <b className="text-white">{m5model ? m5model.tau5.toFixed(2) : "—"}</b> دقیقه · τ₁₅ = <b className="text-white">{m ? m.tau15.toFixed(2) : "—"}</b> دقیقه</li>
+              <li>• Sₐ₅ (شروع بلاک ۵m) = <b className="text-white">{fmt(m5model?.sa5 ?? m5model?.sa5)}</b> → y₅ = ln(Sₜ/Sₐ₅) = <b className="text-white">{m5model ? m5model.y5.toFixed(6) : "—"}</b></li>
+              <li>• Sₐ₁₅ (شروع بلاک ۱۵m) = <b className="text-white">{fmt(m?.sa)}</b> → y₁₅ = ln(Sₜ/Sₐ₁₅) = <b className="text-white">{m ? m.y.toFixed(6) : "—"}</b></li>
+              <li>• p₅ = <b className="text-white">{m5m?.live != null ? (m5m.live * 100).toFixed(2) + "¢" : "—"}</b> · p₁₅ = <b className="text-white">{m?.p15 != null ? (m.p15 * 100).toFixed(2) + "¢" : "—"}</b></li>
+            </ul>
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-[#F472B6] uppercase tracking-wide mb-1.5">۳. ورودی‌های ارزش منصفانه‌ی نهایی (با رانش)</p>
+            <ul className="text-slate-300 space-y-1 text-[13px] tabular-nums">
+              <li>• xₜ = <b className="text-white">{m?.xt != null ? m.xt.toFixed(6) : "—"}</b></li>
+              <li>• τ₆₀ = <b className="text-white">{m ? m.tau60.toFixed(2) + " دقیقه" : "—"}</b></li>
+              <li>• σₘ (حل‌شده از دستگاه) = <b className="text-white">{modelC ? modelC.sigmaM.toFixed(6) : "—"}</b> · μ = <b className="text-white">{modelC ? modelC.mu.toFixed(6) : "—"}</b></li>
+              <li className="text-slate-500 text-xs">(اگر مستقیماً همین خروجی را بفرستی، نیازی به محاسبه‌ی مجدد مرحله‌ی ۲ نیست)</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+{/* debug slugs */}
       {data && (
         <p className="text-[10px] text-slate-600 font-mono">
           slugs · 1h: {m1h?.slug || "—"} · 15m: {m15?.slug || "—"} · 5m: {m5?.slug || "—"} · server t={data.t?.toFixed(1)}m
