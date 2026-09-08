@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Bitcoin, RefreshCw, Clock, Activity, Zap } from "lucide-react";
+import { Bitcoin, RefreshCw, Clock, Activity, Zap, ChevronRight } from "lucide-react";
 
 const COINS = [
   { key: "btc", label: "Bitcoin", sym: "₿", color: "#F7931A" },
@@ -12,6 +12,26 @@ const COINS = [
   { key: "zec", label: "ZCash", sym: "ⓩ", color: "#F4B728" },
   { key: "bnb", label: "BNB", sym: "◆", color: "#F3BA2F" },
 ];
+
+function Collapsible({ id, openState, toggle, color, title, subtitle, badge, children }: {
+  id: string; openState: boolean; toggle: () => void; color: string; title: string; subtitle?: string;
+  badge?: React.ReactNode; children: React.ReactNode;
+}) {
+  return (
+    <div className="bg-[#111827] border border-slate-800/50 rounded-2xl shadow-sm overflow-hidden">
+      <button onClick={toggle} className="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-[#1E2939]/40 transition-colors">
+        <span className="flex items-center gap-2 min-w-0">
+          <ChevronRight className={`w-4 h-4 text-slate-500 transition-transform shrink-0 ${openState ? "rotate-90" : ""}`} />
+          <span className="text-base font-medium flex items-center gap-2 truncate" style={{ color: openState ? "#fff" : color }}>
+            {title} {subtitle && <span className="text-xs text-slate-500 font-normal">{subtitle}</span>}
+          </span>
+        </span>
+        <span className="shrink-0 ml-3">{badge}</span>
+      </button>
+      {openState && <div className="px-6 pb-6">{children}</div>}
+    </div>
+  );
+}
 
 interface MarketRow {
   slug: string; title: string; up: number; down: number; live: number | null; liveDown?: number | null;
@@ -32,6 +52,12 @@ export default function UpDownPage() {
   const [countdown, setCountdown] = useState(5);
   const [liveMode, setLiveMode] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [open15, setOpen15] = useState(false);
+  const [open5, setOpen5] = useState(false);
+  const [openA, setOpenA] = useState(false);
+  const [openC, setOpenC] = useState(false);
+  const [openSnap, setOpenSnap] = useState(false);
+  const [openAudit, setOpenAudit] = useState(false);
   const [copiedAudit, setCopiedAudit] = useState(false);
   const esRef = useRef<EventSource | null>(null);
   const timerRef = useRef<any>(null);
@@ -76,6 +102,21 @@ export default function UpDownPage() {
   const market1h = m1h?.live ?? m1h?.up ?? null;
   const fair = m?.fairUp ?? null;
   const edge = m?.edge ?? null;
+
+  const badge15 = fair != null && (
+    <span className={`text-sm font-bold tabular-nums ${edge != null && Math.abs(edge) > 0.03 ? (edge > 0 ? "text-[#34D399]" : "text-[#FB7185]") : "text-slate-400"}`}>
+      {(fair * 100).toFixed(1)}¢{edge != null && (edge > 0 ? " ↑" : " ↓")}
+    </span>
+  );
+  const badge5 = m5model?.fairUp != null && (
+    <span className="text-sm font-bold tabular-nums text-[#FBBF24]">{(m5model.fairUp * 100).toFixed(1)}¢</span>
+  );
+  const badgeA = modelA?.fairUp != null && (
+    <span className="text-sm font-bold tabular-nums text-[#A78BFA]">{(modelA.fairUp * 100).toFixed(1)}¢</span>
+  );
+  const badgeC = modelC?.valid && modelC?.fairUp != null && (
+    <span className="text-sm font-bold tabular-nums text-[#F472B6]">{(modelC.fairUp * 100).toFixed(1)}¢</span>
+  );
 
   const nowClk = new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
   const fmt = (v: number | null | undefined, digits = 2) => (v == null ? "—" : v.toLocaleString("en-US", { maximumFractionDigits: digits }));
@@ -198,13 +239,10 @@ export default function UpDownPage() {
         <Row title="5 minute market" row={m5} next={n5} />
       </div>
 
-      {/* model panel */}
-      <div className="bg-[#111827] border border-slate-800/50 rounded-2xl p-6 shadow-sm">
-        <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
-          <div className="flex items-center gap-2">
-            <Activity className="w-5 h-5 text-[#38BDF8]" />
-            <h2 className="text-lg font-medium text-white">Fair Value Model — 1H Up</h2>
-          </div>
+      {/* Fair Value — 1H Up (μ from 15m) — collapsible */}
+      <Collapsible id="open15" openState={open15} toggle={() => setOpen15(!open15)}
+        color="#38BDF8" title="Fair Value — 1H Up (μ from 15m)" subtitle="مدل ۱۵ دقیقه‌ای" badge={badge15}>
+        <div className="flex items-center justify-end mb-4">
           <label className="flex items-center gap-2 text-xs text-slate-400">
             σ₁ₕ (hourly vol):
             <input type="number" step="0.005" min="0.005" max="0.2" value={sigma}
@@ -260,12 +298,12 @@ export default function UpDownPage() {
               : "Waiting for spot + market data (need S₀, Sₜ and a live 15m price in (0,1))."}
           </p>
         )}
-      </div>
+      </Collapsible>
 
-            {/* 5m-calibrated model panel */}
-      {m5model ? (
-        <div className="bg-[#111827] border border-slate-800/50 rounded-2xl p-6 shadow-sm">
-          <div className="flex items-center gap-2 mb-4">
+      {/* Fair Value — 1H Up (μ from 5m) — collapsible */}
+      <Collapsible id="open5" openState={open5} toggle={() => setOpen5(!open5)}
+        color="#FBBF24" title="Fair Value — 1H Up (μ from 5m)" subtitle="مدل ۵ دقیقه‌ای" badge={badge5}>
+        <div className="flex items-center gap-2 mb-4">
             <Activity className="w-5 h-5 text-[#FBBF24]" />
             <h2 className="text-lg font-medium text-white">Fair Value Model — 1H Up <span className="text-xs text-slate-500">(calibrated on the 5-minute market)</span></h2>
           </div>
@@ -299,13 +337,12 @@ export default function UpDownPage() {
           <p className="text-[11px] text-slate-500 mt-3">
             Same formula as the 15m panel, but μ extracted from the live 5¢ market: μ₅ = (z₅·σₘ·√τ₅ − y₅) / τ₅ · fair = Φ((xₜ + μ₅·τ₆₀)/(σₘ·√τ₆₀))
           </p>
-        </div>
-      ) : null}
+      </Collapsible>
 
-      {/* Part A: base valuation (no drift) */}
-      {modelA ? (
-        <div className="bg-[#111827] border border-slate-800/50 rounded-2xl p-6 shadow-sm">
-          <div className="flex items-center gap-2 mb-4">
+      {/* الف — Base (no drift) — collapsible */}
+      <Collapsible id="openA" openState={openA} toggle={() => setOpenA(!openA)}
+        color="#A78BFA" title="الف — Base (no drift)" subtitle="فرمول پایه" badge={badgeA}>
+        <div className="flex items-center gap-2 mb-4">
             <Activity className="w-5 h-5 text-[#A78BFA]" />
             <h2 className="text-lg font-medium text-white">الف — Base Valuation (no drift) <span className="text-xs text-slate-500">fair = Φ( xₜ / (σ₁ₕ·√τ_hours) )</span></h2>
           </div>
@@ -332,13 +369,12 @@ export default function UpDownPage() {
               </tbody>
             </table>
           </div>
-        </div>
-      ) : null}
+      </Collapsible>
 
-      {/* Part C: joint solve from BOTH windows */}
-      {modelC && modelC.valid ? (
-        <div className="bg-[#111827] border border-slate-800/50 rounded-2xl p-6 shadow-sm">
-          <div className="flex items-center gap-2 mb-2">
+      {/* Joint Solve — σ & μ — collapsible */}
+      <Collapsible id="openC" openState={openC} toggle={() => setOpenC(!openC)}
+        color="#F472B6" title="Joint Solve — σ & μ" subtitle="حل دستگاه" badge={badgeC}>
+        <div className="flex items-center gap-2 mb-2">
             <Activity className="w-5 h-5 text-[#F472B6]" />
             <h2 className="text-lg font-medium text-white">Joint Solve — σ &amp; μ from BOTH markets <span className="text-xs text-slate-500">حل دستگاه دو معادله</span></h2>
           </div>
@@ -370,23 +406,12 @@ export default function UpDownPage() {
               </tbody>
             </table>
           </div>
-        </div>
-      ) : modelC ? (
-        <div className="bg-[#111827] border border-slate-800/50 rounded-2xl p-5 shadow-sm">
-          <p className="text-xs text-slate-400">
-            Joint solve this minute gives σₘ = <b className="text-[#FB7185]">{modelC.sigmaM.toFixed(6)}</b> (≤ 0 — the 5m and 15m markets are momentarily inconsistent with one flat-σ model; usually happens when both windows opened at nearly the same price). System inputs: τ₅={modelC.tau5.toFixed(1)}m τ₁₅={modelC.tau15.toFixed(1)}m y₅={modelC.y5.toFixed(5)} y₁₅={modelC.y15.toFixed(5)} z₅={modelC.z5.toFixed(3)} z₁₅={modelC.z15.toFixed(3)}
-          </p>
-        </div>
-      ) : (
-        <div className="bg-[#111827] border border-slate-800/50 rounded-2xl p-5 shadow-sm">
-          <p className="text-xs text-slate-500">Joint solve needs both the 5m and 15m markets live (not at extremes) — one of them is near resolution right now.</p>
-        </div>
-      )}
+      </Collapsible>
 
-{/* debug snapshot table */}
-      <div className="bg-[#111827] border border-slate-800/50 rounded-2xl p-5 shadow-sm">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-medium text-slate-300 uppercase tracking-wider">Model Inputs — Snapshot</h3>
+      {/* Snapshot (S₀/SA/ST/P15/P5) — collapsible */}
+      <Collapsible id="openSnap" openState={openSnap} toggle={() => setOpenSnap(!openSnap)}
+        color="#94a3b8" title="Snapshot (S₀/SA/ST/P15/P5)" subtitle="کپی سریع" badge={null}>
+        <div className="flex items-center justify-end mb-3">
           <button onClick={copySnapshot}
             className={`text-xs font-medium rounded-lg px-3 py-1.5 border transition-colors ${copied ? "bg-[#34D399]/10 text-[#34D399] border-[#34D399]/30" : "text-slate-300 border-slate-700 hover:border-slate-500"}`}>
             {copied ? "✓ Copied" : "Copy all"}
@@ -402,12 +427,12 @@ export default function UpDownPage() {
             <tr><td className="py-2 pr-6 text-slate-500">6- P5</td><td className="py-2">{m5?.live != null ? (m5.live * 100).toFixed(2) + "¢" : "—"}</td><td className="py-2 pl-6 text-[10px] text-slate-600">live 5m Up (CLOB mid)</td></tr>
           </tbody>
         </table>
-      </div>
+      </Collapsible>
 
-            {/* formula audit snapshot — three sections, copyable */}
-      <div className="bg-[#111827] border border-slate-800/50 rounded-2xl p-5 shadow-sm">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-medium text-slate-300 uppercase tracking-wider">Formula Audit — Inputs Snapshot</h3>
+      {/* Formula Audit — ورودی‌های سه مدل — collapsible */}
+      <Collapsible id="openAudit" openState={openAudit} toggle={() => setOpenAudit(!openAudit)}
+        color="#94a3b8" title="Formula Audit — ورودی‌های سه مدل" subtitle="کپی کامل" badge={null}>
+        <div className="flex items-center justify-end mb-3">
           <button onClick={copyAudit}
             className={`text-xs font-medium rounded-lg px-3 py-1.5 border transition-colors ${copiedAudit ? "bg-[#34D399]/10 text-[#34D399] border-[#34D399]/30" : "text-slate-300 border-slate-700 hover:border-slate-500"}`}>
             {copiedAudit ? "✓ Copied" : "Copy all"}
@@ -441,7 +466,7 @@ export default function UpDownPage() {
             </ul>
           </div>
         </div>
-      </div>
+      </Collapsible>
 
 {/* debug slugs */}
       {data && (
