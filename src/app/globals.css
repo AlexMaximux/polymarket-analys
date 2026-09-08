@@ -1,8 +1,22 @@
 @import "tailwindcss";
 
 :root {
-  --background: #0B1120;
-  --foreground: #F8FAFC;
+  --background: #08090a;
+  --surface-1: #0f1011;
+  --surface-2: #191a1b;
+  --surface-3: #28282c;
+  --foreground: #f7f8f8;
+  --text-2: #d0d6e0;
+  --text-3: #8a8f98;
+  --text-4: #62666d;
+  --accent: #7170ff;
+  --accent-hover: #828fff;
+  --brand: #5e6ad2;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-subtle: rgba(255, 255, 255, 0.05);
+  --green: #10b981;
+  --red: #fb7185;
+  --gold: #fbbf24;
 }
 
 @theme inline {
@@ -10,15 +24,55 @@
   --color-foreground: var(--foreground);
 }
 
+html {
+  font-feature-settings: "cv01", "ss03";
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
-  /* Apply dark scrollbar style globally */
   color-scheme: dark;
+  font-weight: 400;
+  letter-spacing: -0.011em;
+  /* ambient depth: two faint radial glows */
+  background-image:
+    radial-gradient(1200px 600px at 15% -10%, rgba(94, 106, 210, 0.09), transparent 60%),
+    radial-gradient(900px 500px at 85% -5%, rgba(113, 112, 255, 0.05), transparent 55%);
+  background-attachment: fixed;
 }
 
-/* Base resets or common global styles if needed */
+/* Linear-style scrollbars */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  border: 2px solid var(--background);
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.18); }
+
 ::selection {
-  background-color: rgba(56, 189, 248, 0.3); /* cyan-400 / 30% */
+  background-color: rgba(94, 106, 210, 0.4);
   color: #fff;
 }
+
+/* Utility classes used across pages (Linear look) */
+.pm-card {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+}
+.pm-panel {
+  background: #0f1011;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+}
+.pm-table th {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 500;
+  font-size: 11px;
+  color: #8a8f98;
+}
+.pm-table td { font-variant-numeric: tabular-nums; }
+h1, h2, h3 { letter-spacing: -0.02em; }
