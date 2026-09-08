@@ -116,7 +116,12 @@ async function evaluateStarredAlert(alert: AlertRow): Promise<any[]> {
   const wallets = new Set<string>(
     (db.prepare(`SELECT wallet FROM alert_wallets WHERE alert_id = ?`).all(alert.id) as any[]).map(r => r.wallet)
   );
-  const starred = db.prepare(`SELECT wallet FROM users WHERE starred = 1`).all() as { wallet: string }[];
+  const starred = db.prepare(`
+      SELECT u.wallet, u.note, u.pseudonym, u.name,
+             wc.label AS cat_label, wc.emoji AS cat_emoji, wc.note AS cat_note
+      FROM users u LEFT JOIN watch_categories wc ON wc.id = u.category_id
+      WHERE u.starred = 1
+    `).all() as any[];
   for (const s of starred) wallets.add(s.wallet);
   if (wallets.size === 0) return [];
 
