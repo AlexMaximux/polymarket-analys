@@ -68,9 +68,19 @@ export default function WhalesPage() {
       {label} {wrSort.col === col && (wrSort.dir === 1 ? " ▲" : " ▼")}
     </th>
   );
-  const fetchHoverStats = (r: any) => {
+  const fetchHoverStats = async (r: any) => {
     setHoverWallet(r.wallet);
-    setHoverStats({ realized: r.lifetimePnl, trades: r.allTimeTrades });
+    setHoverStats(null);
+    setHoverLoading(true);
+    try {
+      const res = await fetch(`/api/users/${r.wallet}/closed`);
+      const d = await res.json();
+      setHoverStats({
+        realized: d?.totals?.pnl ?? null,
+        trades: r.allTimeTrades,
+        truncated: d?.totals?.truncated ?? false,
+      });
+    } catch { setHoverStats(null); } finally { setHoverLoading(false); }
   };
 
   return (
@@ -242,7 +252,7 @@ export default function WhalesPage() {
                             <Loader2 className="w-4 h-4 animate-spin text-[#8b91c5]" />
                           ) : (
                             <div className="space-y-1.5 text-[13px]">
-                              <div className="flex justify-between"><span className="text-[#8b91c5]">Realized Profit (all-time)</span>
+                              <div className="flex justify-between items-center"><span className="text-[#8b91c5]">Realized Profit (all-time){hoverStats?.truncated && <span className="text-[9px] text-[#5d628f] ml-1">(2k cap)</span>}</span>
                                 <b className={(hoverStats?.realized ?? 0) >= 0 ? "text-[#2ce5a7]" : "text-[#ff6b9d]"}>
                                   {(hoverStats?.realized ?? 0) >= 0 ? "+" : ""}${Math.abs(hoverStats?.realized ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}
                                 </b></div>
