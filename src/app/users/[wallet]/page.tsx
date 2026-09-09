@@ -442,20 +442,32 @@ export default function UserProfile() {
         )}
 
         {aiText && (
-          <div className="pm-card p-6">
-            <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-              <span className="text-[11px] text-[#5d628f]">model: {aiMeta}</span>
+          <div className="relative rounded-2xl p-6 md:p-8 overflow-hidden border border-[rgba(139,124,255,0.3)]"
+            style={{
+              background:
+                "linear-gradient(160deg, rgba(108,92,231,0.14), rgba(13,15,34,0.92) 45%), radial-gradient(600px 300px at 85% -10%, rgba(77,214,255,0.10), transparent 60%)",
+              backgroundBlendMode: "screen",
+              boxShadow: "0 0 40px -12px rgba(108,92,231,0.45) inset, 0 8px 32px -12px rgba(0,0,0,0.6)",
+            }}>
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+              <span className="text-xs text-[#8b91c5] flex items-center gap-2">
+                <Sparkles className="w-3.5 h-3.5 text-[#a99cff]" /> model: {aiMeta}
+              </span>
               <button onClick={() => navigator.clipboard.writeText(aiText)}
-                className="text-[11px] text-[#8b91c5] hover:text-[#eef0ff]">copy markdown</button>
+                className="text-xs text-[#8b91c5] hover:text-[#eef0ff]">copy markdown</button>
             </div>
-            <div className="space-y-3 text-sm leading-relaxed text-[#c3c8ee]">
+            <div className="space-y-4 text-[15px] md:text-base leading-[1.9] text-[#dfe3ff]">
               {aiText.split("\n").map((line, i) => {
                 const render = (s: string) => s.split(/(\*\*[^*]+\*\*)/g).map((part, j) =>
-                  part.startsWith("**") ? <b key={j} className="text-[#eef0ff]">{part.slice(2, -2)}</b> : part);
-                if (line.startsWith("## ")) return <h3 key={i} className="text-base font-semibold text-[#eef0ff] pt-2">{render(line.slice(3))}</h3>;
-                if (line.startsWith("### ")) return <h4 key={i} className="text-sm font-semibold text-[#eef0ff]">{render(line.slice(4))}</h4>;
-                if (line.startsWith("* ") || line.startsWith("- ")) return <li key={i} className="ml-5 list-disc">{render(line.slice(2))}</li>;
-                if (!line.trim()) return <div key={i} className="h-1" />;
+                  part.startsWith("**") ? <b key={j} className="text-white font-semibold">{part.slice(2, -2)}</b> : part);
+                if (line.startsWith("## ")) return (
+                  <h3 key={i} className="text-xl md:text-[22px] font-semibold text-aurora pt-4 pb-1 border-b border-[rgba(140,130,255,0.18)]">
+                    {render(line.slice(3))}
+                  </h3>);
+                if (line.startsWith("### ")) return <h4 key={i} className="text-lg font-semibold text-[#eef0ff] pt-2">{render(line.slice(4))}</h4>;
+                if (line.startsWith("* ") || line.startsWith("- ")) return (
+                  <li key={i} className="ml-6 list-disc marker:text-[#a99cff]">{render(line.slice(2))}</li>);
+                if (!line.trim()) return <div key={i} className="h-2" />;
                 return <p key={i}>{render(line)}</p>;
               })}
             </div>
