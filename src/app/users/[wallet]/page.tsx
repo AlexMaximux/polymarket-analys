@@ -385,7 +385,7 @@ export default function UserProfile() {
           {settledCount > 0 ? (
             <>
               <p className={`text-2xl font-bold tabular-nums tracking-tight ${realizedProfit >= 0 ? 'text-[#2ce5a7]' : 'text-[#ff6b9d]'}`}>
-                {realizedProfit >= 0 ? '+' : ''}${realizedProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                {realizedProfit >= 0 ? '+' : ''}${realizedProfit.toLocaleString('en-US', { maximumFractionDigits: 0 })}
               </p>
               <p className="text-[11px] text-[#5d628f] mt-1.5">closed history {closedTotals.count || 0} + resolved-on-hand {resolved.length} — settled markets only</p>
             </>
@@ -401,14 +401,14 @@ export default function UserProfile() {
           <p className="text-xs uppercase tracking-wider text-[#8b91c5] font-medium mb-1.5">Trades (full history)</p>
           <p className="text-2xl font-bold tabular-nums text-white tracking-tight">{tradesData?.totals?.count ?? user.trade_count ?? 0}</p>
           <p className="text-[11px] text-[#5d628f] mt-1.5">
-            vol ${tradesVolume > 0 ? tradesVolume.toLocaleString(undefined, { maximumFractionDigits: 0 }) : (user.total_notional || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            vol ${tradesVolume > 0 ? tradesVolume.toLocaleString('en-US', { maximumFractionDigits: 0 }) : (user.total_notional || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}
           </p>
         </div>
         {user.true_first_trade_at ? (
           <div className="bg-white/[0.08] border border-[rgba(140,130,255,0.15)] p-6 rounded-2xl relative overflow-hidden group hover:border-[rgba(140,130,255,0.15)] transition-colors shadow-sm">
             <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-[#34D399] to-transparent opacity-50"></div>
             <p className="text-xs uppercase tracking-wider text-[#8b91c5] font-medium mb-1.5">First-Ever Bet</p>
-            <p className="text-2xl font-bold tabular-nums text-white tracking-tight">${(user.true_first_trade_size || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+            <p className="text-2xl font-bold tabular-nums text-white tracking-tight">${(user.true_first_trade_size || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}</p>
             <p className="text-[11px] text-[#5d628f] mt-1.5">{format(new Date(user.true_first_trade_at * 1000), "MMM d, yyyy HH:mm")} UTC — verified from full history</p>
           </div>
         ) : (
@@ -423,7 +423,7 @@ export default function UserProfile() {
           <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-slate-600 to-transparent opacity-30"></div>
           <p className="text-xs uppercase tracking-wider text-[#8b91c5] font-medium mb-1.5">Open Positions Value</p>
           <p className="text-2xl font-bold tabular-nums text-white tracking-tight">
-            ${openValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            ${openValue.toLocaleString('en-US', { maximumFractionDigits: 0 })}
           </p>
           <p className="text-[11px] text-[#5d628f] mt-1.5">{positions.length} position{positions.length !== 1 ? "s" : ""} still held</p>
         </div>
@@ -455,11 +455,11 @@ export default function UserProfile() {
           </div>
           <div className="mt-2.5 flex items-center gap-3 flex-wrap text-[13px]">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#2ce5a7]/10 border border-[#2ce5a7]/25">
-              <span className="text-[#2ce5a7] font-semibold tabular-nums">+${wonDollars.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+              <span className="text-[#2ce5a7] font-semibold tabular-nums">+${wonDollars.toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
               <span className="text-[#8b91c5]">won (total)</span>
             </span>
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#ff6b9d]/10 border border-[#ff6b9d]/25">
-              <span className="text-[#ff6b9d] font-semibold tabular-nums">−${lostDollars.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+              <span className="text-[#ff6b9d] font-semibold tabular-nums">−${lostDollars.toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
               <span className="text-[#8b91c5]">lost (total)</span>
             </span>
           </div>
@@ -531,7 +531,7 @@ export default function UserProfile() {
                     <ChevronRight className={`w-3.5 h-3.5 text-[#5d628f] transition-transform ${aiExpanded[h.id] ? "rotate-90" : ""}`} />
                     <Sparkles className="w-3.5 h-3.5 text-[#a99cff]" />
                     <span className="text-[#eef0ff] font-medium">{h.model}</span>
-                    <span className="text-[#5d628f] text-xs">· {new Date(h.created_at * 1000).toLocaleString()}</span>
+                    <span className="text-[#5d628f] text-xs">· {new Date(h.created_at * 1000).toLocaleString("en-US")}</span>
                   </span>
                   <span className="text-[11px] text-[#8b91c5]">{aiExpanded[h.id] ? "بستن" : "نمایش"}</span>
                 </button>
@@ -609,11 +609,11 @@ export default function UserProfile() {
                           <span className="text-[#5d628f] text-xs">1</span>
                         )}
                       </td>
-                      <td className="px-5 py-4 text-right tabular-nums text-[#c3c8ee]">{(parseFloat(p.size) || 0).toLocaleString()}</td>
+                      <td className="px-5 py-4 text-right tabular-nums text-[#c3c8ee]">{(parseFloat(p.size) || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}</td>
                       <td className="px-5 py-4 text-right tabular-nums text-[#c3c8ee]">${parseFloat(p.avgPrice).toFixed(3)}</td>
-                      <td className="px-5 py-4 text-right tabular-nums font-medium text-white">${parseFloat(p.currentValue).toFixed(2)}</td>
+                      <td className="px-5 py-4 text-right tabular-nums font-medium text-white">${Math.round(parseFloat(p.currentValue)).toLocaleString('en-US')}</td>
                       <td className={`px-5 py-4 text-right tabular-nums font-medium ${parseFloat(p.cashPnl) >= 0 ? 'text-[#2ce5a7]' : 'text-[#ff6b9d]'}`}>
-                        {parseFloat(p.cashPnl) >= 0 ? '+' : ''}${parseFloat(p.cashPnl).toFixed(2)} ({parseFloat(p.percentPnl).toFixed(1)}%)
+                        {parseFloat(p.cashPnl) >= 0 ? '+' : ''}${Math.round(parseFloat(p.cashPnl)).toLocaleString('en-US')} ({parseFloat(p.percentPnl).toFixed(1)}%)
                       </td>
                     </tr>
                   ))
@@ -658,10 +658,10 @@ export default function UserProfile() {
                             {p.outcome}
                           </span>
                         </td>
-                        <td className="px-5 py-4 text-right tabular-nums text-[#8b91c5]">${inv.toFixed(2)}</td>
-                        <td className="px-5 py-4 text-right tabular-nums text-[#8b91c5]">${back.toFixed(2)}</td>
+                        <td className="px-5 py-4 text-right tabular-nums text-[#8b91c5]">${Math.round(inv).toLocaleString('en-US')}</td>
+                        <td className="px-5 py-4 text-right tabular-nums text-[#8b91c5]">${Math.round(back).toLocaleString('en-US')}</td>
                         <td className={`px-5 py-4 text-right tabular-nums font-bold ${pnl >= 0 ? 'text-[#2ce5a7]' : 'text-[#ff6b9d]'}`}>
-                          {pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}
+                          {pnl >= 0 ? '+' : ''}${Math.round(pnl).toLocaleString('en-US')}
                           {p.redeemable && <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-[#8b7cff]/12 text-[#a99cff] border border-[#8b7cff]/30">REDEEMABLE</span>}
                         </td>
                         <td className="px-5 py-4 text-[#5d628f]">{p.endDate ? format(new Date(p.endDate), 'MMM d, HH:mm') : '—'}</td>
@@ -672,10 +672,10 @@ export default function UserProfile() {
                 {resolved.length > 0 && (
                   <tr className="bg-[#0a0b1e]/80 border-t-2 border-[rgba(140,130,255,0.13)]">
                     <td className="px-5 py-4 font-semibold text-[#c3c8ee]" colSpan={2}>TOTAL — {resolved.length} settled</td>
-                    <td className="px-5 py-4 text-right tabular-nums font-semibold text-[#eef0ff]">${resolvedInvested.toFixed(2)}</td>
-                    <td className="px-5 py-4 text-right tabular-nums font-semibold text-[#eef0ff]">${resolvedReturned.toFixed(2)}</td>
+                    <td className="px-5 py-4 text-right tabular-nums font-semibold text-[#eef0ff]">${Math.round(resolvedInvested).toLocaleString('en-US')}</td>
+                    <td className="px-5 py-4 text-right tabular-nums font-semibold text-[#eef0ff]">${Math.round(resolvedReturned).toLocaleString('en-US')}</td>
                     <td className={`px-5 py-4 text-right tabular-nums font-bold ${resolvedPnl >= 0 ? 'text-[#2ce5a7]' : 'text-[#ff6b9d]'}`}>
-                      {resolvedPnl >= 0 ? '+' : ''}${resolvedPnl.toFixed(2)}
+                      {resolvedPnl >= 0 ? '+' : ''}${Math.round(resolvedPnl).toLocaleString('en-US')}
                     </td>
                     <td></td>
                   </tr>
@@ -723,12 +723,12 @@ export default function UserProfile() {
                           {p.result === "WON" ? "Won" : p.result === "LOST" ? "Lost" : "Flat"} · {p.outcome}
                         </span>
                       </td>
-                      <td className="px-5 py-4 text-right tabular-nums text-[#8b91c5]">${(p.invested ?? 0).toFixed(2)}</td>
-                      <td className="px-5 py-4 text-right tabular-nums text-[#8b91c5]">${(p.gotBack ?? 0).toFixed(2)}</td>
+                      <td className="px-5 py-4 text-right tabular-nums text-[#8b91c5]">${Math.round((p.invested ?? 0)).toLocaleString('en-US')}</td>
+                      <td className="px-5 py-4 text-right tabular-nums text-[#8b91c5]">${Math.round((p.gotBack ?? 0)).toLocaleString('en-US')}</td>
                       <td className={`px-5 py-4 text-right tabular-nums font-bold ${(p.pnl ?? 0) >= 0 ? 'text-[#2ce5a7]' : 'text-[#ff6b9d]'}`}>
-                        {(p.pnl ?? 0) >= 0 ? '+' : ''}${(p.pnl ?? 0).toFixed(2)}
+                        {(p.pnl ?? 0) >= 0 ? '+' : ''}${Math.round((p.pnl ?? 0)).toLocaleString('en-US')}
                       </td>
-                      <td className="px-5 py-4 text-right tabular-nums text-[#5d628f]">${(((p.invested ?? 0)) + ((p.gotBack ?? 0))).toFixed(2)}</td>
+                      <td className="px-5 py-4 text-right tabular-nums text-[#5d628f]">${(((p.invested ?? 0)) +Math.round( ((p.gotBack ?? 0)))).toLocaleString('en-US')}</td>
                     </tr>
                   ))
                 )}
@@ -737,10 +737,10 @@ export default function UserProfile() {
                     <td className="px-5 py-4 font-semibold text-[#c3c8ee]" colSpan={2}>
                       TOTAL — {closedTotals.count} closed ({closedTotals.wins} won)
                     </td>
-                    <td className="px-5 py-4 text-right tabular-nums font-semibold text-[#eef0ff]">${(closedTotals.invested ?? 0).toFixed(2)}</td>
-                    <td className="px-5 py-4 text-right tabular-nums font-semibold text-[#eef0ff]">${(closedTotals.gotBack ?? 0).toFixed(2)}</td>
+                    <td className="px-5 py-4 text-right tabular-nums font-semibold text-[#eef0ff]">${Math.round((closedTotals.invested ?? 0)).toLocaleString('en-US')}</td>
+                    <td className="px-5 py-4 text-right tabular-nums font-semibold text-[#eef0ff]">${Math.round((closedTotals.gotBack ?? 0)).toLocaleString('en-US')}</td>
                     <td className={`px-5 py-4 text-right tabular-nums font-bold ${(closedTotals.pnl ?? 0) >= 0 ? 'text-[#2ce5a7]' : 'text-[#ff6b9d]'}`}>
-                      {(closedTotals.pnl ?? 0) >= 0 ? '+' : ''}${(closedTotals.pnl ?? 0).toFixed(2)}
+                      {(closedTotals.pnl ?? 0) >= 0 ? '+' : ''}${Math.round((closedTotals.pnl ?? 0)).toLocaleString('en-US')}
                     </td>
                     <td></td>
                   </tr>
@@ -797,9 +797,9 @@ export default function UserProfile() {
                         </td>
                         <td className="px-5 py-4 max-w-[200px] truncate text-[#eef0ff]" title={t.title}>{t.title}</td>
                         <td className="px-5 py-4 text-[11px] text-[#8b91c5]">{t.outcome}</td>
-                        <td className="px-5 py-4 text-right tabular-nums text-[#c3c8ee]">{(parseFloat(t.size) || 0).toLocaleString()}</td>
+                        <td className="px-5 py-4 text-right tabular-nums text-[#c3c8ee]">{(parseFloat(t.size) || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}</td>
                         <td className="px-5 py-4 text-right tabular-nums text-[#c3c8ee]">${parseFloat(t.price).toFixed(3)}</td>
-                        <td className="px-5 py-4 text-right tabular-nums font-medium text-white">${notional.toFixed(2)}</td>
+                        <td className="px-5 py-4 text-right tabular-nums font-medium text-white">${Math.round(notional).toLocaleString('en-US')}</td>
                       </tr>
                     );
                   })
@@ -819,7 +819,7 @@ export default function UserProfile() {
               <div>
                 <p className="text-sm font-semibold text-[#eef0ff]">{entriesModal.title}</p>
                 <p className="text-[11px] text-[#5d628f] mt-0.5">
-                  {entriesModal.loading ? "loading entries…" : `${entriesModal.rows.length} entries · total $${entriesModal.rows.reduce((s, r) => s + (r.usdc || 0), 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
+                  {entriesModal.loading ? "loading entries…" : `${entriesModal.rows.length} entries · total $${entriesModal.rows.reduce((s, r) => s + (r.usdc || 0), 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}`}
                 </p>
               </div>
               <button onClick={() => setEntriesModal(m => ({ ...m, open: false }))}
@@ -839,10 +839,10 @@ export default function UserProfile() {
                 <tbody className="divide-y divide-[rgba(140,130,255,0.1)] text-[#c3c8ee] tabular-nums">
                   {entriesModal.rows.map((r, k) => (
                     <tr key={k}>
-                      <td className="px-5 py-2">{new Date(r.ts * 1000).toLocaleString()}</td>
+                      <td className="px-5 py-2">{new Date(r.ts * 1000).toLocaleString("en-US")}</td>
                       <td className="px-5 py-2 text-right">{(r.size || 0).toLocaleString(undefined, { maximumFractionDigits: 1 })}</td>
                       <td className="px-5 py-2 text-right">{((r.price || 0) * 100).toFixed(1)}¢</td>
-                      <td className="px-5 py-2 text-right text-[#eef0ff]">${(r.usdc || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                      <td className="px-5 py-2 text-right text-[#eef0ff]">${(r.usdc || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}</td>
                       <td className="px-5 py-2 font-mono text-[10px] text-[#5d628f]">{(r.txHash || "").slice(0, 10)}…</td>
                     </tr>
                   ))}
