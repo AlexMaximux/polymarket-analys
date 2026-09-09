@@ -442,8 +442,10 @@ export default function UserProfile() {
         )}
 
         {aiText && (
-          <div className="relative rounded-2xl p-6 md:p-8 overflow-hidden border border-[rgba(139,124,255,0.3)]"
+          <div dir="rtl"
+            className="relative rounded-2xl p-6 md:p-8 overflow-hidden border border-[rgba(139,124,255,0.3)] text-right"
             style={{
+              fontFamily: "Vazirmatn, IRANSans, Tahoma, system-ui, sans-serif",
               background:
                 "linear-gradient(160deg, rgba(108,92,231,0.14), rgba(13,15,34,0.92) 45%), radial-gradient(600px 300px at 85% -10%, rgba(77,214,255,0.10), transparent 60%)",
               backgroundBlendMode: "screen",

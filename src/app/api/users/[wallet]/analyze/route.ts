@@ -70,20 +70,22 @@ export async function POST(request: Request, { params }: { params: Promise<{ wal
     biggestClosedMarkets: closedTop,
   };
 
-  const prompt = `You are a sharp crypto prediction-market analyst. Analyze this Polymarket wallet's
-full trading history and produce a concise, opinionated briefing in Markdown with these sections:
+  const prompt = `تو یک تحلیلگر باتجربه‌ی بازارهای پیش‌بینی (prediction markets) و کریپتوی هستی.
+کل تاریخچه‌ی معاملات این والت Polymarket را تحلیل کن و یک بریفینگ مختصر، صریح و پر از عدد
+به زبان فارسی (Farsi) به صورت Markdown بنویس با این بخش‌ها:
 
-## Summary (2-3 sentences: what kind of trader is this?)
-## Strategy & Style (market categories, cadence, position sizing, entry/exit behavior)
-## Strengths (what they do well, with numbers from the data)
-## Weaknesses & Risks (losses, exposure, danger signs — cite specific markets)
-## Notable Markets (2-4 most interesting/revealing closed or open positions and why)
-## Verdict (follow / fade / watch — and what signal to watch for)
+## خلاصه (۲-۳ جمله: این معامله‌گر چه تیپی است؟)
+## استراتژی و سبک (دسته‌بندی بازارها، ریتم معامله، حجم پوزیشن‌ها، رفتار ورود و خروج)
+## نقاط قوت (چه کارهایی را خوب انجام می‌دهد — با اعداد واقعی از داده‌ها)
+## نقاط ضعف و ریسک‌ها (ضررها، اهرم ریسک، علائم خطر — به بازارهای مشخص اشاره کن)
+## بازارهای قابل‌توجه (۲ تا ۴ پوزیشن جالب یا گویا از بسته‌شده‌ها/بازها و چرا)
+## جمع‌بندی نهایی (دنبالش بریم / خلافش شرط ببندیم / فقط رصد — و چه سیگنالی را رصد کنیم)
 
-Be specific: reference actual markets, numbers and outcomes from the data below.
-If the data is thin, say so instead of inventing. Reply in English. Do not wrap in code fences.
+دقیق باش: به بازارها، اعداد و نتایج واقعی داخل داده‌ها اشاره کن.
+اگر داده‌ها کم بود، همین را بگو و چیزی از خودت نساز.
+کل پاسخ فقط فارسی باشد (اسم بازارها می‌تواند انگلیسی بماند). داخل code fence نگذار.
 
-DATA (JSON):
+داده‌ها (JSON):
 ${JSON.stringify(brief)}`;
 
   // ---- call the LLM ----

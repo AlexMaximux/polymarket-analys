@@ -19,6 +19,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700&display=swap" rel="stylesheet" />
+      </head>
       <body className={`${inter.className} min-h-screen flex flex-col`}>
         <header className="sticky top-0 z-50 border-b border-[rgba(140,130,255,0.14)] bg-[#0d0f22]/70 backdrop-blur-xl">
           <div className="max-w-[1200px] mx-auto px-5 h-14 flex items-center justify-between">
