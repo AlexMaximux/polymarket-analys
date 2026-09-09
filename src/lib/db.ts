@@ -122,6 +122,14 @@ export function initializeDb(dbInstance?: Database.Database) {
       db.exec(`INSERT INTO watch_categories (label, emoji, note, sort) VALUES
         ('Gold', '🥇', '', 1), ('Silver', '🥈', '', 2), ('Red', '🔴', '', 3)`);
     }
+    // LLM settings (single row) for the wallet-analysis feature
+    db.exec(`CREATE TABLE IF NOT EXISTS llm_settings (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      base_url TEXT NOT NULL,
+      api_key TEXT NOT NULL,
+      model TEXT NOT NULL,
+      updated_at INTEGER
+    )`);
     const acols = new Set((db.prepare(`PRAGMA table_info(alerts)`).all() as { name: string }[]).map(c => c.name));
     if (!acols.has('alert_type')) {
       db.exec(`ALTER TABLE alerts ADD COLUMN alert_type TEXT NOT NULL DEFAULT 'new_whale'`);

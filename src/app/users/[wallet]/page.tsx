@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import { ExternalLink, Wallet, Activity, PieChart, Archive, History as HistoryIcon, ChevronDown, ChevronUp, Star, ChevronRight, Download, FileText, Loader2 } from "lucide-react";
+import { ExternalLink, Wallet, Activity, PieChart, Archive, History as HistoryIcon, ChevronDown, ChevronUp, Star, ChevronRight, Download, FileText, Loader2, Sparkles } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import UserCharts from "@/components/UserCharts";
 
@@ -74,14 +74,24 @@ export default function UserProfile() {
   const [closedSort, setClosedSort] = useState<SortState>({ col: "won", dir: -1 });
   const [tradeSort, setTradeSort] = useState<SortState>({ col: "time", dir: -1 });
   const [exporting, setExporting] = useState<string | null>(null);
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState("");
+  const [aiText, setAiText] = useState<string | null>(null);
+  const [aiMeta, setAiMeta] = useState("");
+  const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
+  const [llmCfg, setLlmCfg] = useState<any>(null);
+  const [llmSaving, setLlmSaving] = useState(false);
+  const [llmMsg, setLlmMsg] = useState("");
   const [isStarred, setIsStarred] = useState<boolean | null>(null);
   const [sections, setSections] = useState<Record<string, boolean>>({
-    open: true, resolved: false, closed: true, trades: false,
+    open: true, resolved: false, closed: true, trades: false, ai: false,
   });
   const toggleSection = (k: string) => setSections(s => ({ ...s, [k]: !s[k] }));
 
   useEffect(() => {
     fetch(`/api/users/${wallet}`).then(res => res.json()).then(setData).catch(() => {});
+    loadAi(); loadLlm();
     fetch(`/api/watchlist`).then(res => res.json()).then(d => {
       const me = (d.starred || []).find((s: any) => s.wallet.toLowerCase() === wallet.toLowerCase());
       setIsStarred(!!me);
@@ -169,6 +179,44 @@ export default function UserProfile() {
     price: (t: any) => parseFloat(t.price) || 0,
     notional: (t: any) => parseFloat(t.usdcSize) || (parseFloat(t.size) * parseFloat(t.price)) || 0,
   }), [tradeRows, tradeSort]);
+
+  const loadAi = async () => {
+    try {
+      const res = await fetch(`/api/users/${wallet}/analyze`);
+      const d = await res.json();
+      if (d.cached) { setAiText(d.analysis); setAiMeta(`${d.model} · ${new Date(d.createdAt * 1000).toLocaleString()}`); }
+    } catch {}
+  };
+  const loadLlm = async () => {
+    try {
+      const res = await fetch("/api/llm");
+      setLlmCfg(await res.json());
+    } catch {}
+  };
+  const runAnalysis = async () => {
+    setAiLoading(true); setAiError(""); setAiText(null);
+    try {
+      const res = await fetch(`/api/users/${wallet}/analyze`, { method: "POST" });
+      const d = await res.json();
+      if (!res.ok) setAiError(d.error || "analysis failed");
+      else { setAiText(d.analysis); setAiMeta(`${d.model} · just now`); }
+    } catch (e: any) { setAiError(e.message || "failed"); }
+    finally { setAiLoading(false); }
+  };
+  const saveLlm = async () => {
+    setLlmSaving(true); setLlmMsg("");
+    const baseUrl = (document.getElementById("llm-url") as HTMLInputElement)?.value ?? "";
+    const apiKey = (document.getElementById("llm-key") as HTMLInputElement)?.value ?? "";
+    const model = (document.getElementById("llm-model") as HTMLInputElement)?.value ?? "";
+    try {
+      const res = await fetch("/api/llm", { method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ baseUrl, apiKey, model }) });
+      const d = await res.json();
+      if (!res.ok) setLlmMsg("❌ " + (d.testError || d.error || "failed"));
+      else { setLlmMsg("✅ saved & connection tested"); loadLlm(); }
+    } catch { setLlmMsg("❌ failed"); }
+    finally { setLlmSaving(false); }
+  };
 
   const downloadExport = async (kind: "trades" | "closed", format: "csv" | "pdf") => {
     const key = kind + ":" + format;
@@ -344,7 +392,78 @@ export default function UserProfile() {
         </div>
       </div>
 
-      {/* ---------- Open (Live) Positions ---------- */}
+            {/* ---------- AI Analysis ---------- */}
+      <Section id="ai" title="AI Analysis"
+        open={aiOpen} onToggle={() => setAiOpen(o => !o)}
+        subtitle="LLM briefing on this wallet's full trading history"
+        icon={<Sparkles className="w-5 h-5 text-[#a99cff]" />}
+        actions={
+          <>
+            <button onClick={() => { setAiSettingsOpen(s => !s); loadLlm(); }}
+              className="text-[11px] font-medium text-[#8b91c5] hover:text-[#eef0ff]">⚙ LLM</button>
+            <button onClick={runAnalysis} disabled={aiLoading}
+              className="inline-flex items-center gap-1.5 text-[11px] font-semibold rounded-lg px-3 py-1.5 bg-gradient-to-r from-[#6c5ce7] to-[#7170ff] text-white shadow-[0_0_14px_rgba(108,92,231,0.4)] disabled:opacity-50">
+              {aiLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+              {aiLoading ? "Analyzing full history…" : aiText ? "Re-analyze" : "Analyze wallet"}
+            </button>
+          </>
+        }>
+        {aiSettingsOpen && (
+          <div className="pm-panel p-5 mb-4 space-y-3">
+            <p className="text-xs uppercase tracking-wide text-[#8b91c5] font-medium">LLM Endpoint (OpenAI-compatible)</p>
+            {llmCfg?.configured && (
+              <p className="text-[11px] text-[#5d628f]">current: {llmCfg.baseUrl} · {llmCfg.model} · key {llmCfg.apiKeyMasked}</p>
+            )}
+            <div className="grid md:grid-cols-3 gap-3">
+              <input id="llm-url" defaultValue={llmCfg?.baseUrl || ""} placeholder="http://host:port/v1"
+                className="bg-white/[0.05] border border-[rgba(140,130,255,0.2)] rounded-lg px-3 py-2 text-sm text-[#eef0ff] placeholder:text-[#5d628f] focus:outline-none focus:border-[#a99cff]" />
+              <input id="llm-key" defaultValue="" placeholder="API key (sk-…)"
+                className="bg-white/[0.05] border border-[rgba(140,130,255,0.2)] rounded-lg px-3 py-2 text-sm text-[#eef0ff] placeholder:text-[#5d628f] focus:outline-none focus:border-[#a99cff]" />
+              <input id="llm-model" defaultValue={llmCfg?.model || ""} placeholder="model id (e.g. ag/gemini-3.8-flash-medium)"
+                className="bg-white/[0.05] border border-[rgba(140,130,255,0.2)] rounded-lg px-3 py-2 text-sm text-[#eef0ff] placeholder:text-[#5d628f] focus:outline-none focus:border-[#a99cff]" />
+            </div>
+            <div className="flex items-center gap-3">
+              <button onClick={saveLlm} disabled={llmSaving}
+                className="text-xs font-semibold rounded-lg px-4 py-2 bg-gradient-to-r from-[#6c5ce7] to-[#7170ff] text-white disabled:opacity-50">
+                {llmSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin inline mr-1" /> : null}
+                Test & save
+              </button>
+              {llmMsg && <span className="text-xs text-[#c3c8ee]">{llmMsg}</span>}
+            </div>
+          </div>
+        )}
+
+        {aiError && <div className="bg-[#ff6b9d]/10 border border-[#ff6b9d]/30 text-[#ff6b9d] rounded-xl px-4 py-3 text-sm mb-4">{aiError}</div>}
+
+        {!aiText && !aiLoading && !aiError && (
+          <p className="text-sm text-[#8b91c5]">
+            Press <b className="text-[#a99cff]">Analyze wallet</b> — the full trading history (closed markets, live positions, recent trades) is sent to the configured LLM and its briefing appears here.
+          </p>
+        )}
+
+        {aiText && (
+          <div className="pm-card p-6">
+            <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+              <span className="text-[11px] text-[#5d628f]">model: {aiMeta}</span>
+              <button onClick={() => navigator.clipboard.writeText(aiText)}
+                className="text-[11px] text-[#8b91c5] hover:text-[#eef0ff]">copy markdown</button>
+            </div>
+            <div className="space-y-3 text-sm leading-relaxed text-[#c3c8ee]">
+              {aiText.split("\n").map((line, i) => {
+                const render = (s: string) => s.split(/(\*\*[^*]+\*\*)/g).map((part, j) =>
+                  part.startsWith("**") ? <b key={j} className="text-[#eef0ff]">{part.slice(2, -2)}</b> : part);
+                if (line.startsWith("## ")) return <h3 key={i} className="text-base font-semibold text-[#eef0ff] pt-2">{render(line.slice(3))}</h3>;
+                if (line.startsWith("### ")) return <h4 key={i} className="text-sm font-semibold text-[#eef0ff]">{render(line.slice(4))}</h4>;
+                if (line.startsWith("* ") || line.startsWith("- ")) return <li key={i} className="ml-5 list-disc">{render(line.slice(2))}</li>;
+                if (!line.trim()) return <div key={i} className="h-1" />;
+                return <p key={i}>{render(line)}</p>;
+              })}
+            </div>
+          </div>
+        )}
+      </Section>
+
+{/* ---------- Open (Live) Positions ---------- */}
       <Section id="open" title="Current Positions (Live)" count={positions.length}
         open={sections.open} onToggle={() => toggleSection("open")}
         subtitle="matches what polymarket.com shows as open · click headers to sort"
