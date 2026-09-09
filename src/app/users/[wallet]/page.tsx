@@ -3,7 +3,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { ExternalLink, Wallet, Activity, PieChart, Archive, History as HistoryIcon, ChevronDown, ChevronUp, Star, ChevronRight, Download, FileText, Loader2, Sparkles } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
-import UserCharts from "@/components/UserCharts";
 
 /* ---------- tiny sortable-table helpers ---------- */
 
@@ -811,7 +810,6 @@ export default function UserProfile() {
         </div>
       </Section>
 
-      <UserCharts wallet={wallet} />
           {entriesModal.open && (
         <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
           onClick={() => setEntriesModal(m => ({ ...m, open: false }))}>
