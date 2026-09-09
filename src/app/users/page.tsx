@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { Search, ChevronDown, ChevronUp, Star } from "lucide-react";
+import { Search, ChevronDown, ChevronUp, Star , FileText } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 export default function UsersPage() {
@@ -129,6 +129,12 @@ export default function UsersPage() {
                       <Link href={`/users/${u.wallet}`} className="text-[#a99cff] hover:underline font-medium">
                         {u.pseudonym || u.name || (u.wallet.slice(0, 6) + '...' + u.wallet.slice(-4))}
                       </Link>
+                      {u.note && (
+                        <p className="text-[11px] text-[#8b91c5] mt-1 flex items-start gap-1 max-w-[280px]">
+                          <FileText className="w-3 h-3 mt-0.5 shrink-0 text-[#a99cff]" />
+                          <span className="line-clamp-2">{u.note}</span>
+                        </p>
+                      )}
                     </td>
                     <td className="px-5 py-4 text-[#c3c8ee] tabular-nums">{formatDistanceToNow(new Date(u.first_seen * 1000), { addSuffix: true })}</td>
                     <td className="px-5 py-4 tabular-nums text-right text-[#c3c8ee]">{u.trade_count.toLocaleString()}</td>

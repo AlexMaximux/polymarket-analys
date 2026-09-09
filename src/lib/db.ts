@@ -122,6 +122,40 @@ export function initializeDb(dbInstance?: Database.Database) {
       db.exec(`INSERT INTO watch_categories (label, emoji, note, sort) VALUES
         ('Gold', '🥇', '', 1), ('Silver', '🥈', '', 2), ('Red', '🔴', '', 3)`);
     }
+    // per-wallet BUY-entry ledger (for "entries" counts on open positions)
+    db.exec(`CREATE TABLE IF NOT EXISTS wallet_entries (
+      wallet TEXT NOT NULL,
+      condition_id TEXT NOT NULL,
+      title TEXT,
+      slug TEXT,
+      event_slug TEXT,
+      outcome TEXT,
+      ts INTEGER NOT NULL,
+      side TEXT,
+      size REAL,
+      price REAL,
+      usdc REAL,
+      tx_hash TEXT,
+      PRIMARY KEY (wallet, condition_id, ts, tx_hash)
+    )`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_we_wallet ON wallet_entries(wallet, condition_id)`);
+    // per-wallet full activity ledger cache (persists rows beyond the 5500-row API window)
+    db.exec(`CREATE TABLE IF NOT EXISTS wallet_ledger_cache (
+      wallet TEXT NOT NULL,
+      ts INTEGER NOT NULL,
+      type TEXT,
+      side TEXT,
+      size REAL,
+      usdc REAL,
+      price REAL,
+      title TEXT,
+      slug TEXT,
+      condition_id TEXT,
+      outcome TEXT,
+      tx_hash TEXT,
+      PRIMARY KEY (wallet, ts, tx_hash, type, side, condition_id)
+    )`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_wlc_wallet ON wallet_ledger_cache(wallet, ts)`);
     // LLM settings (single row) for the wallet-analysis feature
     db.exec(`CREATE TABLE IF NOT EXISTS llm_settings (
       id INTEGER PRIMARY KEY CHECK (id = 1),

@@ -115,19 +115,18 @@ ${JSON.stringify(brief)}`;
 
   if (!analysis) return NextResponse.json({ error: 'empty LLM response' }, { status: 502 });
 
-  // ---- cache ----
+  // ---- cache (append — every run is kept as a dated entry) ----
   const db = getDb();
-  db.exec(`CREATE TABLE IF NOT EXISTS wallet_analyses (
-    wallet TEXT PRIMARY KEY,
+  db.exec(`CREATE TABLE IF NOT EXISTS wallet_analyses_v2 (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    wallet TEXT NOT NULL,
     model TEXT,
     analysis TEXT,
     created_at INTEGER
   )`);
   db.prepare(
-    `INSERT INTO wallet_analyses (wallet, model, analysis, created_at) VALUES (?, ?, ?, ?)
-     ON CONFLICT(wallet) DO UPDATE SET model = ?, analysis = ?, created_at = ?`
-  ).run(wallet, llm.model, analysis, Math.floor(Date.now() / 1000),
-        llm.model, analysis, Math.floor(Date.now() / 1000));
+    `INSERT INTO wallet_analyses_v2 (wallet, model, analysis, created_at) VALUES (?, ?, ?, ?)`
+  ).run(wallet, llm.model, analysis, Math.floor(Date.now() / 1000));
 
   return NextResponse.json({ ok: true, model: llm.model, analysis });
 }
@@ -135,10 +134,15 @@ ${JSON.stringify(brief)}`;
 export async function GET(request: Request, { params }: { params: Promise<{ wallet: string }> }) {
   const { wallet } = await params;
   const db = getDb();
-  db.exec(`CREATE TABLE IF NOT EXISTS wallet_analyses (
-    wallet TEXT PRIMARY KEY, model TEXT, analysis TEXT, created_at INTEGER
+  db.exec(`CREATE TABLE IF NOT EXISTS wallet_analyses_v2 (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    wallet TEXT NOT NULL,
+    model TEXT,
+    analysis TEXT,
+    created_at INTEGER
   )`);
-  const row = db.prepare(`SELECT model, analysis, created_at FROM wallet_analyses WHERE wallet = ?`)
-    .get(wallet.toLowerCase()) as any;
-  return NextResponse.json(row ? { cached: true, model: row.model, analysis: row.analysis, createdAt: row.created_at } : { cached: false });
+  const rows = db.prepare(
+    `SELECT id, model, analysis, created_at FROM wallet_analyses_v2 WHERE wallet = ? ORDER BY created_at DESC LIMIT 30`
+  ).all(wallet.toLowerCase()) as any[];
+  return NextResponse.json({ cached: rows.length > 0, analyses: rows });
 }

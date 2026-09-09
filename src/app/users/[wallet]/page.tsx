@@ -79,11 +79,19 @@ export default function UserProfile() {
   const [aiError, setAiError] = useState("");
   const [aiText, setAiText] = useState<string | null>(null);
   const [aiMeta, setAiMeta] = useState("");
+  const [aiHistory, setAiHistory] = useState<any[]>([]);
+  const [aiExpanded, setAiExpanded] = useState<Record<number, boolean>>({});
+  const [closedSearch, setClosedSearch] = useState("");
+  const [tradesSearch, setTradesSearch] = useState("");
   const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
   const [llmCfg, setLlmCfg] = useState<any>(null);
   const [llmSaving, setLlmSaving] = useState(false);
   const [llmMsg, setLlmMsg] = useState("");
   const [isStarred, setIsStarred] = useState<boolean | null>(null);
+  const [userNote, setUserNote] = useState("");
+  const [noteEditing, setNoteEditing] = useState(false);
+  const [noteDraft, setNoteDraft] = useState("");
+  const [noteSaving, setNoteSaving] = useState(false);
   const [sections, setSections] = useState<Record<string, boolean>>({
     open: true, resolved: false, closed: true, trades: false, ai: false,
   });
@@ -95,6 +103,7 @@ export default function UserProfile() {
     fetch(`/api/watchlist`).then(res => res.json()).then(d => {
       const me = (d.starred || []).find((s: any) => s.wallet.toLowerCase() === wallet.toLowerCase());
       setIsStarred(!!me);
+      if (me?.note) setUserNote(me.note);
     }).catch(() => setIsStarred(false));
     fetch(`/api/users/${wallet}/positions`).then(res => res.json()).then(setPosData).catch(() => {});
     fetch(`/api/users/${wallet}/closed`).then(res => res.json()).then(setClosedData).catch(() => {});
@@ -161,7 +170,17 @@ export default function UserProfile() {
     settled: (p: any) => p.endDate ? new Date(p.endDate).getTime() : 0,
   }), [resolved, resSort]);
 
-  const closedSorted = useMemo(() => makeSorter(closedRows, closedSort, {
+  const closedFiltered = useMemo(() => {
+    const q = closedSearch.trim().toLowerCase();
+    if (!q) return closedRows;
+    return closedRows.filter((r: any) =>
+      (r.title || "").toLowerCase().includes(q) ||
+      (r.outcome || "").toLowerCase().includes(q) ||
+      String(r.invested ?? "").includes(q) ||
+      String(Math.round(r.pnl ?? 0)).includes(q)
+    );
+  }, [closedRows, closedSearch]);
+  const closedSorted = useMemo(() => makeSorter(closedFiltered, closedSort, {
     market: (p: any) => p.title || "",
     outcome: (p: any) => p.outcome || "",
     invested: (p: any) => p.invested || 0,
@@ -170,7 +189,18 @@ export default function UserProfile() {
     traded: (p: any) => p.totalTraded || 0,
   }), [closedRows, closedSort]);
 
-  const tradesSorted = useMemo(() => makeSorter(tradeRows, tradeSort, {
+  const tradesFiltered = useMemo(() => {
+    const q = tradesSearch.trim().toLowerCase();
+    if (!q) return tradeRows;
+    return tradeRows.filter((r: any) =>
+      (r.title || "").toLowerCase().includes(q) ||
+      (r.outcome || "").toLowerCase().includes(q) ||
+      (r.side || "").toLowerCase().includes(q) ||
+      (r.type || "").toLowerCase().includes(q) ||
+      String(Math.round(r.usdcSize ?? 0)).includes(q)
+    );
+  }, [tradeRows, tradesSearch]);
+  const tradesSorted = useMemo(() => makeSorter(tradesFiltered, tradeSort, {
     time: (t: any) => t.timestamp || 0,
     side: (t: any) => t.side || "",
     market: (t: any) => t.title || "",
@@ -180,11 +210,21 @@ export default function UserProfile() {
     notional: (t: any) => parseFloat(t.usdcSize) || (parseFloat(t.size) * parseFloat(t.price)) || 0,
   }), [tradeRows, tradeSort]);
 
+  const saveUserNote = async () => {
+    setNoteSaving(true);
+    try {
+      await fetch("/api/watchlist", { method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ wallet, note: noteDraft }) });
+      setUserNote(noteDraft);
+      setNoteEditing(false);
+    } catch {} finally { setNoteSaving(false); }
+  };
+
   const loadAi = async () => {
     try {
       const res = await fetch(`/api/users/${wallet}/analyze`);
       const d = await res.json();
-      if (d.cached) { setAiText(d.analysis); setAiMeta(`${d.model} · ${new Date(d.createdAt * 1000).toLocaleString()}`); }
+      setAiHistory(d.analyses || []);
     } catch {}
   };
   const loadLlm = async () => {
@@ -199,7 +239,7 @@ export default function UserProfile() {
       const res = await fetch(`/api/users/${wallet}/analyze`, { method: "POST" });
       const d = await res.json();
       if (!res.ok) setAiError(d.error || "analysis failed");
-      else { setAiText(d.analysis); setAiMeta(`${d.model} · just now`); }
+      else { setAiText(d.analysis); setAiMeta(`${d.model} · just now`); loadAi(); }
     } catch (e: any) { setAiError(e.message || "failed"); }
     finally { setAiLoading(false); }
   };
@@ -216,6 +256,16 @@ export default function UserProfile() {
       else { setLlmMsg("✅ saved & connection tested"); loadLlm(); }
     } catch { setLlmMsg("❌ failed"); }
     finally { setLlmSaving(false); }
+  };
+
+  const [entriesModal, setEntriesModal] = useState<{ open: boolean; title: string; conditionId: string; loading: boolean; rows: any[] }>({ open: false, title: "", conditionId: "", loading: false, rows: [] });
+  const openEntries = async (p: any) => {
+    setEntriesModal({ open: true, title: p.title, conditionId: p.conditionId, loading: true, rows: [] });
+    try {
+      const res = await fetch(`/api/users/${wallet}/entries?conditionId=${p.conditionId}`);
+      const d = await res.json();
+      setEntriesModal(m => ({ ...m, loading: false, rows: d.entries || [] }));
+    } catch { setEntriesModal(m => ({ ...m, loading: false })); }
   };
 
   const downloadExport = async (kind: "trades" | "closed", format: "csv" | "pdf") => {
@@ -295,6 +345,36 @@ export default function UserProfile() {
               <ExternalLink className="w-5 h-5" />
             </a>
           </h1>
+          <div className="mb-3">
+            {noteEditing ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <input value={noteDraft} onChange={e => setNoteDraft(e.target.value)} autoFocus
+                  placeholder="توضیح درباره‌ی این والت…"
+                  onKeyDown={e => { if (e.key === "Enter") saveUserNote(); }}
+                  className="flex-1 min-w-[260px] bg-white/[0.05] border border-[rgba(140,130,255,0.25)] rounded-lg px-3 py-2 text-sm text-[#eef0ff] placeholder:text-[#5d628f] focus:outline-none focus:border-[#a99cff]" />
+                <button onClick={saveUserNote} disabled={noteSaving}
+                  className="text-xs font-semibold rounded-lg px-3 py-2 bg-gradient-to-r from-[#6c5ce7] to-[#7170ff] text-white disabled:opacity-50">
+                  {noteSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Save"}
+                </button>
+                <button onClick={() => setNoteEditing(false)}
+                  className="text-xs text-[#8b91c5] hover:text-[#eef0ff] px-2">cancel</button>
+              </div>
+            ) : (
+              <button onClick={() => { setNoteDraft(userNote); setNoteEditing(true); }}
+                className="group inline-flex items-center gap-2 text-sm">
+                {userNote ? (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#8b7cff]/10 border border-[rgba(139,124,255,0.3)] text-[#dfe3ff]">
+                    <FileText className="w-3.5 h-3.5 text-[#a99cff]" /> {userNote}
+                    <span className="text-[10px] text-[#5d628f] group-hover:text-[#a99cff] ml-1">(edit)</span>
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 text-[#5d628f] group-hover:text-[#a99cff]">
+                    <FileText className="w-3.5 h-3.5" /> add note about this wallet…
+                  </span>
+                )}
+              </button>
+            )}
+          </div>
           <p className="text-[#8b91c5] flex items-center gap-2 text-sm"><Wallet className="w-4 h-4"/> <span className="font-mono text-[13px]">{wallet}</span></p>
         </div>
       </div>
@@ -441,38 +521,44 @@ export default function UserProfile() {
           </p>
         )}
 
-        {aiText && (
-          <div dir="rtl"
-            className="relative rounded-2xl p-6 md:p-8 overflow-hidden border border-[rgba(139,124,255,0.3)] text-right"
-            style={{
-              fontFamily: "Vazirmatn, IRANSans, Tahoma, system-ui, sans-serif",
-              background:
-                "linear-gradient(160deg, rgba(108,92,231,0.14), rgba(13,15,34,0.92) 45%), radial-gradient(600px 300px at 85% -10%, rgba(77,214,255,0.10), transparent 60%)",
-              backgroundBlendMode: "screen",
-              boxShadow: "0 0 40px -12px rgba(108,92,231,0.45) inset, 0 8px 32px -12px rgba(0,0,0,0.6)",
-            }}>
-            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-              <span className="text-xs text-[#8b91c5] flex items-center gap-2">
-                <Sparkles className="w-3.5 h-3.5 text-[#a99cff]" /> model: {aiMeta}
-              </span>
-              <button onClick={() => navigator.clipboard.writeText(aiText)}
-                className="text-xs text-[#8b91c5] hover:text-[#eef0ff]">copy markdown</button>
-            </div>
-            <div className="space-y-4 text-[15px] md:text-base leading-[1.9] text-[#dfe3ff]">
-              {aiText.split("\n").map((line, i) => {
-                const render = (s: string) => s.split(/(\*\*[^*]+\*\*)/g).map((part, j) =>
-                  part.startsWith("**") ? <b key={j} className="text-white font-semibold">{part.slice(2, -2)}</b> : part);
-                if (line.startsWith("## ")) return (
-                  <h3 key={i} className="text-xl md:text-[22px] font-semibold text-aurora pt-4 pb-1 border-b border-[rgba(140,130,255,0.18)]">
-                    {render(line.slice(3))}
-                  </h3>);
-                if (line.startsWith("### ")) return <h4 key={i} className="text-lg font-semibold text-[#eef0ff] pt-2">{render(line.slice(4))}</h4>;
-                if (line.startsWith("* ") || line.startsWith("- ")) return (
-                  <li key={i} className="ml-6 list-disc marker:text-[#a99cff]">{render(line.slice(2))}</li>);
-                if (!line.trim()) return <div key={i} className="h-2" />;
-                return <p key={i}>{render(line)}</p>;
-              })}
-            </div>
+        {/* history list — every run kept as a dated collapsible entry */}
+        {aiHistory.length > 0 && (
+          <div className="space-y-2">
+            {aiHistory.map((h: any) => (
+              <div key={h.id} className="pm-panel overflow-hidden">
+                <button onClick={() => setAiExpanded(s => ({ ...s, [h.id]: !s[h.id] }))}
+                  className="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-white/[0.04] transition-colors">
+                  <span className="flex items-center gap-2 text-sm">
+                    <ChevronRight className={`w-3.5 h-3.5 text-[#5d628f] transition-transform ${aiExpanded[h.id] ? "rotate-90" : ""}`} />
+                    <Sparkles className="w-3.5 h-3.5 text-[#a99cff]" />
+                    <span className="text-[#eef0ff] font-medium">{h.model}</span>
+                    <span className="text-[#5d628f] text-xs">· {new Date(h.created_at * 1000).toLocaleString()}</span>
+                  </span>
+                  <span className="text-[11px] text-[#8b91c5]">{aiExpanded[h.id] ? "بستن" : "نمایش"}</span>
+                </button>
+                {aiExpanded[h.id] && (
+                  <div dir="rtl" style={{ fontFamily: "Vazirmatn, IRANSans, Tahoma, system-ui, sans-serif" }}
+                    className="relative px-6 pb-6 pt-2 overflow-hidden border-t border-[rgba(139,124,255,0.2)]"
+                  >
+                    <div className="space-y-4 text-[15px] md:text-base leading-[1.9] text-[#dfe3ff]">
+                      {h.analysis.split("\n").map((line: string, k: number) => {
+                        const render = (s: string) => s.split(/(\*\*[^*]+\*\*)/g).map((part, m2) =>
+                          part.startsWith("**") ? <b key={m2} className="text-white font-semibold">{part.slice(2, -2)}</b> : part);
+                        if (line.startsWith("## ")) return (
+                          <h3 key={k} className="text-xl md:text-[22px] font-semibold text-aurora pt-4 pb-1 border-b border-[rgba(140,130,255,0.18)]">
+                            {render(line.slice(3))}
+                          </h3>);
+                        if (line.startsWith("### ")) return <h4 key={k} className="text-lg font-semibold text-[#eef0ff] pt-2">{render(line.slice(4))}</h4>;
+                        if (line.startsWith("* ") || line.startsWith("- ")) return (
+                          <li key={k} className="ml-6 list-disc marker:text-[#a99cff]">{render(line.slice(2))}</li>);
+                        if (!line.trim()) return <div key={k} className="h-2" />;
+                        return <p key={k}>{render(line)}</p>;
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         )}
       </Section>
@@ -489,6 +575,7 @@ export default function UserProfile() {
                 <tr>
                   <SortHeader label="Market" col="market" sort={openSort} onSort={c => setOpenSort(flip(openSort, c))} />
                   <SortHeader label="Outcome" col="outcome" sort={openSort} onSort={c => setOpenSort(flip(openSort, c))} />
+                  <SortHeader label="Entries" col="entries" sort={openSort} onSort={c => setOpenSort(flip(openSort, c))} right />
                   <SortHeader label="Shares" col="shares" sort={openSort} onSort={c => setOpenSort(flip(openSort, c))} right />
                   <SortHeader label="Avg Price" col="avg" sort={openSort} onSort={c => setOpenSort(flip(openSort, c))} right />
                   <SortHeader label="Current Value" col="value" sort={openSort} onSort={c => setOpenSort(flip(openSort, c))} right />
@@ -497,15 +584,31 @@ export default function UserProfile() {
               </thead>
               <tbody className="divide-y divide-[rgba(140,130,255,0.11)]">
                 {openSorted.length === 0 ? (
-                  <tr><td colSpan={6} className="p-8 text-center text-[#5d628f]">No open positions found.</td></tr>
+                  <tr><td colSpan={7} className="p-8 text-center text-[#5d628f]">No open positions found.</td></tr>
                 ) : (
                   openSorted.map((p: any, i: number) => (
                     <tr key={`${p.asset ?? "o"}-${i}`} className="hover:bg-white/[0.08] transition-colors group">
-                      <td className="px-5 py-4 max-w-[200px] truncate text-[#eef0ff]" title={p.title}>{p.title}</td>
+                      <td className="px-5 py-4 max-w-[200px] truncate text-[#eef0ff]">
+                        <a href={`https://polymarket.com/event/${p.eventSlug || p.slug}`} target="_blank" rel="noreferrer"
+                          title={p.title + " — open on Polymarket"}
+                          className="hover:text-[#a99cff] hover:underline">
+                          {p.title} <ExternalLink className="w-3 h-3 inline opacity-40" />
+                        </a>
+                      </td>
                       <td className="px-5 py-4">
                         <span className="inline-flex items-center px-2 py-0.5 bg-white/[0.08] border border-[rgba(140,130,255,0.15)] rounded-md text-[11px] font-bold uppercase tracking-wide text-[#c3c8ee]">
                           {p.outcome}
                         </span>
+                      </td>
+                      <td className="px-5 py-4 text-right">
+                        {(p.entryCount ?? 0) > 1 ? (
+                          <button onClick={() => openEntries(p)}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#8b7cff]/15 border border-[rgba(139,124,255,0.35)] text-[#a99cff] text-xs font-bold hover:bg-[#8b7cff]/25">
+                            {p.entryCount} entries
+                          </button>
+                        ) : (
+                          <span className="text-[#5d628f] text-xs">1</span>
+                        )}
                       </td>
                       <td className="px-5 py-4 text-right tabular-nums text-[#c3c8ee]">{(parseFloat(p.size) || 0).toLocaleString()}</td>
                       <td className="px-5 py-4 text-right tabular-nums text-[#c3c8ee]">${parseFloat(p.avgPrice).toFixed(3)}</td>
@@ -590,6 +693,9 @@ export default function UserProfile() {
         subtitle={closedTotals.truncated ? "most recent 2000 closed markets (Polymarket API cap) — newest first · click headers to sort" : "every fully-exited market (same source as polymarket.com RESULT list) · click headers to sort"}
         icon={<HistoryIcon className="w-5 h-5 text-[#a99cff]" />}
         actions={<>
+          <input value={closedSearch} onChange={e => setClosedSearch(e.target.value)}
+            placeholder="search market / $ / result…"
+            className="w-44 bg-white/[0.05] border border-[rgba(140,130,255,0.2)] rounded-lg px-2.5 py-1 text-xs text-[#eef0ff] placeholder:text-[#5d628f] focus:outline-none focus:border-[#a99cff]" />
           <ExportBtn kind="closed" format="csv" label="Closed Positions History" />
           <ExportBtn kind="closed" format="pdf" label="Closed Positions History" />
         </>}>
@@ -652,6 +758,9 @@ export default function UserProfile() {
         subtitle="full history live from Polymarket (not crawler cache) · click headers to sort"
         icon={<Activity className="w-5 h-5 text-[#8b91c5]" />}
         actions={<>
+          <input value={tradesSearch} onChange={e => setTradesSearch(e.target.value)}
+            placeholder="search market / side / $…"
+            className="w-44 bg-white/[0.05] border border-[rgba(140,130,255,0.2)] rounded-lg px-2.5 py-1 text-xs text-[#eef0ff] placeholder:text-[#5d628f] focus:outline-none focus:border-[#a99cff]" />
           <ExportBtn kind="trades" format="csv" label="Trade History" />
           <ExportBtn kind="trades" format="pdf" label="Trade History" />
         </>}>
@@ -703,6 +812,48 @@ export default function UserProfile() {
       </Section>
 
       <UserCharts wallet={wallet} />
+          {entriesModal.open && (
+        <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setEntriesModal(m => ({ ...m, open: false }))}>
+          <div className="pm-panel w-full max-w-3xl max-h-[80vh] overflow-hidden flex flex-col"
+            onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[rgba(140,130,255,0.15)]">
+              <div>
+                <p className="text-sm font-semibold text-[#eef0ff]">{entriesModal.title}</p>
+                <p className="text-[11px] text-[#5d628f] mt-0.5">
+                  {entriesModal.loading ? "loading entries…" : `${entriesModal.rows.length} entries · total $${entriesModal.rows.reduce((s, r) => s + (r.usdc || 0), 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
+                </p>
+              </div>
+              <button onClick={() => setEntriesModal(m => ({ ...m, open: false }))}
+                className="text-[#8b91c5] hover:text-[#eef0ff] text-lg">✕</button>
+            </div>
+            <div className="overflow-y-auto">
+              <table className="w-full text-left text-xs whitespace-nowrap pm-table">
+                <thead className="bg-[#0a0b1e]/80 text-[#8b91c5] uppercase tracking-wider sticky top-0">
+                  <tr>
+                    <th className="px-5 py-2.5">Time</th>
+                    <th className="px-5 py-2.5 text-right">Shares</th>
+                    <th className="px-5 py-2.5 text-right">Price</th>
+                    <th className="px-5 py-2.5 text-right">USD</th>
+                    <th className="px-5 py-2.5">Tx</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[rgba(140,130,255,0.1)] text-[#c3c8ee] tabular-nums">
+                  {entriesModal.rows.map((r, k) => (
+                    <tr key={k}>
+                      <td className="px-5 py-2">{new Date(r.ts * 1000).toLocaleString()}</td>
+                      <td className="px-5 py-2 text-right">{(r.size || 0).toLocaleString(undefined, { maximumFractionDigits: 1 })}</td>
+                      <td className="px-5 py-2 text-right">{((r.price || 0) * 100).toFixed(1)}¢</td>
+                      <td className="px-5 py-2 text-right text-[#eef0ff]">${(r.usdc || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                      <td className="px-5 py-2 font-mono text-[10px] text-[#5d628f]">{(r.txHash || "").slice(0, 10)}…</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
