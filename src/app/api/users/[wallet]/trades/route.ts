@@ -67,6 +67,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ wall
     `SELECT ts, type, side, size, usdc, price, title, slug, condition_id AS conditionId, outcome, tx_hash AS transactionHash
      FROM wallet_ledger_cache WHERE wallet = ? ORDER BY ts DESC LIMIT ?`
   ).all(wallet.toLowerCase(), limit) as any[];
+  // map to the legacy field names the profile UI expects
+  const mapped = rows.map(r => ({
+    ...r,
+    timestamp: r.ts,
+    usdcSize: r.usdc,
+    asset: r.conditionId, // kept for legacy key fallback
+  }));
 
   return NextResponse.json({
     cachedTotal: (db.prepare(`SELECT COUNT(*) AS n FROM wallet_ledger_cache WHERE wallet = ?`).get(wallet.toLowerCase()) as any)?.n ?? 0,
@@ -77,6 +84,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ wall
       sells: rows.filter(r => r.type === 'TRADE' && r.side === 'SELL').length,
       redeems: rows.filter(r => r.type === 'REDEEM').length,
     },
-    trades: rows,
+    trades: mapped,
   });
 }

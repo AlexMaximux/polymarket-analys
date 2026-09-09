@@ -786,7 +786,7 @@ export default function UserProfile() {
                     const notional = parseFloat(t.usdcSize) || (parseFloat(t.size) * parseFloat(t.price)) || 0;
                     return (
                       <tr key={`${t.transactionHash ?? "t"}-${t.asset ?? "x"}-${t.timestamp ?? i}-${i}`} className="hover:bg-white/[0.08] transition-colors group">
-                        <td className="px-5 py-4 text-[#8b91c5] tabular-nums">{format(new Date(t.timestamp * 1000), "MMM d, HH:mm")}</td>
+                        <td className="px-5 py-4 text-[#8b91c5] tabular-nums">{t.timestamp ? format(new Date(t.timestamp * 1000), "MMM d, HH:mm") : "—"}</td>
                         <td className="px-5 py-4">
                           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold tracking-wide uppercase border ${
                             t.side === 'BUY'
