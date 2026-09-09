@@ -221,16 +221,8 @@ export default function UpDownPage() {
           <p className="text-sm text-[#8b91c5]">Polymarket hourly &amp; sub-hourly crypto markets, synced live · drift-extraction fair value for the 1H</p>
         </div>
         <div className="flex items-center gap-2">
-          {loading && <RefreshCw className="w-4 h-4 animate-spin text-[#5d628f]" />}
-          {auto && !loading && <span className="text-xs text-[#5d628f] tabular-nums">next refresh {countdown}s</span>}
-          <span className="text-xs tabular-nums text-[#c3c8ee] flex items-center gap-2 border-l border-[rgba(140,130,255,0.2)] pl-2 ml-1">
-            <Clock className="w-3.5 h-3.5 text-[#8b91c5]" />
-            {new Date(nowTick).toLocaleTimeString("en-GB", { timeZone: "America/New_York", hour: "2-digit", minute: "2-digit", second: "2-digit" })}
-            <span className="text-[#5d628f]">ET</span>
-            <span className="text-[#ffc94d]" title="until 5m candle closes">5m {fmtRemain(nowTick, 300)}</span>
-            <span className="text-[#38bdf8]" title="until 15m candle closes">15m {fmtRemain(nowTick, 900)}</span>
-            <span className="text-[#ff6b9d]" title="until 1h candle closes">1h {fmtRemain(nowTick, 3600)}</span>
-          </span>
+          <span className="w-9 flex justify-center">{loading && <RefreshCw className="w-4 h-4 animate-spin text-[#5d628f]" />}</span>
+          <span className="text-xs text-[#5d628f] tabular-nums w-24">{auto ? `next refresh ${countdown}s` : ""}</span>
           <button onClick={() => setAuto(a => !a)}
             className={`text-xs font-medium rounded-lg px-3 py-1.5 border ${auto ? "bg-[#2ce5a7]/10 text-[#2ce5a7] border-[#2ce5a7]/35" : "text-[#8b91c5] border-[rgba(140,130,255,0.15)]"}`}>
             {auto ? "Auto 5s ON" : "Auto OFF"}
@@ -239,6 +231,19 @@ export default function UpDownPage() {
             Refresh
           </button>
         </div>
+      </div>
+
+      {/* live clock + candle countdowns — sticky, never moves */}
+      <div className="sticky top-14 z-40 -mx-1 px-1 py-1.5 rounded-xl bg-[#0d0f22]/85 backdrop-blur-md border border-[rgba(140,130,255,0.14)] flex items-center justify-center gap-5 text-xs tabular-nums shadow-sm">
+        <span className="flex items-center gap-1.5 text-[#eef0ff] font-medium">
+          <Clock className="w-3.5 h-3.5 text-[#8b91c5]" />
+          {new Date(nowTick).toLocaleTimeString("en-GB", { timeZone: "America/New_York", hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+          <span className="text-[#5d628f]">ET</span>
+        </span>
+        <span className="w-px h-4 bg-[rgba(140,130,255,0.2)]" />
+        <span className="text-[#ffc94d]">5m close <b className="font-semibold">{fmtRemain(nowTick, 300)}</b></span>
+        <span className="text-[#38bdf8]">15m close <b className="font-semibold">{fmtRemain(nowTick, 900)}</b></span>
+        <span className="text-[#ff6b9d]">1h close <b className="font-semibold">{fmtRemain(nowTick, 3600)}</b></span>
       </div>
 
       {/* coin selector */}

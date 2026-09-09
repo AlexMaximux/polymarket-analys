@@ -184,10 +184,10 @@ export default function UserProfile() {
     market: (p: any) => p.title || "",
     outcome: (p: any) => p.outcome || "",
     invested: (p: any) => p.invested || 0,
-    back: (p: any) => p.returned || 0,
+    back: (p: any) => p.gotBack ?? p.returned ?? 0,
     won: (p: any) => p.pnl || 0,
     traded: (p: any) => p.totalTraded || 0,
-  }), [closedRows, closedSort]);
+  }), [closedFiltered, closedSort]);
 
   const tradesFiltered = useMemo(() => {
     const q = tradesSearch.trim().toLowerCase();
@@ -208,7 +208,7 @@ export default function UserProfile() {
     size: (t: any) => parseFloat(t.size) || 0,
     price: (t: any) => parseFloat(t.price) || 0,
     notional: (t: any) => parseFloat(t.usdcSize) || (parseFloat(t.size) * parseFloat(t.price)) || 0,
-  }), [tradeRows, tradeSort]);
+  }), [tradesFiltered, tradeSort]);
 
   const saveUserNote = async () => {
     setNoteSaving(true);
