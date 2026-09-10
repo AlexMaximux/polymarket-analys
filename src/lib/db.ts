@@ -181,6 +181,10 @@ export function initializeDb(dbInstance?: Database.Database) {
         fired_at INTEGER NOT NULL,
         PRIMARY KEY (alert_id, wallet, condition_id)
       );
+      CREATE TABLE IF NOT EXISTS updown_signal_seen (
+        key TEXT PRIMARY KEY,
+        fired_at INTEGER NOT NULL
+      );
     `);
   } catch {
     // concurrent migration — safe to ignore
