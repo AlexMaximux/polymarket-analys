@@ -36,7 +36,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     case 'test': {
       // Sends a sample message WITHOUT touching dedupe tables — pure connectivity check.
       const sample =
-        alert.alert_type === 'starred_open'
+        alert.alert_type === 'starred_gold'
+          ? `🥇 <b>Test alert: ${alert.name}</b>\nGold-starred wallets position-open alert wiring works.`
+          : alert.alert_type === 'starred_open'
           ? `⭐ <b>Test alert: ${alert.name}</b>\nWatchlist position-open alert wiring works.`
           : alert.alert_type === 'updown'
           ? `📈 <b>Test alert: ${alert.name}</b>\nUP/DOWN signal alert wiring works. Fires when both Fair-Value-1H and Base(no-drift) are on the same side of the 1H market UP price.`

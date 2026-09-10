@@ -17,7 +17,7 @@ import { fetchUpdownSnapshot } from './updownSnapshot';
 export interface AlertRow {
   id: number;
   name: string;
-  alert_type: 'new_whale' | 'starred_open' | 'updown';
+  alert_type: 'new_whale' | 'starred_open' | 'updown' | 'starred_gold';
   hours: number;
   min_bet: number;
   telegram_token: string;
@@ -226,13 +226,19 @@ async function evaluateStarredAlert(alert: AlertRow): Promise<any[]> {
   const wallets = new Set<string>(
     (db.prepare(`SELECT wallet FROM alert_wallets WHERE alert_id = ?`).all(alert.id) as any[]).map(r => r.wallet)
   );
+  // starred_gold variant: ONLY starred wallets whose category is 'Gold' (ignores explicit wallet list)
+  const goldOnly = alert.alert_type === 'starred_gold';
   const starred = db.prepare(`
       SELECT u.wallet, u.note, u.pseudonym, u.name,
              wc.label AS cat_label, wc.emoji AS cat_emoji, wc.note AS cat_note
       FROM users u LEFT JOIN watch_categories wc ON wc.id = u.category_id
-      WHERE u.starred = 1
+      WHERE u.starred = 1 ${goldOnly ? "AND LOWER(COALESCE(wc.label,'')) = 'gold'" : ""}
     `).all() as any[];
   for (const s of starred) wallets.add(s.wallet);
+  if (goldOnly) {
+    wallets.clear();
+    for (const s of starred) wallets.add(s.wallet);
+  }
   if (wallets.size === 0) return [];
 
   // watermark: only look at trades newer than (last eval - 5 min overlap)
@@ -327,7 +333,7 @@ export function markAlertSeen(alert: AlertRow, matches: any[]): void {
 
 /** Evaluate one alert (dispatch by type) and return matches (not yet sent/marked). */
 export async function evaluateAlert(alert: AlertRow): Promise<any[]> {
-  if (alert.alert_type === 'starred_open') return evaluateStarredAlert(alert);
+  if (alert.alert_type === 'starred_open' || alert.alert_type === 'starred_gold') return evaluateStarredAlert(alert);
   if (alert.alert_type === 'updown') return evaluateUpdownAlert(alert);
   return evaluateWhaleAlert(alert);
 }
@@ -343,7 +349,7 @@ export async function evaluateAllAlerts(): Promise<{ evaluated: number; sent: nu
     try {
       const matches = await evaluateAlert(alert);
       if (matches.length > 0) {
-        const msg = alert.alert_type === 'starred_open'
+        const msg = (alert.alert_type === 'starred_open' || alert.alert_type === 'starred_gold')
           ? await formatPositionMessage(alert, matches)
           : alert.alert_type === 'updown'
           ? formatUpdownMessage(alert, matches)
@@ -356,7 +362,7 @@ export async function evaluateAllAlerts(): Promise<{ evaluated: number; sent: nu
         }
         if (allOk) {
           // mark AFTER successful send so failed sends are retried next cycle
-          if (alert.alert_type === 'starred_open') markPositionsSeen(alert, matches);
+          if (alert.alert_type === 'starred_open' || alert.alert_type === 'starred_gold') markPositionsSeen(alert, matches);
           else if (alert.alert_type === 'updown') markUpdownSeen(alert, matches);
           else markWhaleSeen(alert, matches);
           sent++;

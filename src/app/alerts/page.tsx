@@ -129,6 +129,10 @@ export default function AlertsPage() {
                 className={`px-4 py-2 rounded-xl text-sm font-medium border transition-colors ${alertType === "updown" ? "bg-[#ff6b9d]/10 border-[#ff6b9d]/40 text-[#ff9ec4]" : "bg-white/[0.08] border-[rgba(140,130,255,0.15)] text-[#8b91c5]"}`}>
                 📈 UP/DOWN signal
               </button>
+              <button type="button" onClick={() => setAlertType("starred_gold")}
+                className={`px-4 py-2 rounded-xl text-sm font-medium border transition-colors ${alertType === "starred_gold" ? "bg-[#f5c542]/10 border-[#f5c542]/40 text-[#f5c542]" : "bg-white/[0.08] border-[rgba(140,130,255,0.15)] text-[#8b91c5]"}`}>
+                🥇 Gold starred opens
+              </button>
             </div>
             {alertType === "updown" && (
               <p className="text-[11px] text-[#8b91c5] mt-2 leading-relaxed">
@@ -181,7 +185,9 @@ export default function AlertsPage() {
                   </span>
                 </div>
                 <p className="text-xs text-[#8b91c5] mt-1.5">
-                  {a.alert_type === "starred_open"
+                  {a.alert_type === "starred_gold"
+                    ? <>Fires when a <b className="text-[#f5c542]">🥇 Gold</b> starred wallet <b className="text-[#eef0ff]">opens a new position</b> <span className="text-[#5d628f]">(Gold category only)</span></>
+                    : a.alert_type === "starred_open"
                     ? <>Fires when a watchlisted/starred wallet <b className="text-[#eef0ff]">opens a new position</b> <span className="text-[#5d628f]">(watching {a.wallet_count} wallet{a.wallet_count !== 1 ? "s" : ""} + starred)</span></>
                     : a.alert_type === "updown"
                     ? <>Fires when <b className="text-[#eef0ff]">FV 1H + Base</b> are both on the same side of the 1H UP price <span className="text-[#5d628f]">(SELL below / BUY above, target = Base)</span></>

@@ -21,7 +21,7 @@ export async function POST(request: Request) {
   if (!body) return NextResponse.json({ error: 'invalid JSON' }, { status: 400 });
 
   const name = String(body.name || '').trim();
-  const alertType = body.alertType === 'starred_open' ? 'starred_open' : body.alertType === 'updown' ? 'updown' : 'new_whale';
+  const alertType = ['starred_open', 'updown', 'starred_gold'].includes(body.alertType) ? body.alertType : 'new_whale';
   const hours = parseInt(body.hours);
   const minBet = parseFloat(body.minBet);
   const token = String(body.telegramToken || '').trim();
