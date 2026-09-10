@@ -79,25 +79,27 @@ export async function eventLink(slug: string | null | undefined): Promise<string
   if (cached) return cached;
 
   const leagueMatch = slug.match(new RegExp(`^(${SPORT_LEAGUES.join('|')})-`));
-  if (leagueMatch) {
-    const league = leagueMatch[1];
-    // Event slug = the part before the market-type suffix, e.g. nfl-ne-sea-2026-09-10-total-44pt5
-    // → nfl-ne-sea-2026-09-10. Date-based suffix split is the reliable separator.
-    let eventSlug = slug.replace(SPORT_MARKET_RE, '$').split('$')[0].replace(/-$/, '');
-    // If the slug itself has no market suffix it IS the event slug.
-    try {
-      const res = await fetch(`https://gamma-api.polymarket.com/markets?slug=${encodeURIComponent(slug)}`);
-      if (res.ok) {
-        const data: any = await res.json();
-        const ev = Array.isArray(data) && data[0]?.events?.[0]?.slug;
-        if (ev) eventSlug = ev;
-      }
-    } catch { /* keep regex-derived slug */ }
-    const link = `https://polymarket.com/sports/${league}/${eventSlug}`;
+
+  // Resolve the TRUE parent event slug via Gamma for every market slug — the activity API's
+  // slug field is sometimes a stale/dated market slug whose /event/ page 404s (e.g. futures).
+  let eventSlug = slug;
+  try {
+    const res = await fetch(`https://gamma-api.polymarket.com/markets?slug=${encodeURIComponent(slug)}`);
+    if (res.ok) {
+      const data: any = await res.json();
+      const ev = Array.isArray(data) && data[0]?.events?.[0]?.slug;
+      if (ev) eventSlug = ev;
+    }
+  } catch { /* keep original slug */ }
+
+  if (leagueMatch && eventSlug === slug) {
+    // Gamma miss for a sports market — derive the event slug by stripping the market-type suffix
+    eventSlug = slug.replace(SPORT_MARKET_RE, '$').split('$')[0].replace(/-$/, '');
+    const link = `https://polymarket.com/sports/${leagueMatch[1]}/${eventSlug}`;
     eventLinkCache.set(slug, link);
     return link;
   }
-  const link = `https://polymarket.com/event/${slug}`;
+  const link = `https://polymarket.com/event/${eventSlug}`;
   eventLinkCache.set(slug, link);
   return link;
 }
