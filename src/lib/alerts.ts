@@ -1,4 +1,5 @@
 import { getDb } from './db';
+import { fetchUpdownSnapshot } from './updownSnapshot';
 
 /**
  * Alert engine. Two rule types:
@@ -16,7 +17,7 @@ import { getDb } from './db';
 export interface AlertRow {
   id: number;
   name: string;
-  alert_type: 'new_whale' | 'starred_open';
+  alert_type: 'new_whale' | 'starred_open' | 'updown';
   hours: number;
   min_bet: number;
   telegram_token: string;
@@ -121,6 +122,77 @@ export async function formatPositionMessage(alert: AlertRow, events: any[]): Pro
     `${events.length} new position${events.length > 1 ? 's' : ''} from watchlisted wallet${events.length > 1 ? 's' : ''}:\n\n` +
     lines.join('\n\n')
   );
+}
+
+
+/** updown rule: BOTH Fair-Value-1H and Base(no-drift) on the same side of the 1H market UP price → SELL/BUY signal, target = Base. */
+async function evaluateUpdownAlert(alert: AlertRow): Promise<any[]> {
+  const coins: [string, string][] = [
+    ['btc', 'Bitcoin'], ['eth', 'Ethereum'], ['sol', 'Solana'], ['xrp', 'XRP'],
+    ['doge', 'Dogecoin'], ['hype', 'Hyperliquid'], ['zec', 'ZCash'], ['bnb', 'BNB'],
+  ];
+  const db = getDb();
+  const now = Math.floor(Date.now() / 1000);
+  const COOLDOWN = 30 * 60;
+  const MIN_EDGE_CENTS = 1.5;
+  const out: any[] = [];
+  for (const [coin, label] of coins) {
+    try {
+      const snap = await fetchUpdownSnapshot(coin);
+      if (!snap) continue;
+      const m1h = snap.m1h, model = snap.model, modelA = snap.modelA;
+      if (!m1h || m1h.closed || !m1h.accepting) continue;
+      const fv1h = Number(model?.fairUp);
+      const base = Number(modelA?.fairUp);
+      const marketUp = Number(m1h.up);
+      if (!isFinite(fv1h) || !isFinite(base) || !isFinite(marketUp) || marketUp <= 0 || marketUp >= 1) continue;
+      const bothBelow = fv1h < marketUp && base < marketUp;
+      const bothAbove = fv1h > marketUp && base > marketUp;
+      if (!bothBelow && !bothAbove) continue;
+      const closerGap = Math.min(Math.abs(marketUp - fv1h), Math.abs(marketUp - base)) * 100;
+      if (closerGap < MIN_EDGE_CENTS) continue;
+      const side = bothBelow ? 'SELL' : 'BUY';
+      // per-alert cooldown per coin+side
+      const key = `${coin}:${side}`;
+      const seen = db.prepare(`SELECT 1 FROM alert_seen WHERE alert_id = ? AND wallet = ? AND fired_at > ?`).get(alert.id, `ud:${key}`, now - COOLDOWN);
+      if (seen) continue;
+      out.push({
+        coin, label, side,
+        fv1h: fv1h * 100, base: base * 100, marketUp: marketUp * 100,
+        target: base * 100,
+        slug: m1h.slug,
+        seenKey: `ud:${key}`,
+      });
+    } catch { /* per-coin failure must not kill the loop */ }
+  }
+  return out;
+}
+
+function formatUpdownMessage(alert: AlertRow, signals: any[]): string {
+  const lines = signals.map((s: any) => {
+    const arrow = s.side === 'SELL' ? '🔴' : '🟢';
+    return (
+      `${arrow} <b>UP/DOWN ${s.side} — ${s.label} 1H</b>\n` +
+      `• Market UP: <b>${s.marketUp.toFixed(1)}¢</b>\n` +
+      `• Fair Value 1H: ${s.fv1h.toFixed(1)}¢\n` +
+      `• Base (No drift): ${s.base.toFixed(1)}¢\n` +
+      `• Signal: <b>${s.side} UP</b> → target <b>${s.target.toFixed(1)}¢</b> (Base)\n` +
+      `• https://polymarket.com/event/${s.slug}`
+    );
+  });
+  return (
+    `<b>📈 ${alert.name}</b>\n` +
+    `${signals.length} signal${signals.length > 1 ? 's' : ''}:\n\n` +
+    lines.join('\n\n')
+  );
+}
+
+/** Mark updown signals seen (cooldown key in wallet column). */
+function markUpdownSeen(alert: AlertRow, signals: any[]): void {
+  const db = getDb();
+  const now = Math.floor(Date.now() / 1000);
+  const ins = db.prepare(`INSERT OR REPLACE INTO alert_seen (alert_id, wallet, fired_at) VALUES (?, ?, ?)`);
+  for (const s of signals) ins.run(alert.id, s.seenKey, now);
 }
 
 /** new_whale rule: match whales not yet notified, mark them seen. */
@@ -256,6 +328,7 @@ export function markAlertSeen(alert: AlertRow, matches: any[]): void {
 /** Evaluate one alert (dispatch by type) and return matches (not yet sent/marked). */
 export async function evaluateAlert(alert: AlertRow): Promise<any[]> {
   if (alert.alert_type === 'starred_open') return evaluateStarredAlert(alert);
+  if (alert.alert_type === 'updown') return evaluateUpdownAlert(alert);
   return evaluateWhaleAlert(alert);
 }
 
@@ -272,6 +345,8 @@ export async function evaluateAllAlerts(): Promise<{ evaluated: number; sent: nu
       if (matches.length > 0) {
         const msg = alert.alert_type === 'starred_open'
           ? await formatPositionMessage(alert, matches)
+          : alert.alert_type === 'updown'
+          ? formatUpdownMessage(alert, matches)
           : formatWhaleMessage(alert, matches);
         const chunks = chunkMessage(msg);
         let allOk = true;
@@ -282,6 +357,7 @@ export async function evaluateAllAlerts(): Promise<{ evaluated: number; sent: nu
         if (allOk) {
           // mark AFTER successful send so failed sends are retried next cycle
           if (alert.alert_type === 'starred_open') markPositionsSeen(alert, matches);
+          else if (alert.alert_type === 'updown') markUpdownSeen(alert, matches);
           else markWhaleSeen(alert, matches);
           sent++;
           db.prepare(`UPDATE alerts SET last_fired_at = ? WHERE id = ?`).run(Math.floor(Date.now() / 1000), alert.id);

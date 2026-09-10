@@ -125,7 +125,16 @@ export default function AlertsPage() {
                 className={`px-4 py-2 rounded-xl text-sm font-medium border transition-colors ${alertType === "starred_open" ? "bg-yellow-400/10 border-yellow-400/40 text-yellow-300" : "bg-white/[0.08] border-[rgba(140,130,255,0.15)] text-[#8b91c5]"}`}>
                 ⭐ Watchlist opens position
               </button>
+              <button type="button" onClick={() => setAlertType("updown")}
+                className={`px-4 py-2 rounded-xl text-sm font-medium border transition-colors ${alertType === "updown" ? "bg-[#ff6b9d]/10 border-[#ff6b9d]/40 text-[#ff9ec4]" : "bg-white/[0.08] border-[rgba(140,130,255,0.15)] text-[#8b91c5]"}`}>
+                📈 UP/DOWN signal
+              </button>
             </div>
+            {alertType === "updown" && (
+              <p className="text-[11px] text-[#8b91c5] mt-2 leading-relaxed">
+                Scans all 8 coins every minute. Fires 🔴 <b className="text-[#ff9ec4]">SELL</b> when both <b>Fair Value 1H</b> and <b>Base (No drift)</b> are <b>below</b> the 1H market UP price — and 🟢 <b>BUY</b> when both are <b>above</b>. Target is always Base. 30-min cooldown per coin &amp; direction.
+              </p>
+            )}
           </div>
           {alertType === "starred_open" ? (
             <div className="md:col-span-2">
@@ -174,11 +183,13 @@ export default function AlertsPage() {
                 <p className="text-xs text-[#8b91c5] mt-1.5">
                   {a.alert_type === "starred_open"
                     ? <>Fires when a watchlisted/starred wallet <b className="text-[#eef0ff]">opens a new position</b> <span className="text-[#5d628f]">(watching {a.wallet_count} wallet{a.wallet_count !== 1 ? "s" : ""} + starred)</span></>
+                    : a.alert_type === "updown"
+                    ? <>Fires when <b className="text-[#eef0ff]">FV 1H + Base</b> are both on the same side of the 1H UP price <span className="text-[#5d628f]">(SELL below / BUY above, target = Base)</span></>
                     : <>First-ever trade within <b className="text-[#eef0ff]">{a.hours}h</b> &amp; max single bet ≥ <b className="text-[#eef0ff]">${Number(a.min_bet).toLocaleString()}</b></>}
                   {" · "}→ chat <span className="font-mono">{a.telegram_chat}</span>
                 </p>
                 <p className="text-[11px] text-[#5d628f] mt-1">
-                  Fired {a.fired_count} whale(s) so far
+                  {a.alert_type === "updown" ? `Fired ${a.fired_count} signal(s) so far` : `Fired ${a.fired_count} whale(s) so far`}
                   {a.last_fired_at && <> · last fire {formatDistanceToNow(new Date(a.last_fired_at * 1000), { addSuffix: true })}</>}
                   {a.last_evaluated_at && <> · checked {formatDistanceToNow(new Date(a.last_evaluated_at * 1000), { addSuffix: true })}</>}
                 </p>

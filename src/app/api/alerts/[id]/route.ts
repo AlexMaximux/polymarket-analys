@@ -38,6 +38,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       const sample =
         alert.alert_type === 'starred_open'
           ? `⭐ <b>Test alert: ${alert.name}</b>\nWatchlist position-open alert wiring works.`
+          : alert.alert_type === 'updown'
+          ? `📈 <b>Test alert: ${alert.name}</b>\nUP/DOWN signal alert wiring works. Fires when both Fair-Value-1H and Base(no-drift) are on the same side of the 1H market UP price.`
           : `🔔 <b>Test alert: ${alert.name}</b>\nRule: first-ever trade within ${alert.hours}h &amp; max bet ≥ $${alert.min_bet.toLocaleString()}\nIf you can read this, the Telegram wiring works.`;
       const ok = await sendTelegram(alert.telegram_token, alert.telegram_chat, sample);
       return NextResponse.json({ ok, sent: ok }, { status: ok ? 200 : 502 });
