@@ -49,7 +49,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       let sent = false;
       if (matches.length > 0) {
         const msg = alert.alert_type === 'starred_open'
-          ? formatPositionMessage(alert, matches)
+          ? await formatPositionMessage(alert, matches)
           : formatWhaleMessage(alert, matches);
         sent = await sendTelegram(alert.telegram_token, alert.telegram_chat, msg);
         if (sent) {

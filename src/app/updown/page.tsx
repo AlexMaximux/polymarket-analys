@@ -54,9 +54,29 @@ export default function UpDownPage() {
   const [copied, setCopied] = useState(false);
   const [nowTick, setNowTick] = useState(Date.now());
   useEffect(() => {
+    console.log('[CLOCK EFFECT RUNNING]');
     const t = setInterval(() => setNowTick(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
+
+  // data polling — merged into a guaranteed-run effect
+  useEffect(() => {
+    console.log('[POLL EFFECT RUNNING]');
+    let cancelled = false;
+    const tick = async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(`/api/updown?coin=${coin}&sigma=${sigma}`, { cache: "no-store" });
+        if (!res.ok) throw new Error("API " + res.status);
+        const d = await res.json();
+        if (!cancelled) { setData(d); setErr(null); }
+      } catch (e: any) { if (!cancelled) setErr(e.message); }
+      finally { if (!cancelled) setLoading(false); }
+    };
+    tick();
+    const iv = setInterval(tick, 5000);
+    return () => { cancelled = true; clearInterval(iv); };
+  }, [coin, sigma]);
   const [open15, setOpen15] = useState(false);
   const [open5, setOpen5] = useState(false);
   const [openA, setOpenA] = useState(false);
@@ -82,20 +102,7 @@ export default function UpDownPage() {
     }
   }, [coin, sigma]);
 
-  // polling loop (5s default)
-  useEffect(() => {
-    load();
-    if (!auto) return;
-    const iv = setInterval(() => {
-      setCountdown(c => {
-        if (c <= 1) { load(); return 5; }
-        return c - 1;
-      });
-    }, 1000);
-    return () => clearInterval(iv);
-  }, [load, auto]);
-
-  const m = data?.model;
+const m = data?.model;
   const m5model = data?.model5;
   const modelA = data?.modelA;
   const modelC = data?.modelC;

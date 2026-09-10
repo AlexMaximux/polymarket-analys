@@ -39,14 +39,3 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-
-# local runtime artifacts
-polymarket.db
-polymarket.db-wal
-polymarket.db-shm
-*.log
-run*.jsonl
-run*.err
-tsconfig.tsbuildinfo
-SPEC*.md
-test-*.ts

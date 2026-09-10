@@ -79,16 +79,7 @@ Rule: first-ever trade within last 24h & max single bet ≥ $25,000
 • https://polymarket.com/profile/0xde31…
 ```
 
-### Money Flow Graph (`/flow`)
-
-Paste 2-6 wallet addresses: an interactive graph shows each wallet as a node (lifetime net PnL under it) and shared markets as edges (edge number = how many markets both wallets bet on). Click any edge to drill into the exact trades both wallets made on every shared market - sides, sizes, prices, timestamps, redeems, and who entered first ("led"). This exposes money circulation between related wallets (same-side copy trading, opposing-side hedging, or round-tripping).
-
-#### نمودار گردش پول
-
-2 ta 6 address-e keif-pool vared konid: nemoodar-e taamoli har keif-pool ra besoorat gereh neshan midahad (sood/ziyan-e kol zir-e aan) va baazaar-haye moshtarak ra be soorat khat (adad rooy-e khat = tedaad-e baazaar-e moshtarak). Ba klik rooy-e har khat, taraakonsh-haye daghigh-e har do keif-pool rooy-e hame-ye baazaar-haye moshtarak baaz mishavad - jahat, hajm, gheymat, zaman, bardasht-ha va inke che kasi zoodtar vared shode. In ghabilat gardesh-e pool bein-e keif-pool-haye mortabet ra aashkaar mikonand.
-
-### Running / اجرا
-
+## Running / اجرا
 
 ```bash
 npm install

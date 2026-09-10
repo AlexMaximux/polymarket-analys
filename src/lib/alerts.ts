@@ -63,8 +63,46 @@ function fmtAge(ts: number): string {
   return `${Math.floor(d / 60)}h${d % 60 ? ' ' + (d % 60) + 'm' : ''} ago`;
 }
 
-export function formatPositionMessage(alert: AlertRow, events: any[]): string {
-  const lines = events.map((e: any) => {
+/** Sports leagues whose event pages live under /sports/<league>/<eventSlug>. */
+const SPORT_LEAGUES = ['nfl','nba','mlb','nhl','ncaaf','ncaab','ncaaw','cfb','cbb','epl','ucl','uel','laliga','seriea','bundesliga','ligue1','mls','fifa','boxing','ufc','f1','tennis','atp','wta','pga'];
+
+/** Market-slug suffixes that mark a sub-market of a sports event (needs Gamma resolution). */
+const SPORT_MARKET_RE = /-(moneyline|spread|total|btts|both-teams|over|under|to-win|winner|h2h|1h|2h|1st|2nd|3rd|4th|period|game|set|match|round|fight|props?)-|-(moneyline|spread|total|btts|over|under|to-win|winner|h2h)$/;
+
+const eventLinkCache = new Map<string, string>();
+
+/** Build a polymarket.com URL that actually opens the market's event page. */
+export async function eventLink(slug: string | null | undefined): Promise<string> {
+  if (!slug) return 'https://polymarket.com';
+  const cached = eventLinkCache.get(slug);
+  if (cached) return cached;
+
+  const leagueMatch = slug.match(new RegExp(`^(${SPORT_LEAGUES.join('|')})-`));
+  if (leagueMatch) {
+    const league = leagueMatch[1];
+    // Event slug = the part before the market-type suffix, e.g. nfl-ne-sea-2026-09-10-total-44pt5
+    // → nfl-ne-sea-2026-09-10. Date-based suffix split is the reliable separator.
+    let eventSlug = slug.replace(SPORT_MARKET_RE, '$').split('$')[0].replace(/-$/, '');
+    // If the slug itself has no market suffix it IS the event slug.
+    try {
+      const res = await fetch(`https://gamma-api.polymarket.com/markets?slug=${encodeURIComponent(slug)}`);
+      if (res.ok) {
+        const data: any = await res.json();
+        const ev = Array.isArray(data) && data[0]?.events?.[0]?.slug;
+        if (ev) eventSlug = ev;
+      }
+    } catch { /* keep regex-derived slug */ }
+    const link = `https://polymarket.com/sports/${league}/${eventSlug}`;
+    eventLinkCache.set(slug, link);
+    return link;
+  }
+  const link = `https://polymarket.com/event/${slug}`;
+  eventLinkCache.set(slug, link);
+  return link;
+}
+
+export async function formatPositionMessage(alert: AlertRow, events: any[]): Promise<string> {
+  const lines = await Promise.all(events.map(async (e: any) => {
     const badge = e.catEmoji ? `${e.catEmoji} <b>${e.catLabel}</b>` : '⭐';
     const noteLine = e.note ? `\n📝 <i>${e.note}</i>` : '';
     const catLine = e.catNote ? `\n🏷 <i>${e.catNote}</i>` : '';
@@ -75,9 +113,9 @@ export function formatPositionMessage(alert: AlertRow, events: any[]): string {
       `• Size: ${Number(e.size).toLocaleString(undefined, { maximumFractionDigits: 0 })} sh @ ${e.price}¢` +
       (e.usdcSize ? ` (<b>$${Number(e.usdcSize).toLocaleString(undefined, { maximumFractionDigits: 0 })}</b>)` : '') +
       `\n• ${fmtAge(e.timestamp)}\n` +
-      `• https://polymarket.com/event/${e.slug || ''}`
+      `• ${await eventLink(e.slug)}`
     );
-  });
+  }));
   return (
     `<b>⭐ ${alert.name}</b>\n` +
     `${events.length} new position${events.length > 1 ? 's' : ''} from watchlisted wallet${events.length > 1 ? 's' : ''}:\n\n` +
@@ -233,7 +271,7 @@ export async function evaluateAllAlerts(): Promise<{ evaluated: number; sent: nu
       const matches = await evaluateAlert(alert);
       if (matches.length > 0) {
         const msg = alert.alert_type === 'starred_open'
-          ? formatPositionMessage(alert, matches)
+          ? await formatPositionMessage(alert, matches)
           : formatWhaleMessage(alert, matches);
         const chunks = chunkMessage(msg);
         let allOk = true;
