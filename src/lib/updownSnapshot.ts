@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
  */
 export async function fetchUpdownSnapshot(coin: string): Promise<any | null> {
   try {
-    const base = process.env.PMP_BASE_URL || 'http://127.0.0.1:3000';
+    const base = process.env.PMP_BASE_URL || 'http://127.0.0.1:8000';
     const res = await fetch(`${base}/api/updown?coin=${coin}&sigma=0.02`, { cache: 'no-store' });
     if (!res.ok) return null;
     return await res.json();

@@ -27,7 +27,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ wal
   if (!llm) return NextResponse.json({ error: 'LLM not configured — set it in Settings' }, { status: 400 });
 
   // ---- gather data ----
-  const app = 'http://127.0.0.1:3000';
+  const app = process.env.PMP_BASE_URL || 'http://127.0.0.1:8000';
   const [closedRes, tradesRes, posRes] = await Promise.all([
     fetch(`${app}/api/users/${wallet}/closed`, { cache: 'no-store' }),
     fetch(`${app}/api/users/${wallet}/trades`, { cache: 'no-store' }),
