@@ -45,9 +45,6 @@ export function processTrades(trades: any[]) {
 
   const runTransaction = db.transaction((trades) => {
     for (const trade of trades) {
-      // Only real trades: the global feed sometimes carries REDEEM/rebate rows with side='' & price=0
-      // which poison user aggregates (seen with wallet 0x78becf0a... — 141 junk rows).
-      if (trade.side !== 'BUY' && trade.side !== 'SELL') continue;
       const dedupe_id = `${trade.transactionHash}-${trade.conditionId}-${trade.timestamp}-${trade.size}-${trade.price}-${trade.side}`;
       
       try {

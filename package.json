@@ -8,9 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "seed": "tsx scripts/seed.ts",
-    "crawl": "tsx scripts/crawl.ts",
-    "backfill": "tsx scripts/backfill.ts",
-    "alerts": "tsx scripts/alerts.ts"
+    "crawl": "tsx scripts/crawl.ts"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
