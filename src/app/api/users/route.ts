@@ -35,12 +35,22 @@ export async function GET(request: Request) {
     params.push(minVolume);
   }
 
+  const minTrades = parseInt(searchParams.get('minTrades') || '0');
+  if (minTrades > 0) {
+    query += ' AND trade_count >= ?';
+    params.push(minTrades);
+  }
+
   if (q) {
     query += ' AND (wallet LIKE ? OR name LIKE ? OR pseudonym LIKE ?)';
     params.push(`%${q}%`, `%${q}%`, `%${q}%`);
   }
 
-  const validSortColumns = ['total_notional', 'max_single_bet', 'trade_count', 'first_seen', 'last_active'];
+  if (searchParams.get('starred') === '1') {
+    query += ' AND starred = 1';
+  }
+
+  const validSortColumns = ['total_notional', 'max_single_bet', 'trade_count', 'first_seen', 'last_active', 'starred', 'true_first_trade_at'];
   const sortCol = validSortColumns.includes(sortBy) ? sortBy : 'total_notional';
 
   const countQuery = query.replace('SELECT *', 'SELECT COUNT(*) as c');
