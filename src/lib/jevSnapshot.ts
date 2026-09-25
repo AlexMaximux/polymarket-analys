@@ -96,6 +96,23 @@ export async function generateJevSnapshot(coin = 'btc') {
       base_no_drift: fairBase,
       joint_solve: fairJoint,
     },
+    // Kept for backtests only (callJevDecision forwards cards + fair_values, not these):
+    // the exact model inputs and the tradeable Up-token book at snapshot time.
+    model_inputs: {
+      t: data.t ?? null,
+      s0: data.openPrice ?? null,
+      sa: data.model?.sa ?? null,
+      sa5: data.sa5 ?? null,
+      st: data.spotPrice ?? null,
+      sigma1h: data.sigma1h ?? null,
+      sigma_source: data.sigmaSource ?? null,
+      p15: data.model?.p15 ?? null,
+      p5: data.model5?.p5 ?? null,
+    },
+    books: {
+      '1h': m1h?.book ?? null,
+      '15m': m15?.book ?? null,
+    },
   };
 
   const jsonStr = JSON.stringify(payload, null, 2);
@@ -247,6 +264,8 @@ export function saveHistoricalJevRecord(snapshotData: any, prediction: any, forc
     price_to_beat: snapshotData.open_price != null ? Number(snapshotData.open_price) : null,
     cards: snapshotData.cards,
     fair_values: snapshotData.fair_values,
+    model_inputs: snapshotData.model_inputs ?? null,
+    books: snapshotData.books ?? null,
     prediction,
   };
 

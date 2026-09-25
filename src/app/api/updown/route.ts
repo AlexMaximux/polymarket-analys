@@ -105,6 +105,7 @@ async function eventBySlug(slug: string) {
     closed: !!m.closed, accepting: !!m.acceptingOrders,
     endDate: m.endDate, startDate: m.startDate,
     tokenUp: tokens[0] || '', tokenDown: tokens[1] || '',
+    book: null as UpBook | null,
   };
 }
 
@@ -112,6 +113,26 @@ async function clobMid(token: string): Promise<number | null> {
   if (!token) return null;
   const d = await j(`https://clob.polymarket.com/midpoint?token_id=${token}`, 5000);
   return d?.mid ? parseFloat(d.mid) : null;
+}
+
+// Top of the Up-token order book: what a trade would actually pay (ask) or receive (bid),
+// plus size at best and depth within 5¢ — saved in snapshots so backtests can use real spreads.
+type UpBook = { bid: number | null; ask: number | null; spread: number | null; bidSize: number; askSize: number; bidDepth5c: number; askDepth5c: number };
+async function clobBook(token: string): Promise<UpBook | null> {
+  if (!token) return null;
+  const d = await j(`https://clob.polymarket.com/book?token_id=${token}`, 5000);
+  if (!d || !Array.isArray(d.bids) || !Array.isArray(d.asks)) return null;
+  const lv = (xs: any[]) => xs.map(x => ({ p: parseFloat(x.price), s: parseFloat(x.size) })).filter(x => x.p > 0 && x.s > 0);
+  const bids = lv(d.bids).sort((a, b) => b.p - a.p);
+  const asks = lv(d.asks).sort((a, b) => a.p - b.p);
+  const bid = bids[0]?.p ?? null, ask = asks[0]?.p ?? null;
+  const depth = (xs: { p: number; s: number }[], best: number | null) =>
+    best == null ? 0 : xs.filter(x => Math.abs(x.p - best) <= 0.05 + 1e-9).reduce((s, x) => s + x.s, 0);
+  return {
+    bid, ask, spread: bid != null && ask != null ? +(ask - bid).toFixed(4) : null,
+    bidSize: bids[0]?.s ?? 0, askSize: asks[0]?.s ?? 0,
+    bidDepth5c: depth(bids, bid), askDepth5c: depth(asks, ask),
+  };
 }
 
 // Polymarket's UI displays the market's official opening price (Chainlink for 15m/5m,
@@ -231,15 +252,19 @@ export async function GET(request: Request) {
     }
   }
 
-  // ---- CLOB midpoints (true live market prices) ----
-  const [mid1hUp, mid1hDn, mid15Up, mid15Dn, mid5Up, mid5Dn] = await Promise.all([
+  // ---- CLOB midpoints (true live market prices) + Up-token books for the 1H and 15m markets ----
+  const [mid1hUp, mid1hDn, mid15Up, mid15Dn, mid5Up, mid5Dn, book1h, book15] = await Promise.all([
     m1h ? clobMid(m1h.tokenUp) : Promise.resolve(null),
     m1h ? clobMid(m1h.tokenDown) : Promise.resolve(null),
     m15 ? clobMid(m15.tokenUp) : Promise.resolve(null),
     m15 ? clobMid(m15.tokenDown) : Promise.resolve(null),
     m5 ? clobMid(m5.tokenUp) : Promise.resolve(null),
     m5 ? clobMid(m5.tokenDown) : Promise.resolve(null),
+    m1h ? clobBook(m1h.tokenUp) : Promise.resolve(null),
+    m15 ? clobBook(m15.tokenUp) : Promise.resolve(null),
   ]);
+  if (m1h) m1h.book = book1h;
+  if (m15) m15.book = book15;
   if (m1h) { m1h.live = mid1hUp ?? (mid1hDn != null ? 1 - mid1hDn : null); m1h.liveDown = mid1hDn ?? (mid1hUp != null ? 1 - mid1hUp : null); }
   if (m15) { m15.live = mid15Up ?? (mid15Dn != null ? 1 - mid15Dn : null); m15.liveDown = mid15Dn ?? (mid15Up != null ? 1 - mid15Up : null); }
   if (m5) { m5.live = mid5Up ?? (mid5Dn != null ? 1 - mid5Dn : null); m5.liveDown = mid5Dn ?? (mid5Up != null ? 1 - mid5Up : null); }
