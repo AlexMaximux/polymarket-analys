@@ -146,7 +146,8 @@ async function evaluateUpdownAlert(alert: AlertRow): Promise<any[]> {
       if (!m1h || m1h.closed || !m1h.accepting) continue;
       const fv1h = Number(model?.fairUp);
       const base = Number(modelA?.fairUp);
-      const marketUp = Number(m1h.up);
+      // live CLOB midpoint first — Gamma outcomePrices (m1h.up) lags the book by minutes
+      const marketUp = Number(m1h.live ?? m1h.up);
       if (!isFinite(fv1h) || !isFinite(base) || !isFinite(marketUp) || marketUp <= 0 || marketUp >= 1) continue;
       const bothBelow = fv1h < marketUp && base < marketUp;
       const bothAbove = fv1h > marketUp && base > marketUp;

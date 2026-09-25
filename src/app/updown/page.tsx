@@ -45,7 +45,10 @@ function pct(v: number | null | undefined) {
 
 export default function UpDownPage() {
   const [coin, setCoin] = useState("btc");
-  const [sigma, setSigma] = useState(0.02);
+  const [sigmaInput, setSigmaInput] = useState(""); // "" = auto (API uses realized 7d hourly vol)
+  const sigmaVal = parseFloat(sigmaInput);
+  const sigma = Number.isFinite(sigmaVal) && sigmaVal > 0 ? sigmaVal : null;
+  const sigmaQs = sigma != null ? `&sigma=${sigma}` : "";
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -67,7 +70,7 @@ export default function UpDownPage() {
     const tick = async () => {
       setLoading(true);
       try {
-        const res = await fetch(`/api/updown?coin=${coin}&sigma=${sigma}`, { cache: "no-store" });
+        const res = await fetch(`/api/updown?coin=${coin}${sigmaQs}`, { cache: "no-store" });
         if (!res.ok) throw new Error("API " + res.status);
         const d = await res.json();
         if (!cancelled) { setData(d); setErr(null); }
@@ -77,7 +80,7 @@ export default function UpDownPage() {
     tick();
     const iv = setInterval(tick, 5000);
     return () => { cancelled = true; clearInterval(iv); };
-  }, [coin, sigma]);
+  }, [coin, sigmaQs]);
   const [open15, setOpen15] = useState(false);
   const [open5, setOpen5] = useState(false);
   const [openA, setOpenA] = useState(false);
@@ -174,7 +177,7 @@ export default function UpDownPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/updown?coin=${coin}&sigma=${sigma}`, { cache: "no-store" });
+      const res = await fetch(`/api/updown?coin=${coin}${sigmaQs}`, { cache: "no-store" });
       if (!res.ok) throw new Error("API " + res.status);
       const d = await res.json();
       setData(d);
@@ -184,7 +187,7 @@ export default function UpDownPage() {
     } finally {
       setLoading(false);
     }
-  }, [coin, sigma]);
+  }, [coin, sigmaQs]);
 
 const m = data?.model;
   const m5model = data?.model5;
@@ -243,7 +246,7 @@ const m = data?.model;
     "۱. ورودی‌های فرمول پایه‌ی ۱ ساعته (مدل الف):",
     `• S₀ = ${fmt(m?.s0)} | Sₜ = ${fmt(m?.st)} | xₜ = ln(Sₜ/S₀) = ${m?.xt != null ? m.xt.toFixed(6) : "—"}`,
     `• τ (hours) = ${modelA ? modelA.tauHours.toFixed(4) : "—"}`,
-    `• σ₁ₕ = ${sigma}`,
+    `• σ₁ₕ = ${data?.sigma1h != null ? data.sigma1h.toFixed(4) : "—"} (${data?.sigmaSource ?? "—"})`,
     "",
     "۲. ورودی‌های حل دستگاه (مدل ب — ۵ و ۱۵ دقیقه‌ای):",
     `• τ₅ = ${m5model ? m5model.tau5.toFixed(2) : "—"} دقیقه | τ₁₅ = ${m ? m.tau15.toFixed(2) : "—"} دقیقه`,
@@ -668,9 +671,13 @@ const m = data?.model;
         <div className="flex items-center justify-end mb-4">
           <label className="flex items-center gap-2 text-xs text-[#8b91c5]">
             σ₁ₕ (hourly vol):
-            <input type="number" step="0.005" min="0.005" max="0.2" value={sigma}
-              onChange={e => setSigma(parseFloat(e.target.value) || 0.02)}
+            <input type="number" step="0.0005" min="0.002" max="0.2" value={sigmaInput}
+              placeholder={data?.sigma1h != null ? data.sigma1h.toFixed(4) : "auto"}
+              onChange={e => setSigmaInput(e.target.value)}
               className="w-20 bg-white/[0.08] border border-[rgba(140,130,255,0.15)] rounded-lg px-2 py-1 text-white tabular-nums focus:outline-none focus:border-[#a99cff]" />
+            {sigma == null
+              ? <span className="text-[10px] text-[#5d628f]">auto · 7d realized</span>
+              : <button onClick={() => setSigmaInput("")} className="text-[10px] text-[#a99cff] hover:underline">reset to auto</button>}
           </label>
         </div>
 
@@ -871,7 +878,7 @@ const m = data?.model;
             <ul className="text-[#c3c8ee] space-y-1 text-[13px] tabular-nums">
               <li>• S₀ (قیمت شروع ساعت) = <b className="text-white">{fmt(m?.s0)}</b> · Sₜ (قیمت لحظه‌ای) = <b className="text-white">{fmt(m?.st)}</b> → xₜ = ln(Sₜ/S₀) = <b className="text-white">{m?.xt != null ? m.xt.toFixed(6) : "—"}</b></li>
               <li>• τ (hours) = <b className="text-white">{modelA ? modelA.tauHours.toFixed(4) : "—"}</b></li>
-              <li>• σ₁ₕ = <b className="text-white">{sigma}</b></li>
+              <li>• σ₁ₕ = <b className="text-white">{data?.sigma1h != null ? data.sigma1h.toFixed(4) : "—"}</b> ({data?.sigmaSource ?? "—"})</li>
             </ul>
           </div>
           <div>

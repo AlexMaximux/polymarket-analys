@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { normCdf, normInv } from '@/lib/normal';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,7 +14,8 @@ export const dynamic = 'force-dynamic';
  *      x_t = ln(St/S0), y = ln(St/Sa)
  *      z = Phi^-1(p15); mu = (z*sigma_m*sqrt(tau15) - y) / tau15
  *      fair = Phi((x_t + mu*tau60) / (sigma_m*sqrt(tau60)))
- *    sigma_1h defaults to 0.02, overridable via ?sigma=
+ *    sigma_1h defaults to the coin's realized hourly vol (last 7 days of Binance 1h candles),
+ *    overridable via ?sigma=
  */
 
 const COINS: Record<string, { binance: string; label: string; slugPrefix: string; hourWord: string }> = {
@@ -28,44 +30,15 @@ const COINS: Record<string, { binance: string; label: string; slugPrefix: string
 };
 
 function etParts(d: Date) {
-  // ET = UTC-4 (EDT, Sep)
-  const et = new Date(d.getTime() - 4 * 3600 * 1000);
-  const day = et.getUTCDate();
-  const hour = et.getUTCHours();
-  const h12 = ((hour + 11) % 12) + 1;
-  const ampm = hour < 12 ? 'am' : 'pm';
-  const monthNames = ['january','february','march','april','may','june','july','august','september','october','november','december'];
-  const month = monthNames[et.getUTCMonth()];
-  return { day, month, h12, ampm, hour };
-}
-
-function normInv(p: number): number {
-  // Acklam's inverse normal CDF approximation
-  if (p <= 0) return -10; if (p >= 1) return 10;
-  const a = [-3.969683028665376e+01, 2.209460984245205e+02, -2.759285104469687e+02, 1.383577518672690e+02, -3.066479806614716e+01, 2.506628277459239e+00];
-  const b = [-5.447609879822406e+01, 1.615858368580409e+02, -1.556989798598866e+02, 6.680131188771972e+01, -1.328068155288572e+01];
-  const c = [-7.784894002430293e-03, -3.223964580411365e-01, -2.400758277161838e+00, -2.549732539343734e+00, 4.374664141464968e+00, 2.938163982698783e+00];
-  const d = [7.784695709041462e-03, 3.224671290700398e-01, 2.445134137142996e+00, 3.754408661907416e+00];
-  const pl = 0.02425;
-  let q: number, r: number;
-  if (p < pl) {
-    q = Math.sqrt(-2 * Math.log(p));
-    return (((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5]) / ((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1);
-  }
-  if (p > 1 - pl) {
-    q = Math.sqrt(-2 * Math.log(1 - p));
-    return -(((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5]) / ((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1);
-  }
-  q = p - 0.5; r = q * q;
-  return (((((a[0]*r+a[1])*r+a[2])*r+a[3])*r+a[4])*r+a[5])*q / (((((b[0]*r+b[1])*r+b[2])*r+b[3])*r+b[4])*r+1);
-}
-
-function normCdf(x: number): number {
-  // Abramowitz-Stegun 7.1.26 via erf approximation
-  const t = 1 / (1 + 0.2316419 * Math.abs(x));
-  const dd = 0.3989422804014327 * Math.exp(-x * x / 2);
-  const prob = dd * t * (0.319381530 * t + t * (-0.356563782 + t * (1.781477937 + t * (-1.821255978 + t * 1.330274429))));
-  return x >= 0 ? 1 - prob : prob;
+  // America/New_York wall clock, so the 1h slug stays right across EDT/EST switches and years
+  const parts: Record<string, string> = {};
+  for (const p of new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', hour12: true,
+  }).formatToParts(d)) parts[p.type] = p.value;
+  return {
+    year: parts.year, month: parts.month.toLowerCase(), day: Number(parts.day),
+    h12: Number(parts.hour), ampm: parts.dayPeriod.toLowerCase(),
+  };
 }
 
 async function j(url: string, timeoutMs = 8000): Promise<any> {
@@ -83,15 +56,13 @@ const openPriceCache = new Map<string, { value: number | null; expires: number }
 const gammaCache = new Map<string, { value: any; expires: number }>();
 const klineCache = new Map<string, { value: number | null; expires: number }>();
 
-// openPrice of a window is fixed once the window starts — cache until window ends (12/5 min) + slack
-async function polymarketOpenPriceCached(slug: string): Promise<number | null> {
+// openPrice of a window is fixed once the window starts — cache a found price until window end + slack;
+// a miss (page not showing this window's price yet) is retried after 15 s instead of pinning null
+async function polymarketOpenPriceCached(slug: string, startSec: number, winSec: number): Promise<number | null> {
   const hit = openPriceCache.get(slug);
   if (hit && hit.expires > Date.now()) return hit.value;
-  const value = await polymarketOpenPrice(slug);
-  // window length from slug suffix; 1h slugs have no -{unix} suffix → 60 min
-  const m = slug.match(/-(\d{10})$/);
-  const winSec = m ? 900 : 3600; // 15m slugs share pattern with 5m; safe upper bound handled below
-  const ttl = (slug.includes('5m-') ? 300 : winSec) * 1000 + 60_000;
+  const value = await polymarketOpenPrice(slug, startSec);
+  const ttl = value != null ? winSec * 1000 + 60_000 : 15_000;
   openPriceCache.set(slug, { value, expires: Date.now() + ttl });
   return value;
 }
@@ -109,7 +80,8 @@ async function binanceKlineCached(symbol: string, startSec: number): Promise<num
   const hit = klineCache.get(key);
   if (hit && hit.expires > Date.now()) return hit.value;
   const v = await binanceKline(symbol, startSec);
-  klineCache.set(key, { value: v, expires: Date.now() + 120_000 }); // historical 1m open never changes
+  // historical 1m open never changes; a miss (candle not published yet) is retried after 5 s
+  klineCache.set(key, { value: v, expires: Date.now() + (v != null ? 120_000 : 5_000) });
   return v;
 }
 
@@ -143,10 +115,12 @@ async function clobMid(token: string): Promise<number | null> {
   return d?.mid ? parseFloat(d.mid) : null;
 }
 
-// Polymarket's UI displays the market's official opening price (Chainlink TWAP for 15m/5m,
-// exact boundary price for 1h). It's embedded in the event page's dehydrated react-query as
-// "priceToBeat" or "openPrice".
-async function polymarketOpenPrice(slug: string): Promise<number | null> {
+// Polymarket's UI displays the market's official opening price (Chainlink for 15m/5m,
+// exact boundary price for 1h). It's embedded in the event page's dehydrated react-query state as
+//   {"state":{"data":{"openPrice":X,"closePrice":null},…},"queryKey":["crypto-prices","price","BTC","<start ISO>",…]}
+// The same page also lists openPrice for past windows (and 5m pages often omit the live window's
+// query), so only the query keyed by THIS window's start time is accepted; otherwise null → Binance fallback.
+async function polymarketOpenPrice(slug: string, startSec: number): Promise<number | null> {
   if (!slug) return null;
   try {
     const ctl = new AbortController();
@@ -158,16 +132,11 @@ async function polymarketOpenPrice(slug: string): Promise<number | null> {
     });
     clearTimeout(t);
     if (!res.ok) return null;
-    const html = await res.text();
-    // 1. Prioritize priceToBeat (exact active market benchmark)
-    const pb = html.match(/"priceToBeat\\*":\s*([0-9.]+)/i);
-    if (pb && pb[1]) {
-      const v = parseFloat(pb[1]);
-      if (!isNaN(v) && v > 0) return v;
-    }
-    // 2. Look for openPrice in queries
-    const m = html.match(/"openPrice\\*":\s*([0-9.]+)/i);
-    return m ? parseFloat(m[1]) : null;
+    const html = (await res.text()).replace(/\\+"/g, '"');
+    const startIso = new Date(startSec * 1000).toISOString().replace('.000Z', 'Z');
+    const m = html.match(new RegExp(`"openPrice":\\s*([0-9.]+)[^\\]]{0,800}"queryKey":\\["crypto-prices","price","[A-Z0-9]+","${startIso}"`));
+    const v = m ? parseFloat(m[1]) : NaN;
+    return v > 0 ? v : null;
   } catch { return null; }
 }
 
@@ -182,12 +151,34 @@ async function binanceKline(symbol: string, startSec: number): Promise<number | 
   return null;
 }
 
+// Realized hourly vol: sample stdev of ln(close/open) over the last 7 days of Binance 1h candles
+// (in-progress candle excluded). Refreshed every 10 min; a failed refresh keeps the previous value.
+const sigmaCache = new Map<string, { value: number | null; expires: number }>();
+async function realizedSigma1h(symbol: string): Promise<number | null> {
+  const hit = sigmaCache.get(symbol);
+  if (hit && hit.expires > Date.now()) return hit.value;
+  let d = await j(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=1h&limit=169`);
+  if (!Array.isArray(d) || d.length < 25) d = await j(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1h&limit=169`);
+  let value: number | null = null;
+  if (Array.isArray(d) && d.length >= 25) {
+    const r = d.slice(0, -1).map((k: any) => Math.log(parseFloat(k[4]) / parseFloat(k[1]))).filter(Number.isFinite);
+    const mean = r.reduce((s: number, x: number) => s + x, 0) / r.length;
+    value = Math.sqrt(r.reduce((s: number, x: number) => s + (x - mean) ** 2, 0) / (r.length - 1));
+  }
+  value = value ?? hit?.value ?? null;
+  sigmaCache.set(symbol, { value, expires: Date.now() + (value != null ? 600_000 : 60_000) });
+  return value;
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const coinKey = (searchParams.get('coin') || 'btc').toLowerCase();
   const cfg = COINS[coinKey];
   if (!cfg) return NextResponse.json({ error: 'unknown coin' }, { status: 400 });
-  const sigma1h = Math.min(Math.max(parseFloat(searchParams.get('sigma') || '0.02') || 0.02, 0.002), 0.2);
+  const sigmaParam = parseFloat(searchParams.get('sigma') || '');
+  const sigmaManual = Number.isFinite(sigmaParam) && sigmaParam > 0;
+  // started now, awaited just before the models so the kline fetch overlaps the market lookups
+  const sigmaAutoP = sigmaManual ? Promise.resolve(null) : realizedSigma1h(cfg.binance);
 
   const now = new Date();
   const nowSec = Math.floor(now.getTime() / 1000);
@@ -200,8 +191,8 @@ export async function GET(request: Request) {
   const next5Sec = win5Sec + 300;
 
   // ---- Polymarket events (constructed slugs, hour/15m/5m) ----
-  const { month, day, h12, ampm, hour } = etParts(now);
-  const genericHourSlug = `${cfg.hourWord}-up-or-down-${month}-${day}-2026-${h12}${ampm}-et`;
+  const { year, month, day, h12, ampm } = etParts(now);
+  const genericHourSlug = `${cfg.hourWord}-up-or-down-${month}-${day}-${year}-${h12}${ampm}-et`;
 
   const [m1h, m15, m5, n15, n5] = await Promise.all([
     eventBySlug(genericHourSlug),
@@ -211,21 +202,24 @@ export async function GET(request: Request) {
     eventBySlug(`${cfg.slugPrefix}-5m-${next5Sec}`),
   ]);
 
-  // ---- Opening prices: Polymarket resolution specifies Binance 1h candle open for 1h markets,
-  //      and Chainlink TWAP (from event page) for 15m/5m markets. ----
-  const [s0pm, sapm, sa5pm, s0b, sab, sa5b, stRaw] = await Promise.all([
-    m1h ? polymarketOpenPriceCached(m1h.slug) : Promise.resolve(null),
-    m15 ? polymarketOpenPriceCached(m15.slug) : Promise.resolve(null),
-    m5 ? polymarketOpenPriceCached(m5.slug) : Promise.resolve(null),
+  // ---- Opening prices: Binance 1m open at each window start. Same venue as St, so the
+  //      Binance/Chainlink basis cancels in x_t, y and y5 (the 1h market itself resolves on the
+  //      Binance 1h candle; 15m/5m resolve on Chainlink, whose window-to-window moves track Binance).
+  //      The Polymarket page's Chainlink open is fetched only when Binance has no candle. ----
+  const [s0b, sab, sa5b, stRaw] = await Promise.all([
     binanceKlineCached(cfg.binance, hourStartSec),
     binanceKlineCached(cfg.binance, win15Sec),
     binanceKlineCached(cfg.binance, win5Sec),
     j(`https://api.binance.com/api/v3/ticker/price?symbol=${cfg.binance}`, 5000),
   ]);
-  // Ground truth for 1h market is Binance 1h candle open (s0b); fallback to s0pm if s0b is null
+  const [s0pm, sapm, sa5pm] = await Promise.all([
+    m1h && s0b == null ? polymarketOpenPriceCached(m1h.slug, hourStartSec, 3600) : Promise.resolve(null),
+    m15 && sab == null ? polymarketOpenPriceCached(m15.slug, win15Sec, 900) : Promise.resolve(null),
+    m5 && sa5b == null ? polymarketOpenPriceCached(m5.slug, win5Sec, 300) : Promise.resolve(null),
+  ]);
   const s0 = s0b ?? s0pm;
-  const sa = sapm ?? sab;
-  const sa5 = sa5pm ?? sa5b;
+  const sa = sab ?? sapm;
+  const sa5 = sa5b ?? sa5pm;
   let st = stRaw?.price ? parseFloat(stRaw.price) : null;
   if (st == null) {
     // coins not on Binance (e.g. HYPE) or fallback: OKX then Gate.io public tickers
@@ -256,6 +250,9 @@ export async function GET(request: Request) {
   const p5 = m5?.live ?? m5?.up ?? null;
   let model: any = null;
   let model5: any = null;
+  const sigmaAuto = await sigmaAutoP;
+  const sigmaSource = sigmaManual ? 'manual' : sigmaAuto != null ? 'realized-7d' : 'default';
+  const sigma1h = Math.min(Math.max(sigmaManual ? sigmaParam : (sigmaAuto ?? 0.02), 0.002), 0.2);
   const sigmaM = sigma1h / Math.sqrt(60);
   const a = 15 * Math.floor(t / 15);
   const q = t - a;
@@ -335,7 +332,13 @@ export async function GET(request: Request) {
   return NextResponse.json({
     coin: coinKey, label: cfg.label, binanceSymbol: cfg.binance,
     spotPrice: st, openPrice: s0,
-    openSources: { s0: s0pm ? 'polymarket-chainlink' : 'binance', sa: sapm ? 'polymarket-chainlink' : 'binance' },
+    // labels mirror the precedence above: Binance first, Polymarket (Chainlink) fallback
+    openSources: {
+      s0: s0b != null ? 'binance' : s0pm != null ? 'polymarket-chainlink' : null,
+      sa: sab != null ? 'binance' : sapm != null ? 'polymarket-chainlink' : null,
+      sa5: sa5b != null ? 'binance' : sa5pm != null ? 'polymarket-chainlink' : null,
+    },
+    sigma1h, sigmaSource,
     serverTime: nowSec, t, hourStartSec, win15Sec, win5Sec, next15Sec, next5Sec,
     m1h, m15, m5, n15, n5, model, model5, modelA, modelC, sa5,
   });
