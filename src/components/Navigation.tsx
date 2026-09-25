@@ -13,6 +13,7 @@ export function Navigation() {
     { href: "/leaderboard", label: "Leaderboard" },
     { href: "/alerts", label: "Alerts" },
     { href: "/updown", label: "Up/Down" },
+    { href: "/jev-analysis", label: "Jev Analysis 🤖" },
     { href: "/starred", label: "Starred" },
     { href: "/flow", label: "Money Flow" },
   ];

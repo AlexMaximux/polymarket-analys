@@ -214,11 +214,12 @@ export async function GET(request: Request) {
   const sa5 = sa5pm ?? sa5b;
   let st = stRaw?.price ? parseFloat(stRaw.price) : null;
   if (st == null) {
-    // coins not on Binance (HYPE): OKX then Gate.io public tickers
-    const okx = await j('https://www.okx.com/api/v5/market/ticker?instId=HYPE-USDT', 5000);
+    // coins not on Binance (e.g. HYPE) or fallback: OKX then Gate.io public tickers
+    const symbolPair = coinKey === 'hype' ? 'HYPE-USDT' : `${coinKey.toUpperCase()}-USDT`;
+    const okx = await j(`https://www.okx.com/api/v5/market/ticker?instId=${symbolPair}`, 5000);
     st = okx?.data?.[0]?.last ? parseFloat(okx.data[0].last) : null;
     if (st == null) {
-      const gate = await j('https://api.gateio.ws/api/v4/spot/tickers?currency_pair=HYPE_USDT', 5000);
+      const gate = await j(`https://api.gateio.ws/api/v4/spot/tickers?currency_pair=${coinKey.toUpperCase()}_USDT`, 5000);
       st = Array.isArray(gate) && gate[0]?.last ? parseFloat(gate[0].last) : null;
     }
   }
@@ -319,6 +320,7 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     coin: coinKey, label: cfg.label, binanceSymbol: cfg.binance,
+    spotPrice: st, openPrice: s0,
     openSources: { s0: s0pm ? 'polymarket-chainlink' : 'binance', sa: sapm ? 'polymarket-chainlink' : 'binance' },
     serverTime: nowSec, t, hourStartSec, win15Sec, win5Sec, next15Sec, next5Sec,
     m1h, m15, m5, n15, n5, model, model5, modelA, modelC, sa5,

@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Bitcoin, RefreshCw, Clock, Activity, Zap, ChevronRight } from "lucide-react";
+import Link from "next/link";
+import { Bitcoin, RefreshCw, Clock, Activity, Zap, ChevronRight, Sparkles, FileText, Download, Eye, ChevronDown, BarChart3 } from "lucide-react";
 
 const COINS = [
   { key: "btc", label: "Bitcoin", sym: "₿", color: "#F7931A" },
@@ -84,8 +85,91 @@ export default function UpDownPage() {
   const [openSnap, setOpenSnap] = useState(false);
   const [openAudit, setOpenAudit] = useState(false);
   const [copiedAudit, setCopiedAudit] = useState(false);
+  const [openJev, setOpenJev] = useState(true);
+  const [jevLoading, setJevLoading] = useState(false);
+  const [jevResult, setJevResult] = useState<any>(null);
+  const [jevError, setJevError] = useState<string | null>(null);
+  const [historyFiles, setHistoryFiles] = useState<any[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [viewingFile, setViewingFile] = useState<string | null>(null);
+  const [viewingContent, setViewingContent] = useState<string | null>(null);
+  const [jevCountdown, setJevCountdown] = useState<number>(300);
   const esRef = useRef<EventSource | null>(null);
   const timerRef = useRef<any>(null);
+
+  const fetchHistoryFiles = useCallback(async (targetCoin?: string) => {
+    setHistoryLoading(true);
+    try {
+      const c = targetCoin || coin;
+      const res = await fetch(`/api/jev/history?coin=${c}`);
+      const d = await res.json();
+      if (d.files) setHistoryFiles(d.files);
+    } catch {
+      // fallback
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [coin]);
+
+  const viewFileDetails = async (filename: string) => {
+    if (viewingFile === filename) {
+      setViewingFile(null);
+      setViewingContent(null);
+      return;
+    }
+    setViewingFile(filename);
+    try {
+      const res = await fetch(`/api/jev/history?file=${filename}`);
+      const text = await res.text();
+      setViewingContent(text);
+    } catch {
+      setViewingContent("خطا در بارگذاری محتوای فایل");
+    }
+  };
+
+  const fetchJevPrediction = useCallback(async (isManual = false, targetCoin?: string) => {
+    setJevLoading(true);
+    setJevError(null);
+    try {
+      const c = targetCoin || coin;
+      const url = isManual ? `/api/jev/predict?force=true&coin=${c}` : `/api/jev/predict?coin=${c}`;
+      const res = await fetch(url, { method: isManual ? "POST" : "GET" });
+      const d = await res.json();
+      if (!res.ok || d.error) throw new Error(d.error || "خطا در دریافت پاسخ از Jev");
+      setJevResult(d);
+      if (d.next_refresh_seconds != null) {
+        setJevCountdown(Math.max(5, d.next_refresh_seconds));
+      } else {
+        setJevCountdown(300);
+      }
+      fetchHistoryFiles(c);
+    } catch (e: any) {
+      setJevError(e.message || "خطا در ارتباط با مدل تصمیم‌گیری Jev");
+    } finally {
+      setJevLoading(false);
+    }
+  }, [coin, fetchHistoryFiles]);
+
+  // When coin changes, load prediction and history for that coin
+  useEffect(() => {
+    fetchJevPrediction(false, coin);
+    fetchHistoryFiles(coin);
+  }, [coin, fetchJevPrediction, fetchHistoryFiles]);
+
+  // Automatic 5-minute timer countdown & execution
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setJevCountdown(prev => {
+        if (prev <= 1) {
+          fetchJevPrediction(false, coin);
+          return 300;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [coin, fetchJevPrediction]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -272,6 +356,311 @@ const m = data?.model;
         <Row title="15 minute market" row={m15} next={n15} />
         <Row title="5 minute market" row={m5} next={n5} />
       </div>
+
+      {/* Jev Decision Model — 1-Hour Prediction (First card under prices) */}
+      <Collapsible id="openJev" openState={openJev} toggle={() => setOpenJev(!openJev)}
+        color={COINS.find(c => c.key === coin)?.color || "#38bdf8"}
+        title={`Jev Decision Model — پیش‌بینی ۱ ساعته ${COINS.find(c => c.key === coin)?.label || coin.toUpperCase()}`}
+        subtitle="OpenRouter typesafe/jev-1.13"
+        badge={
+          jevResult?.decision?.answers?.one_hour_score?.score != null ? (
+            <span className="inline-flex items-center gap-2 text-xs font-bold tabular-nums">
+              <span className="text-[#38bdf8]">اسکور: {Number(jevResult.decision.answers.one_hour_score.score).toFixed(2)}/4.0</span>
+              {jevResult?.decision?.answers?.one_hour_direction?.choice && (
+                <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${jevResult.decision.answers.one_hour_direction.choice === 'UP' ? 'bg-[#2ce5a7]/20 text-[#2ce5a7]' : 'bg-[#ff6b9d]/20 text-[#ff6b9d]'}`}>
+                  {jevResult.decision.answers.one_hour_direction.choice}
+                </span>
+              )}
+            </span>
+          ) : (
+            <span className="text-xs text-[#5d628f]">آماده استعلام</span>
+          )
+        }>
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-[#0d0f22]/70 p-3.5 rounded-xl border border-[rgba(140,130,255,0.13)]">
+            <div className="flex flex-wrap items-center gap-3 text-xs text-[#c3c8ee]">
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#2ce5a7]/10 border border-[#2ce5a7]/30 text-[#2ce5a7] text-[11px] font-medium">
+                <span className="w-2 h-2 rounded-full bg-[#2ce5a7] animate-pulse"></span>
+                <span>استعلام خودکار ۵ دقیقه‌ای ({coin.toUpperCase()}): <b>فعال</b></span>
+                <span className="text-white/80 tabular-nums font-mono mr-1">
+                  (استعلام بعدی: {Math.floor(jevCountdown / 60)}:{(jevCountdown % 60).toString().padStart(2, '0')})
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 text-[11px] text-[#8b91c5]">
+                <Sparkles className="w-3.5 h-3.5 text-[#ffc94d]" />
+                <span className="font-mono text-[#38bdf8]">typesafe/jev-1.13</span>
+                {jevResult?.timestamp && (
+                  <span className="text-[#5d628f]">
+                    · آخرین ثبت ({jevResult.coin || coin.toUpperCase()}): {new Date(jevResult.timestamp).toLocaleTimeString("en-GB", { timeZone: "America/New_York" })} ET
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Link
+                href={`/jev-analysis?coin=${coin}`}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg px-3 py-2 bg-[#6c5ce7]/25 hover:bg-[#6c5ce7]/40 text-[#c3c8ee] hover:text-white border border-[#8b7cff]/40 transition-all shadow-sm"
+                title="مشاهده داشبورد تحلیلی و انتخاب ۳ شاخص دلخواه">
+                <BarChart3 className="w-3.5 h-3.5 text-[#38bdf8]" />
+                داشبورد آنالیز و مقایسه 📊
+              </Link>
+              <button
+                type="button"
+                onClick={() => { setShowHistory(!showHistory); if (!showHistory) fetchHistoryFiles(coin); }}
+                className={`inline-flex items-center gap-1.5 text-xs font-medium rounded-lg px-3 py-2 border transition-all ${showHistory ? 'bg-[#38bdf8]/20 border-[#38bdf8] text-[#38bdf8]' : 'bg-white/[0.08] hover:bg-white/[0.12] border-[rgba(140,130,255,0.2)] text-[#c3c8ee]'}`}>
+                <Clock className="w-3.5 h-3.5 text-[#38bdf8]" />
+                فایل‌های ۵ دقیقه‌ای {coin.toUpperCase()} ({historyFiles.length})
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showHistory ? "rotate-180" : ""}`} />
+              </button>
+              <button
+                type="button"
+                onClick={() => fetchJevPrediction(true, coin)}
+                disabled={jevLoading}
+                className="inline-flex items-center gap-2 text-xs font-medium rounded-lg px-3.5 py-2 bg-gradient-to-r from-[#6366f1] to-[#38bdf8] text-white hover:opacity-90 transition-opacity disabled:opacity-50 shadow-md"
+                title="نیازی به کلیک نیست، هر ۵ دقیقه به طور خودکار انجام می‌شود">
+                <RefreshCw className={`w-3.5 h-3.5 ${jevLoading ? "animate-spin" : ""}`} />
+                {jevLoading ? "در حال استعلام Jev..." : `استعلام دستی فوری ${coin.toUpperCase()}`}
+              </button>
+            </div>
+          </div>
+
+          {jevError && (
+            <div className="bg-[#ff6b9d]/10 border border-[#ff6b9d]/35 text-[#ff6b9d] rounded-xl px-4 py-3 text-xs">
+              {jevError}
+            </div>
+          )}
+
+          {jevResult?.decision?.answers ? (
+            <div className="space-y-4">
+              <div className="grid md:grid-cols-2 gap-4">
+                {/* Score Card */}
+                {jevResult.decision.answers.one_hour_score && (
+                  <div className="bg-[#0d0f22]/90 rounded-xl p-5 border border-[rgba(140,130,255,0.18)] flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs uppercase text-[#8b91c5] font-medium tracking-wider">اسکور پیش‌بینی ۱ ساعته (Score)</span>
+                        <span className="text-xs text-[#5d628f] tabular-nums">
+                          اطمینان: {(Number(jevResult.decision.answers.one_hour_score.confidence || 0) * 100).toFixed(0)}%
+                        </span>
+                      </div>
+                      <div className="flex items-baseline gap-3 my-2">
+                        <span className="text-4xl font-extrabold text-[#38bdf8] tabular-nums">
+                          {Number(jevResult.decision.answers.one_hour_score.score).toFixed(2)}
+                        </span>
+                        <span className="text-sm text-[#5d628f]">از ۴.۰</span>
+                        <span className="text-sm font-semibold mr-auto text-[#eef0ff]">
+                          {(() => {
+                            const sc = Number(jevResult.decision.answers.one_hour_score.score);
+                            if (sc >= 3.0) return "صعودی قوی (Strong Up) 🚀";
+                            if (sc >= 2.2) return "تمایل به صعود (Lean Up) ↗";
+                            if (sc >= 1.8) return "خنثی / تعادل (Neutral) ⚖";
+                            if (sc >= 1.0) return "تمایل به نزول (Lean Down) ↘";
+                            return "نزولی قوی (Strong Down) 🔻";
+                          })()}
+                        </span>
+                      </div>
+
+                      {/* Score gauge bar */}
+                      <div className="mt-4 mb-2">
+                        <div className="relative h-2.5 w-full rounded-full bg-gradient-to-r from-[#ff6b9d] via-[#ffc94d] to-[#2ce5a7]">
+                          <div
+                            className="absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-white shadow-lg border-2 border-[#0B1120] transition-all duration-300"
+                            style={{
+                              left: `calc(${Math.min(100, Math.max(0, (Number(jevResult.decision.answers.one_hour_score.score) / 4) * 100))}% - 8px)`,
+                            }}
+                          />
+                        </div>
+                        <div className="flex justify-between text-[10px] text-[#5d628f] mt-1.5 tabular-nums">
+                          <span>0: Strong Down</span>
+                          <span>1: Lean Down</span>
+                          <span>2: Neutral</span>
+                          <span>3: Lean Up</span>
+                          <span>4: Strong Up</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Direction Card */}
+                {jevResult.decision.answers.one_hour_direction && (
+                  <div className="bg-[#0d0f22]/90 rounded-xl p-5 border border-[rgba(140,130,255,0.18)] flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs uppercase text-[#8b91c5] font-medium tracking-wider">جهت نهایی (Direction Choice)</span>
+                        <span className="text-xs text-[#5d628f] tabular-nums">
+                          اطمینان: {(Number(jevResult.decision.answers.one_hour_direction.confidence || 0) * 100).toFixed(0)}%
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3 my-2">
+                        <span className={`text-4xl font-extrabold ${jevResult.decision.answers.one_hour_direction.choice === 'UP' ? 'text-[#2ce5a7]' : 'text-[#ff6b9d]'}`}>
+                          {jevResult.decision.answers.one_hour_direction.choice}
+                        </span>
+                        <span className="text-sm text-[#c3c8ee]">
+                          {jevResult.decision.answers.one_hour_direction.choice === 'UP' ? 'احتمال بسته شدن بالای قیمت آغازین' : 'احتمال بسته شدن پایین قیمت آغازین'}
+                        </span>
+                      </div>
+
+                      {jevResult.decision.answers.one_hour_direction.probabilities && (
+                        <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
+                          <div className="p-2.5 rounded-lg bg-white/[0.04] border border-[rgba(140,130,255,0.12)]">
+                            <span className="text-[#8b91c5] block text-[10px] uppercase">احتمال UP</span>
+                            <span className="text-lg font-bold text-[#2ce5a7] tabular-nums">
+                              {((jevResult.decision.answers.one_hour_direction.probabilities.UP || 0) * 100).toFixed(1)}%
+                            </span>
+                          </div>
+                          <div className="p-2.5 rounded-lg bg-white/[0.04] border border-[rgba(140,130,255,0.12)]">
+                            <span className="text-[#8b91c5] block text-[10px] uppercase">احتمال DOWN</span>
+                            <span className="text-lg font-bold text-[#ff6b9d] tabular-nums">
+                              {((jevResult.decision.answers.one_hour_direction.probabilities.DOWN || 0) * 100).toFixed(1)}%
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Probabilities distribution levels */}
+              {jevResult.decision.answers.one_hour_score?.probabilities && (
+                <div className="bg-[#0d0f22]/70 rounded-xl p-4 border border-[rgba(140,130,255,0.12)]">
+                  <p className="text-xs uppercase text-[#8b91c5] font-medium tracking-wider mb-3">توزیع احتمالات سطوح اسکور (Probability Distribution)</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center text-xs tabular-nums">
+                    {[
+                      { key: "0", label: "Strong Down", color: "#ff6b9d" },
+                      { key: "1", label: "Lean Down", color: "#ffa8b8" },
+                      { key: "2", label: "Neutral", color: "#8b91c5" },
+                      { key: "3", label: "Lean Up", color: "#86efac" },
+                      { key: "4", label: "Strong Up", color: "#2ce5a7" },
+                    ].map(lvl => {
+                      const prob = Number(jevResult.decision.answers.one_hour_score.probabilities[lvl.key] || 0);
+                      return (
+                        <div key={lvl.key} className="p-2.5 rounded-lg bg-white/[0.04] border border-[rgba(140,130,255,0.1)] flex flex-col justify-between">
+                          <span className="text-[11px] text-[#8b91c5] mb-1 truncate">{lvl.label}</span>
+                          <span className="text-base font-bold" style={{ color: lvl.color }}>
+                            {(prob * 100).toFixed(1)}%
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Model usage & state toggle */}
+              <div className="flex flex-wrap items-center justify-between text-[11px] text-[#5d628f] pt-1">
+                <span>توکن ورودی: {jevResult.decision.usage?.input_tokens ?? "—"} · هزینه استعلام: ${(jevResult.decision.usage?.cost ?? 0).toFixed(6)}</span>
+                <span>منبع داده: فایل <code className="text-[#c3c8ee]">/jev/btc_updown.json</code></span>
+              </div>
+            </div>
+          ) : (
+            <div className="p-6 text-center text-xs text-[#8b91c5] bg-[#0d0f22]/50 rounded-xl border border-dashed border-[rgba(140,130,255,0.15)]">
+              برای محاسبه‌ی اسکور پیش‌بینی ۱ ساعته بیت‌کوین بر اساس داده‌های کارت‌ها و Fair Valueهای فعلی، روی دکمه‌ی «استعلام پیش‌بینی ۱ ساعته از Jev» کلیک کنید.
+            </div>
+          )}
+
+          {/* 5-Minute Historical Files Section */}
+          {showHistory && (
+            <div className="mt-4 p-4 rounded-xl bg-[#090b1a] border border-[#38bdf8]/30 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/[0.08] pb-3">
+                <div className="flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-[#38bdf8]" />
+                  <span className="text-xs font-semibold text-white">فایل‌های تاریخی ذخیره شده هر ۵ دقیقه (داده‌ها + پیش‌بینی Jev)</span>
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-[#38bdf8]/15 text-[#38bdf8] font-bold">
+                    {historyFiles.length} فایل
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="text-[11px] text-[#5d628f]">مسیر ذخیره: <code className="text-[#c3c8ee]">/jev/history/</code></span>
+                  <button
+                    type="button"
+                    onClick={() => fetchHistoryFiles(coin)}
+                    className="p-1 rounded hover:bg-white/[0.08] text-[#8b91c5] hover:text-white transition-colors"
+                    title="تازه‌سازی لیست">
+                    <RefreshCw className={`w-3.5 h-3.5 ${historyLoading ? "animate-spin" : ""}`} />
+                  </button>
+                </div>
+              </div>
+
+              {historyFiles.length === 0 ? (
+                <div className="text-center py-6 text-xs text-[#8b91c5]">
+                  هنوز فایلی ثبت نشده است یا در حال ذخیره‌سازی اولین فایل ۵ دقیقه‌ای هستیم...
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                  {historyFiles.map((f: any) => (
+                    <div
+                      key={f.filename}
+                      className="p-2.5 rounded-lg bg-white/[0.03] border border-white/[0.06] hover:border-[#38bdf8]/40 transition-colors flex flex-wrap items-center justify-between gap-2 text-xs">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="font-mono text-[#38bdf8] text-[11px] truncate max-w-[200px]" title={f.filename}>
+                          {f.filename}
+                        </span>
+                        <span className="text-[#8b91c5] text-[11px]">
+                          {f.et_time || f.filename}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        {f.direction && (
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${f.direction === 'UP' ? 'bg-[#2ce5a7]/20 text-[#2ce5a7]' : 'bg-[#ff6b9d]/20 text-[#ff6b9d]'}`}>
+                            {f.direction}
+                          </span>
+                        )}
+                        {f.score != null && (
+                          <span className="px-2 py-0.5 rounded bg-white/[0.06] text-[#c3c8ee] text-[10px] tabular-nums font-mono">
+                            اسکور: {Number(f.score).toFixed(2)}
+                          </span>
+                        )}
+                        {f.up_1h && (
+                          <span className="text-[10px] text-[#5d628f] hidden sm:inline">
+                            (1h: ↑{f.up_1h} ↓{f.down_1h})
+                          </span>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => viewFileDetails(f.filename)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-[#38bdf8]/15 hover:bg-[#38bdf8]/25 text-[#38bdf8] text-[11px] transition-colors">
+                          <Eye className="w-3 h-3" />
+                          {viewingFile === f.filename ? "بستن" : "مشاهده JSON"}
+                        </button>
+                        <a
+                          href={`/api/jev/history?file=${f.filename}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="p-1 rounded bg-white/[0.06] hover:bg-white/[0.12] text-[#8b91c5] hover:text-white transition-colors"
+                          title="دانلود مستقیم JSON">
+                          <Download className="w-3 h-3" />
+                        </a>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Inline JSON Viewer */}
+              {viewingFile && viewingContent && (
+                <div className="mt-3 p-3 rounded-lg bg-black/60 border border-[rgba(140,130,255,0.2)] font-mono text-[11px] text-[#a5b4fc] space-y-2">
+                  <div className="flex items-center justify-between border-b border-white/[0.08] pb-1.5 text-xs text-white">
+                    <span>محتوای فایل: <b className="text-[#38bdf8]">{viewingFile}</b></span>
+                    <button
+                      type="button"
+                      onClick={() => { setViewingFile(null); setViewingContent(null); }}
+                      className="text-[#8b91c5] hover:text-white text-xs">
+                      ✕ بستن
+                    </button>
+                  </div>
+                  <pre className="overflow-x-auto max-h-64 text-[10px] leading-relaxed text-[#c3c8ee] whitespace-pre p-2 bg-[#05060d] rounded border border-white/[0.05]">
+                    {viewingContent}
+                  </pre>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </Collapsible>
 
       {/* Fair Value — 1H Up (μ from 15m) — collapsible */}
       <Collapsible id="open15" openState={open15} toggle={() => setOpen15(!open15)}

@@ -10,7 +10,8 @@
     "seed": "tsx scripts/seed.ts",
     "crawl": "tsx scripts/crawl.ts",
     "backfill": "tsx scripts/backfill.ts",
-    "alerts": "tsx scripts/alerts.ts"
+    "alerts": "tsx scripts/alerts.ts",
+    "jev": "tsx scripts/jev.ts"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
