@@ -1,3 +1,6 @@
+import { loadEnvConfig } from '@next/env';
+loadEnvConfig(process.cwd());
+
 import {
   generateJevSnapshot,
   callJevDecision,
@@ -9,7 +12,7 @@ import { initializeAlertTracker } from '../src/lib/jevAlerts';
 const SNAPSHOT_INTERVAL_MS = 30000; // 30s live cache refresh
 const JEV_RECORD_INTERVAL_MS = 300000; // 5 minutes (300 seconds)
 
-const SUPPORTED_COINS = ['btc', 'eth', 'sol', 'xrp', 'doge', 'hype', 'bnb'];
+const SUPPORTED_COINS = ['btc', 'eth', 'sol', 'xrp', 'doge', 'hype', 'zec', 'bnb'];
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 

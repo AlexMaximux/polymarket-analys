@@ -1,6 +1,11 @@
 import fs from 'fs';
 import path from 'path';
+import { loadEnvConfig } from '@next/env';
 import { sendTelegram } from './alerts';
+
+try {
+  loadEnvConfig(process.cwd());
+} catch {}
 
 export const JEV_TELEGRAM_BOT_TOKEN =
   process.env.JEV_TELEGRAM_BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN || '';

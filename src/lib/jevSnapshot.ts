@@ -1,7 +1,12 @@
 import fs from 'fs';
 import path from 'path';
+import { loadEnvConfig } from '@next/env';
 import { fetchUpdownSnapshot } from './updownSnapshot';
 import { checkAndSendJevSignalAlert } from './jevAlerts';
+
+try {
+  loadEnvConfig(process.cwd());
+} catch {}
 
 export const OPENROUTER_API_KEY =
   process.env.OPENROUTER_API_KEY || '';
