@@ -131,7 +131,7 @@ export async function formatPositionMessage(alert: AlertRow, events: any[]): Pro
 async function evaluateUpdownAlert(alert: AlertRow): Promise<any[]> {
   const coins: [string, string][] = [
     ['btc', 'Bitcoin'], ['eth', 'Ethereum'], ['sol', 'Solana'], ['xrp', 'XRP'],
-    ['doge', 'Dogecoin'], ['hype', 'Hyperliquid'], ['zec', 'ZCash'], ['bnb', 'BNB'],
+    ['doge', 'Dogecoin'], ['hype', 'Hyperliquid'], ['bnb', 'BNB'],
   ];
   const db = getDb();
   const now = Math.floor(Date.now() / 1000);

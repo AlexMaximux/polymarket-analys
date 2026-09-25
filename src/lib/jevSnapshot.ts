@@ -28,7 +28,6 @@ export const COIN_NAMES: Record<string, string> = {
   xrp: 'XRP',
   doge: 'Dogecoin',
   hype: 'Hyperliquid',
-  zec: 'ZCash',
   bnb: 'BNB',
 };
 

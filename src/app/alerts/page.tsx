@@ -136,7 +136,7 @@ export default function AlertsPage() {
             </div>
             {alertType === "updown" && (
               <p className="text-[11px] text-[#8b91c5] mt-2 leading-relaxed">
-                Scans all 8 coins every minute. Fires 🔴 <b className="text-[#ff9ec4]">SELL</b> when both <b>Fair Value 1H</b> and <b>Base (No drift)</b> are <b>below</b> the 1H market UP price — and 🟢 <b>BUY</b> when both are <b>above</b>. Target is always Base. 30-min cooldown per coin &amp; direction.
+                Scans all 7 coins every minute. Fires 🔴 <b className="text-[#ff9ec4]">SELL</b> when both <b>Fair Value 1H</b> and <b>Base (No drift)</b> are <b>below</b> the 1H market UP price — and 🟢 <b>BUY</b> when both are <b>above</b>. Target is always Base. 30-min cooldown per coin &amp; direction.
               </p>
             )}
           </div>

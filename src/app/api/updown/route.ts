@@ -25,7 +25,6 @@ const COINS: Record<string, { binance: string; label: string; slugPrefix: string
   xrp: { binance: 'XRPUSDT', label: 'XRP', slugPrefix: 'xrp-updown', hourWord: 'xrp' },
   doge: { binance: 'DOGEUSDT', label: 'Dogecoin', slugPrefix: 'doge-updown', hourWord: 'dogecoin' },
   hype: { binance: 'HYPEUSDT', label: 'Hyperliquid', slugPrefix: 'hype-updown', hourWord: 'hype' },
-  zec: { binance: 'ZECUSDT', label: 'ZCash', slugPrefix: 'zec-updown', hourWord: 'zcash' },
   bnb: { binance: 'BNBUSDT', label: 'BNB', slugPrefix: 'bnb-updown', hourWord: 'bnb' },
 };
 

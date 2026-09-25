@@ -9,7 +9,7 @@ import { initializeAlertTracker } from '../src/lib/jevAlerts';
 const SNAPSHOT_INTERVAL_MS = 30000; // 30s live cache refresh
 const JEV_RECORD_INTERVAL_MS = 300000; // 5 minutes (300 seconds)
 
-const SUPPORTED_COINS = ['btc', 'eth', 'sol', 'xrp', 'doge', 'hype', 'zec', 'bnb'];
+const SUPPORTED_COINS = ['btc', 'eth', 'sol', 'xrp', 'doge', 'hype', 'bnb'];
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -74,7 +74,7 @@ async function startLoop() {
       const btcElapsed = latestBtc ? Date.now() - latestBtc.timestamp : 0;
       const nextSec = Math.max(0, Math.round((JEV_RECORD_INTERVAL_MS - btcElapsed) / 1000));
       console.log(
-        `[${new Date().toISOString()}] Multi-coin JEV live cache refreshed (all 8 coins) -> next check cycle in ${nextSec}s`
+        `[${new Date().toISOString()}] Multi-coin JEV live cache refreshed (all ${SUPPORTED_COINS.length} coins) -> next check cycle in ${nextSec}s`
       );
     } catch (err: any) {
       console.error(`[${new Date().toISOString()}] 30s update error:`, err.message || err);

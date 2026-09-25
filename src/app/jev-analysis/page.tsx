@@ -497,7 +497,6 @@ export const AVAILABLE_COINS = [
   { key: "xrp", label: "ریپل (XRP)", color: "#7FA8C9" },
   { key: "doge", label: "دوج‌کوین (DOGE)", color: "#C2A633" },
   { key: "hype", label: "هایپرلیکوئید (HYPE)", color: "#97FCE4" },
-  { key: "zec", label: "زی‌کش (ZEC)", color: "#F4B728" },
   { key: "bnb", label: "بی‌ان‌بی (BNB)", color: "#F3BA2F" },
 ];
 

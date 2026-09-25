@@ -10,7 +10,6 @@ const COINS = [
   { key: "xrp", label: "XRP", sym: "✕", color: "#7FA8C9" },
   { key: "doge", label: "Dogecoin", sym: "Ð", color: "#C2A633" },
   { key: "hype", label: "Hyperliquid", sym: "H", color: "#97FCE4" },
-  { key: "zec", label: "ZCash", sym: "ⓩ", color: "#F4B728" },
   { key: "bnb", label: "BNB", sym: "◆", color: "#F3BA2F" },
 ];
 
