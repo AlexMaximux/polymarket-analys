@@ -171,11 +171,17 @@ export async function fetchOpenPriceFallback(coin: string): Promise<number | nul
   const c = coin.toUpperCase();
   try {
     if (c === 'HYPE') {
-      const res = await fetch('https://www.okx.com/api/v5/market/candles?instId=HYPE-USDT&bar=1H&limit=1', {
-        headers: { 'User-Agent': 'Mozilla/5.0' },
-      });
+      const res = await fetch('https://fapi.binance.com/fapi/v1/klines?symbol=HYPEUSDT&interval=1h&limit=1');
       if (res.ok) {
         const d = await res.json();
+        const p = parseFloat(d?.[0]?.[1]);
+        if (!isNaN(p) && p > 0) return p;
+      }
+      const okxRes = await fetch('https://www.okx.com/api/v5/market/candles?instId=HYPE-USDT&bar=1H&limit=1', {
+        headers: { 'User-Agent': 'Mozilla/5.0' },
+      });
+      if (okxRes.ok) {
+        const d = await okxRes.json();
         const p = parseFloat(d.data?.[0]?.[1]);
         if (!isNaN(p) && p > 0) return p;
       }

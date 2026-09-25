@@ -22,7 +22,7 @@ const COINS: Record<string, { binance: string; label: string; slugPrefix: string
   sol: { binance: 'SOLUSDT', label: 'Solana', slugPrefix: 'sol-updown', hourWord: 'solana' },
   xrp: { binance: 'XRPUSDT', label: 'XRP', slugPrefix: 'xrp-updown', hourWord: 'xrp' },
   doge: { binance: 'DOGEUSDT', label: 'Dogecoin', slugPrefix: 'doge-updown', hourWord: 'dogecoin' },
-  hype: { binance: '', label: 'Hyperliquid', slugPrefix: 'hype-updown', hourWord: 'hype' },
+  hype: { binance: 'HYPEUSDT', label: 'Hyperliquid', slugPrefix: 'hype-updown', hourWord: 'hype' },
   zec: { binance: 'ZECUSDT', label: 'ZCash', slugPrefix: 'zec-updown', hourWord: 'zcash' },
   bnb: { binance: 'BNBUSDT', label: 'BNB', slugPrefix: 'bnb-updown', hourWord: 'bnb' },
 };
@@ -145,7 +145,7 @@ async function clobMid(token: string): Promise<number | null> {
 
 // Polymarket's UI displays the market's official opening price (Chainlink TWAP for 15m/5m,
 // exact boundary price for 1h). It's embedded in the event page's dehydrated react-query as
-// "openPrice". This is the SAME number the site shows the user (e.g. 79,214.50 for a 15m window).
+// "priceToBeat" or "openPrice".
 async function polymarketOpenPrice(slug: string): Promise<number | null> {
   if (!slug) return null;
   try {
@@ -159,14 +159,27 @@ async function polymarketOpenPrice(slug: string): Promise<number | null> {
     clearTimeout(t);
     if (!res.ok) return null;
     const html = await res.text();
-    const m = html.match(/"openPrice\\":([\d.]+)/);
+    // 1. Prioritize priceToBeat (exact active market benchmark)
+    const pb = html.match(/"priceToBeat\\*":\s*([0-9.]+)/i);
+    if (pb && pb[1]) {
+      const v = parseFloat(pb[1]);
+      if (!isNaN(v) && v > 0) return v;
+    }
+    // 2. Look for openPrice in queries
+    const m = html.match(/"openPrice\\*":\s*([0-9.]+)/i);
     return m ? parseFloat(m[1]) : null;
   } catch { return null; }
 }
 
 async function binanceKline(symbol: string, startSec: number): Promise<number | null> {
+  if (!symbol) return null;
+  // Spot Binance
   const d = await j(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=1m&startTime=${startSec * 1000}&limit=1`);
-  return Array.isArray(d) && d[0] ? parseFloat(d[0][1]) : null;
+  if (Array.isArray(d) && d[0] && d[0][1]) return parseFloat(d[0][1]);
+  // Futures Binance (for HYPEUSDT)
+  const fd = await j(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1m&startTime=${startSec * 1000}&limit=1`);
+  if (Array.isArray(fd) && fd[0] && fd[0][1]) return parseFloat(fd[0][1]);
+  return null;
 }
 
 export async function GET(request: Request) {
@@ -198,8 +211,8 @@ export async function GET(request: Request) {
     eventBySlug(`${cfg.slugPrefix}-5m-${next5Sec}`),
   ]);
 
-  // ---- Opening prices: Polymarket's official values (Chainlink TWAP / boundary) from event pages;
-  //      fallback: Binance 1m kline opens. St = Binance ticker (live). ----
+  // ---- Opening prices: Polymarket resolution specifies Binance 1h candle open for 1h markets,
+  //      and Chainlink TWAP (from event page) for 15m/5m markets. ----
   const [s0pm, sapm, sa5pm, s0b, sab, sa5b, stRaw] = await Promise.all([
     m1h ? polymarketOpenPriceCached(m1h.slug) : Promise.resolve(null),
     m15 ? polymarketOpenPriceCached(m15.slug) : Promise.resolve(null),
@@ -209,7 +222,8 @@ export async function GET(request: Request) {
     binanceKlineCached(cfg.binance, win5Sec),
     j(`https://api.binance.com/api/v3/ticker/price?symbol=${cfg.binance}`, 5000),
   ]);
-  const s0 = s0pm ?? s0b;
+  // Ground truth for 1h market is Binance 1h candle open (s0b); fallback to s0pm if s0b is null
+  const s0 = s0b ?? s0pm;
   const sa = sapm ?? sab;
   const sa5 = sa5pm ?? sa5b;
   let st = stRaw?.price ? parseFloat(stRaw.price) : null;
