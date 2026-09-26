@@ -86,6 +86,18 @@ export async function GET(req: Request) {
           kev_direction: pKev?.direction ?? null,
           kev_score: pKev?.score != null ? Number(pKev.score) : null,
           kev_score_label: pKev?.score_interpretation ?? null,
+          kev_score_confidence:
+            pKev?.score_confidence != null
+              ? Number((pKev.score_confidence * 100).toFixed(0))
+              : pKev?.raw_decision?.answers?.one_hour_score?.confidence != null
+              ? Number((pKev.raw_decision.answers.one_hour_score.confidence * 100).toFixed(0))
+              : null,
+          kev_direction_confidence:
+            pKev?.direction_confidence != null
+              ? Number((pKev.direction_confidence * 100).toFixed(0))
+              : pKev?.raw_decision?.answers?.one_hour_direction?.confidence != null
+              ? Number((pKev.raw_decision.answers.one_hour_direction.confidence * 100).toFixed(0))
+              : null,
           kev_confidence:
             pKev?.score_confidence != null
               ? Number((pKev.score_confidence * 100).toFixed(0))

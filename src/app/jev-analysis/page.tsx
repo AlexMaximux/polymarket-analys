@@ -74,7 +74,11 @@ export function evaluateSignal(r: JevFileRecord, cfg: SignalMarkerConfig): Signa
 
   if (modelSrc === "kev") {
     targetScore = r.kev_score;
-    conf = r.kev_confidence;
+    if (cfg.confidenceType === "direction") {
+      conf = r.kev_direction_confidence ?? r.kev_confidence;
+    } else {
+      conf = r.kev_score_confidence ?? r.kev_confidence;
+    }
     modelName = "Kev-4b";
   } else if (modelSrc === "span") {
     targetScore = r.span_score;
@@ -165,6 +169,8 @@ interface JevFileRecord {
   kev_score?: number | null;
   kev_score_label?: string | null;
   kev_confidence?: number | null;
+  kev_score_confidence?: number | null;
+  kev_direction_confidence?: number | null;
   kev_prob_up?: number | null;
 
   // Span-01 (respan/span-01)
@@ -399,6 +405,90 @@ const ALL_COLUMNS: ColumnDef[] = [
         <span className="text-[#5d628f]">—</span>
       ),
     exportVal: (r) => r.kev_score ?? "",
+  },
+  {
+    id: "kev_score_confidence",
+    label: "درصد اطمینان اسکور Kev-4b (Score Confidence %)",
+    shortLabel: "اطمینان اسکور Kev",
+    category: "models",
+    render: (r) =>
+      r.kev_score_confidence != null ? (
+        <div className="flex items-center gap-1.5">
+          <span className="font-mono text-xs text-[#eab308] font-bold tabular-nums">
+            {r.kev_score_confidence}%
+          </span>
+          <div className="w-12 h-1.5 bg-white/[0.08] rounded-full overflow-hidden hidden sm:block">
+            <div
+              className="h-full bg-gradient-to-r from-[#eab308] to-[#facc15] rounded-full"
+              style={{ width: `${Math.min(100, Math.max(0, r.kev_score_confidence))}%` }}
+            />
+          </div>
+        </div>
+      ) : (
+        <span className="text-[#5d628f]">—</span>
+      ),
+    exportVal: (r) => (r.kev_score_confidence != null ? `${r.kev_score_confidence}%` : ""),
+  },
+  {
+    id: "kev_direction_confidence",
+    label: "درصد اطمینان سیگنال Kev-4b (Direction Confidence %)",
+    shortLabel: "اطمینان سیگنال Kev",
+    category: "models",
+    render: (r) =>
+      r.kev_direction_confidence != null ? (
+        <div className="flex items-center gap-1.5">
+          <span className="font-mono text-xs text-[#38bdf8] font-bold tabular-nums">
+            {r.kev_direction_confidence}%
+          </span>
+          <div className="w-12 h-1.5 bg-white/[0.08] rounded-full overflow-hidden hidden sm:block">
+            <div
+              className="h-full bg-gradient-to-r from-[#0284c7] to-[#38bdf8] rounded-full"
+              style={{ width: `${Math.min(100, Math.max(0, r.kev_direction_confidence))}%` }}
+            />
+          </div>
+        </div>
+      ) : (
+        <span className="text-[#5d628f]">—</span>
+      ),
+    exportVal: (r) => (r.kev_direction_confidence != null ? `${r.kev_direction_confidence}%` : ""),
+  },
+  {
+    id: "kev_confidence",
+    label: "اطمینان کلی Kev-4b (%)",
+    shortLabel: "اطمینان Kev",
+    category: "models",
+    render: (r) =>
+      r.kev_confidence != null ? (
+        <span className="font-mono text-xs text-[#eab308] font-semibold tabular-nums">
+          {r.kev_confidence}%
+        </span>
+      ) : (
+        <span className="text-[#5d628f]">—</span>
+      ),
+    exportVal: (r) => (r.kev_confidence != null ? `${r.kev_confidence}%` : ""),
+  },
+  {
+    id: "kev_prob_up",
+    label: "احتمال صعود Kev-4b (%UP)",
+    shortLabel: "Kev %UP",
+    category: "models",
+    render: (r) =>
+      r.kev_prob_up != null ? (
+        <div className="flex items-center gap-1.5">
+          <span className="font-mono text-xs text-[#38bdf8] font-semibold tabular-nums">
+            {r.kev_prob_up}%
+          </span>
+          <div className="w-10 h-1.5 bg-white/[0.08] rounded-full overflow-hidden hidden sm:block">
+            <div
+              className="h-full bg-gradient-to-r from-[#0284c7] to-[#38bdf8] rounded-full"
+              style={{ width: `${Math.min(100, Math.max(0, r.kev_prob_up))}%` }}
+            />
+          </div>
+        </div>
+      ) : (
+        <span className="text-[#5d628f]">—</span>
+      ),
+    exportVal: (r) => (r.kev_prob_up != null ? `${r.kev_prob_up}%` : ""),
   },
   {
     id: "span_direction",
@@ -710,7 +800,7 @@ const PRESETS = [
   {
     id: "ai",
     title: "🧠 مقایسه تفصیلی اسکور و اطمینان ۳ مدل",
-    cols: ["coin", "direction", "score", "score_confidence", "kev_direction", "kev_score", "span_direction", "span_score", "span_confidence"],
+    cols: ["coin", "direction", "score", "score_confidence", "kev_direction", "kev_score", "kev_score_confidence", "kev_direction_confidence", "span_direction", "span_score", "span_confidence"],
   },
   {
     id: "markets",
@@ -730,7 +820,7 @@ const PRESETS = [
   {
     id: "full",
     title: "🔍 نمایش جامع (تمام شاخص‌های ۳ مدل + بازار)",
-    cols: ["coin", "consensus", "direction", "score", "kev_direction", "kev_score", "span_direction", "span_score", "span_prob_up", "up_1h", "fair_15m"],
+    cols: ["coin", "consensus", "direction", "score", "score_confidence", "kev_direction", "kev_score", "kev_score_confidence", "kev_direction_confidence", "span_direction", "span_score", "span_confidence", "span_prob_up", "up_1h", "fair_15m"],
   },
 ];
 

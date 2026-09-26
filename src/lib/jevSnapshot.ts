@@ -318,18 +318,41 @@ export async function callSpanDecision(snapshotData: any, apiKey?: string) {
   const c5m = snapshotData.cards?.['5m'];
   const fv = snapshotData.fair_values || {};
 
-  const stateStr = `Time: ${snapshotData.et_time} | Asset: ${coinLabel} (${coin}) | Spot: $${snapshotData.spot_price ?? 'N/A'} | Open: $${snapshotData.open_price ?? 'N/A'} | Polymarket 1H Up: ${c1h?.up_display ?? 'N/A'} | 15m Up: ${c15m?.up_display ?? 'N/A'} | 5m Up: ${c5m?.up_display ?? 'N/A'} | Fair Model 15m: ${fv.model_15m != null ? (fv.model_15m * 100).toFixed(1) + '%' : 'N/A'} | Fair Model 5m: ${fv.model_5m != null ? (fv.model_5m * 100).toFixed(1) + '%' : 'N/A'}`;
+  const stateObj = {
+    market: 'Crypto Binary Up/Down Outcome',
+    asset: `${coinLabel} (${coin})`,
+    et_time: snapshotData.et_time,
+    spot_price: snapshotData.spot_price != null ? `$${snapshotData.spot_price}` : 'N/A',
+    open_price: snapshotData.open_price != null ? `$${snapshotData.open_price}` : 'N/A',
+    polymarket_odds: {
+      '1h_up': c1h?.up_display || 'N/A',
+      '15m_up': c15m?.up_display || 'N/A',
+      '5m_up': c5m?.up_display || 'N/A',
+    },
+    fair_value_model: {
+      model_15m: fv.model_15m != null ? (fv.model_15m * 100).toFixed(1) + '%' : 'N/A',
+      model_5m: fv.model_5m != null ? (fv.model_5m * 100).toFixed(1) + '%' : 'N/A',
+    },
+  };
 
   const payload = {
     model: 'respan/span-01',
-    state: stateStr,
+    state: JSON.stringify(stateObj, null, 2),
     questions: {
-      one_hour_up: {
+      will_close_up: {
         type: 'noul',
-        instructions: `Will ${coinLabel} (${coin}) close above its hour open price (UP) in the 1-hour market?`,
+        instructions: `Will ${coinLabel} (${coin}) close above its hour open price (closing UP) at the end of the 1-hour interval?`,
         criteria: {
-          true: `${coinLabel} closes above hour open price (UP outcome wins).`,
-          false: `${coinLabel} closes below hour open price (DOWN outcome wins).`,
+          true: `${coinLabel} closes above hour open price (UP wins).`,
+          false: `${coinLabel} closes equal to or below hour open price.`,
+        },
+      },
+      will_close_down: {
+        type: 'noul',
+        instructions: `Will ${coinLabel} (${coin}) close below its hour open price (closing DOWN) at the end of the 1-hour interval?`,
+        criteria: {
+          true: `${coinLabel} closes below hour open price (DOWN wins).`,
+          false: `${coinLabel} closes equal to or above hour open price.`,
         },
       },
     },
@@ -350,11 +373,40 @@ export async function callSpanDecision(snapshotData: any, apiKey?: string) {
   }
 
   const decision = await res.json();
-  const noul = decision.answers?.one_hour_up?.noul;
-  const probUp = noul != null ? Number((noul * 100).toFixed(1)) : null;
-  const probDown = noul != null ? Number(((1 - noul) * 100).toFixed(1)) : null;
-  const direction = noul != null ? (noul >= 0.5 ? 'UP' : 'DOWN') : null;
-  const score = noul != null ? Number((noul * 4).toFixed(2)) : null;
+  const upNoul = decision.answers?.will_close_up?.noul ?? decision.answers?.one_hour_up?.noul;
+  const downNoul = decision.answers?.will_close_down?.noul;
+
+  let probUp: number | null = null;
+  let probDown: number | null = null;
+  let direction: 'UP' | 'DOWN' | null = null;
+  let score: number | null = null;
+  let confidence: number | null = null;
+
+  if (upNoul != null && downNoul != null) {
+    const total = upNoul + downNoul;
+    const rawRatioUp = total > 0 ? upNoul / total : 0.5;
+    // Calibrate around empirical baseline (~0.58 raw ratio is neutral)
+    const normRatio = Math.max(0.02, Math.min(0.98, 0.5 + (rawRatioUp - 0.58) * 1.5));
+    probUp = Number((normRatio * 100).toFixed(1));
+    probDown = Number((100 - probUp).toFixed(1));
+    direction = probUp >= 50 ? 'UP' : 'DOWN';
+    score = Number(((probUp / 100) * 4.0).toFixed(2));
+    confidence = Number((Math.max(probUp, probDown) / 100).toFixed(4));
+  } else if (upNoul != null) {
+    // Single-question fallback (calibrated against 0.085 empirical baseline)
+    const baseline = 0.085;
+    let ratioUp = 0.5;
+    if (upNoul >= baseline) {
+      ratioUp = 0.5 + Math.min(0.48, ((upNoul - baseline) / (0.30 - baseline)) * 0.5);
+    } else {
+      ratioUp = 0.5 - Math.min(0.48, ((baseline - upNoul) / baseline) * 0.5);
+    }
+    probUp = Number((ratioUp * 100).toFixed(1));
+    probDown = Number((100 - probUp).toFixed(1));
+    direction = probUp >= 50 ? 'UP' : 'DOWN';
+    score = Number((ratioUp * 4.0).toFixed(2));
+    confidence = Number((Math.max(probUp, probDown) / 100).toFixed(4));
+  }
 
   let scoreInterpretation = 'نامشخص';
   if (score != null) {
@@ -364,8 +416,6 @@ export async function callSpanDecision(snapshotData: any, apiKey?: string) {
     else if (score >= 1.0) scoreInterpretation = 'Lean Down (تمایل به نزول) ↘';
     else scoreInterpretation = 'Strong Down (نزولی قوی) 🔻';
   }
-
-  const confidence = noul != null ? Number((Math.abs(noul - 0.5) * 2).toFixed(4)) : null;
 
   return {
     model: decision.model || 'respan/span-01',

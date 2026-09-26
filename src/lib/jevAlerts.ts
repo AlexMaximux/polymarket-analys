@@ -82,7 +82,7 @@ export interface JevSignalResult {
  * - BEARISH (تیک قرمز): Jev Score < 0.5 AND Score Confidence >= 90% (0.90)
  */
 export function evaluateJevRecordSignal(record: any): JevSignalResult {
-  const p = record?.prediction;
+  const p = record?.prediction || record?.predictions?.jev;
   if (!p || p.score == null) {
     return { isSignal: false };
   }
