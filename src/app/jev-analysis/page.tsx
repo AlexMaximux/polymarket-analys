@@ -26,6 +26,10 @@ import {
   Settings2,
   Sliders,
   Tag,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  Printer,
 } from "lucide-react";
 
 export interface SignalMarkerConfig {
@@ -256,6 +260,7 @@ interface ColumnDef {
   category: "jev" | "market" | "fair" | "models";
   render: (row: JevFileRecord, signalConfig?: SignalMarkerConfig) => React.ReactNode;
   exportVal: (row: JevFileRecord, signalConfig?: SignalMarkerConfig) => string | number;
+  sortVal?: (row: JevFileRecord, signalConfig?: SignalMarkerConfig) => string | number | null | undefined;
 }
 
 const ALL_COLUMNS: ColumnDef[] = [
@@ -270,6 +275,7 @@ const ALL_COLUMNS: ColumnDef[] = [
       </span>
     ),
     exportVal: (r) => r.coin || "BTC",
+    sortVal: (r) => r.coin || "BTC",
   },
   {
     id: "consensus",
@@ -323,6 +329,16 @@ const ALL_COLUMNS: ColumnDef[] = [
       const ups = dirs.filter((d) => d === "UP").length;
       return `${ups}/${dirs.length} UP`;
     },
+    sortVal: (r) => {
+      const dirs = [r.direction, r.kev_direction, r.span_direction].filter(Boolean);
+      const ups = dirs.filter((d) => d === "UP").length;
+      const downs = dirs.filter((d) => d === "DOWN").length;
+      if (ups === dirs.length && dirs.length > 0) return 6;
+      if (ups > downs) return 5;
+      if (downs === dirs.length && dirs.length > 0) return 2;
+      if (downs > ups) return 3;
+      return 4;
+    },
   },
   {
     id: "signal",
@@ -349,6 +365,10 @@ const ALL_COLUMNS: ColumnDef[] = [
     exportVal: (r, cfg) => {
       const sig = evaluateSignal(r, cfg || DEFAULT_SIGNAL_CONFIG);
       return sig ? sig.label : "";
+    },
+    sortVal: (r, cfg) => {
+      const sig = evaluateSignal(r, cfg || DEFAULT_SIGNAL_CONFIG);
+      return sig ? (sig.type === "BULLISH" ? 2 : 1) : 0;
     },
   },
   {
@@ -385,6 +405,13 @@ const ALL_COLUMNS: ColumnDef[] = [
       const res = evaluateSignalOutcome(r, cfg || DEFAULT_SIGNAL_CONFIG);
       return res.hasSignal ? (res.status === "WIN" ? "برد" : res.status === "LOSS" ? "باخت" : "در انتظار") : "";
     },
+    sortVal: (r, cfg) => {
+      const res = evaluateSignalOutcome(r, cfg || DEFAULT_SIGNAL_CONFIG);
+      if (!res.hasSignal) return 0;
+      if (res.status === "WIN") return 3;
+      if (res.status === "PENDING") return 2;
+      return 1;
+    },
   },
   {
     id: "market_outcome",
@@ -414,6 +441,7 @@ const ALL_COLUMNS: ColumnDef[] = [
       );
     },
     exportVal: (r) => r.market_outcome || "",
+    sortVal: (r) => (r.market_outcome === "UP" ? 3 : r.market_outcome === "PENDING" ? 2 : r.market_outcome === "DOWN" ? 1 : 0),
   },
   {
     id: "direction",
@@ -1424,24 +1452,370 @@ export default function JevAnalysisPage() {
     };
   }, [baseFilteredData, signals]);
 
-  // Export CSV
+  // Sorting state for table
+  const [sortConfig, setSortConfig] = useState<{
+    key: string;
+    dir: "asc" | "desc";
+  } | null>(null);
+
+  const handleSort = (key: string) => {
+    setSortConfig((prev) => {
+      if (!prev || prev.key !== key) {
+        return { key, dir: "desc" };
+      }
+      if (prev.dir === "desc") {
+        return { key, dir: "asc" };
+      }
+      return null;
+    });
+  };
+
+  // Helper to extract a number from string or number values
+  const parseSortValue = (val: any): number | null => {
+    if (val == null || val === "") return null;
+    if (typeof val === "number") return isNaN(val) ? null : val;
+    if (typeof val === "string") {
+      const cleaned = val.replace(/[\$,%]/g, "").trim();
+      if (cleaned !== "" && !isNaN(Number(cleaned))) {
+        return Number(cleaned);
+      }
+    }
+    return null;
+  };
+
+  // Sorted dataset for table and exports
+  const sortedData = useMemo(() => {
+    if (!sortConfig) return filteredData;
+    const { key, dir } = sortConfig;
+    const factor = dir === "asc" ? 1 : -1;
+
+    return [...filteredData].sort((a, b) => {
+      let valA: any;
+      let valB: any;
+
+      if (key === "time") {
+        valA = a.timestamp ? new Date(a.timestamp).getTime() : a.current_time_et || a.et_time;
+        valB = b.timestamp ? new Date(b.timestamp).getTime() : b.current_time_et || b.et_time;
+      } else {
+        const col = ALL_COLUMNS.find((c) => c.id === key);
+        if (col) {
+          valA = col.sortVal ? col.sortVal(a, signals) : col.exportVal(a, signals);
+          valB = col.sortVal ? col.sortVal(b, signals) : col.exportVal(b, signals);
+        }
+      }
+
+      const isEmptyA = valA == null || valA === "";
+      const isEmptyB = valB == null || valB === "";
+      if (isEmptyA && isEmptyB) return 0;
+      if (isEmptyA) return 1;
+      if (isEmptyB) return -1;
+
+      const numA = parseSortValue(valA);
+      const numB = parseSortValue(valB);
+
+      if (numA !== null && numB !== null) {
+        return (numA - numB) * factor;
+      }
+
+      return String(valA).localeCompare(String(valB), "fa", { numeric: true }) * factor;
+    });
+  }, [filteredData, sortConfig, signals]);
+
+  // Export CSV of currently sorted and filtered data
   const exportCsv = () => {
     const activeCols = ALL_COLUMNS.filter((c) => selectedColIds.includes(c.id));
-    const headers = ["زمان (ET)", "نام فایل", ...activeCols.map((c) => c.label)];
-    const rows = filteredData.map((r) => [
-      `"${r.et_time || ""}"`,
-      `"${r.filename}"`,
-      ...activeCols.map((c) => `"${c.exportVal(r, signals)}"`),
+    const headers = ["ردیف", "زمان (ET)", "نام فایل", ...activeCols.map((c) => c.label)];
+    const rows = sortedData.map((r, idx) => [
+      idx + 1,
+      `"${(r.current_time_et || r.et_time || "").replace(/"/g, '""')}"`,
+      `"${(r.filename || "").replace(/"/g, '""')}"`,
+      ...activeCols.map((c) => `"${String(c.exportVal(r, signals) ?? "").replace(/"/g, '""')}"`),
     ]);
     const csvContent = "\uFEFF" + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.setAttribute("download", `jev_analysis_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute(
+      "download",
+      `jev_analysis_${selectedCoin}_${new Date().toISOString().slice(0, 10)}.csv`
+    );
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  // Export PDF / Print of currently sorted and filtered data
+  const exportPdf = () => {
+    const activeCols = ALL_COLUMNS.filter((c) => selectedColIds.includes(c.id));
+    const printableRows = sortedData;
+
+    const printWin = window.open("", "_blank");
+    if (!printWin) {
+      alert("لطفاً باز شدن پنجره‌های پاپ‌آپ (Pop-up) را در مرورگر خود مجاز فرمایید.");
+      return;
+    }
+
+    const title = `گزارش تحلیل پیش‌بینی‌های هوش مصنوعی پلی‌مارکت - ${selectedCoin.toUpperCase()}`;
+    const dateStr = new Date().toLocaleString("fa-IR");
+    const sortLabel = sortConfig
+      ? ` | مرتب‌شده بر اساس: ${
+          sortConfig.key === "time"
+            ? "زمان"
+            : ALL_COLUMNS.find((c) => c.id === sortConfig.key)?.label || sortConfig.key
+        } (${sortConfig.dir === "desc" ? "نزولی ↓" : "صعودی ↑"})`
+      : "";
+
+    const htmlContent = `
+<!DOCTYPE html>
+<html dir="rtl" lang="fa">
+<head>
+  <meta charset="utf-8">
+  <title>${title}</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;600;700;800&display=swap');
+    
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Vazirmatn', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    
+    @page {
+      size: A4 landscape;
+      margin: 10mm;
+    }
+
+    body {
+      background-color: #ffffff;
+      color: #111827;
+      padding: 15px;
+      font-size: 11px;
+      line-height: 1.4;
+    }
+
+    .no-print {
+      margin-bottom: 16px;
+      padding: 12px 16px;
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .btn {
+      background: #0284c7;
+      color: white;
+      border: none;
+      padding: 8px 18px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn:hover { background: #0369a1; }
+
+    .header {
+      border-bottom: 2px solid #e5e7eb;
+      padding-bottom: 12px;
+      margin-bottom: 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+    }
+
+    .header h1 {
+      font-size: 18px;
+      font-weight: 800;
+      color: #1e293b;
+      margin-bottom: 4px;
+    }
+
+    .header .subtitle {
+      font-size: 11px;
+      color: #64748b;
+    }
+
+    .stats-banner {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 14px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 10px 14px;
+      flex-wrap: wrap;
+    }
+
+    .stat-pill {
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-weight: 600;
+    }
+    .pill-blue { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+    .pill-green { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+    .pill-red { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+    .pill-gray { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 10px;
+      text-align: right;
+    }
+
+    th {
+      background: #f1f5f9;
+      color: #334155;
+      font-weight: 700;
+      padding: 6px 8px;
+      border: 1px solid #cbd5e1;
+      white-space: nowrap;
+    }
+
+    td {
+      padding: 5px 8px;
+      border: 1px solid #e2e8f0;
+      white-space: nowrap;
+    }
+
+    tr:nth-child(even) { background-color: #f8fafc; }
+
+    .row-win { background-color: #ecfdf5 !important; }
+    .row-loss { background-color: #fff1f2 !important; }
+
+    .badge-win {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: #dcfce7;
+      color: #166534;
+      font-weight: 700;
+      border: 1px solid #86efac;
+    }
+
+    .badge-loss {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: #fee2e2;
+      color: #991b1b;
+      font-weight: 700;
+      border: 1px solid #fca5a5;
+    }
+
+    .badge-up { color: #059669; font-weight: 700; }
+    .badge-down { color: #e11d48; font-weight: 700; }
+
+    @media print {
+      .no-print { display: none !important; }
+      body { padding: 0; }
+      table { page-break-inside: auto; }
+      tr { page-break-inside: avoid; page-break-after: auto; }
+      thead { display: table-header-group; }
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+  </style>
+</head>
+<body>
+  <div class="no-print">
+    <div>
+      <strong>پیش‌نمایش چاپ و دریافت فایل PDF</strong>
+      <div style="font-size: 11px; color: #475569; margin-top: 2px;">
+        برای ذخیره نسخه PDF، روی دکمه زیر کلیک کرده و در پنجره چاپ، گزینه <strong>Save as PDF</strong> را انتخاب نمایید.
+      </div>
+    </div>
+    <button class="btn" onclick="window.print()">
+      🖨️ چاپ / ذخیره به صورت PDF
+    </button>
+  </div>
+
+  <div class="header">
+    <div>
+      <h1>${title}</h1>
+      <div class="subtitle">تاریخ گزارش: ${dateStr} · ارز: ${selectedCoin.toUpperCase()} · فیلتر تاریخ: ${
+      dateFilter === "ALL" ? "تمام تاریخ‌ها" : dateFilter
+    } · تعداد سطرها: ${printableRows.length}${sortLabel}</div>
+    </div>
+    <div style="text-align: left; font-size: 10px; color: #64748b;">
+      Polymarket Pulse | Jev & Multi-Model
+    </div>
+  </div>
+
+  <div class="stats-banner">
+    <div class="stat-pill pill-blue">🎯 کل سیگنال‌های ساعتی: ${stats.signalCount}</div>
+    <div class="stat-pill pill-green">🏆 برد (WIN): ${stats.winCount}</div>
+    <div class="stat-pill pill-red">❌ باخت (LOSS): ${stats.lossCount}</div>
+    ${stats.winRate != null ? `<div class="stat-pill pill-green">📊 وین‌ریت ساعتی: ${stats.winRate}%</div>` : ""}
+    <div class="stat-pill pill-gray">تعداد سطرهای این خروجی: ${printableRows.length}</div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width: 35px; text-align: center;">#</th>
+        <th>زمان و ساعت (ET)</th>
+        ${activeCols.map((c) => `<th>${c.label}</th>`).join("")}
+      </tr>
+    </thead>
+    <tbody>
+      ${printableRows
+        .map((row, idx) => {
+          const outcomeInfo = evaluateSignalOutcome(row, signals);
+          let rowClass = "";
+          if (outcomeInfo.hasSignal) {
+            if (outcomeInfo.status === "WIN") rowClass = "row-win";
+            else if (outcomeInfo.status === "LOSS") rowClass = "row-loss";
+          }
+          return `
+          <tr class="${rowClass}">
+            <td style="text-align: center; color: #64748b;">${idx + 1}</td>
+            <td style="font-family: monospace; font-weight: 600;">${
+              row.current_time_et || row.et_time
+            }</td>
+            ${activeCols
+              .map((col) => {
+                const val = col.exportVal(row, signals);
+                let formatted = String(val ?? "");
+                if (col.id === "signal_result") {
+                  if (outcomeInfo.status === "WIN") formatted = '<span class="badge-win">✓ برد (WIN)</span>';
+                  else if (outcomeInfo.status === "LOSS") formatted = '<span class="badge-loss">✗ باخت (LOSS)</span>';
+                  else if (outcomeInfo.status === "PENDING") formatted = '⏳ در انتظار';
+                } else if (col.id === "market_outcome") {
+                  if (val === "UP") formatted = '<span class="badge-up">🟢 صعود</span>';
+                  else if (val === "DOWN") formatted = '<span class="badge-down">🔴 نزول</span>';
+                }
+                return `<td>${formatted}</td>`;
+              })
+              .join("")}
+          </tr>`;
+        })
+        .join("")}
+    </tbody>
+  </table>
+
+  <script>
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        window.print();
+      }, 500);
+    });
+  </script>
+</body>
+</html>
+    `;
+
+    printWin.document.open();
+    printWin.document.write(htmlContent);
+    printWin.document.close();
   };
 
   const activeColumns = useMemo(
@@ -1616,11 +1990,22 @@ export default function JevAnalysisPage() {
 
           <button
             onClick={exportCsv}
-            disabled={filteredData.length === 0}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] text-xs text-[#c3c8ee] border border-white/[0.08] transition-all disabled:opacity-50"
+            disabled={sortedData.length === 0}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] text-xs text-[#c3c8ee] border border-white/[0.08] transition-all disabled:opacity-50 font-medium"
+            title="دانلود خروجی CSV از جدول جاری (با اعمال سورت و فیلترهای فعال)"
           >
             <Download className="w-3.5 h-3.5 text-[#38bdf8]" />
-            دانلود خروجی CSV ({filteredData.length})
+            <span>خروجی CSV ({sortedData.length})</span>
+          </button>
+
+          <button
+            onClick={exportPdf}
+            disabled={sortedData.length === 0}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#38bdf8]/15 hover:bg-[#38bdf8]/25 text-xs text-[#38bdf8] border border-[#38bdf8]/30 transition-all disabled:opacity-50 font-medium"
+            title="چاپ و دانلود خروجی PDF جدول جاری با رنگ‌بندی کامل برد و باخت"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            <span>خروجی PDF ({sortedData.length})</span>
           </button>
 
           <button
@@ -2786,7 +3171,26 @@ export default function JevAnalysisPage() {
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {sortConfig && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#38bdf8]/15 border border-[#38bdf8]/30 text-[#38bdf8] text-xs font-medium animate-in fade-in">
+              <span>
+                مرتب‌سازی:{" "}
+                {sortConfig.key === "time"
+                  ? "زمان"
+                  : ALL_COLUMNS.find((c) => c.id === sortConfig.key)?.label || sortConfig.key}{" "}
+                ({sortConfig.dir === "desc" ? "نزولی ↓" : "صعودی ↑"})
+              </span>
+              <button
+                onClick={() => setSortConfig(null)}
+                className="hover:text-white mr-1 text-sm font-bold transition-colors"
+                title="حذف مرتب‌سازی و بازگشت به ترتیب پیش‌فرض زمانی"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
           <div className="relative">
             <Search className="w-3.5 h-3.5 text-[#5d628f] absolute right-2.5 top-1/2 -translate-y-1/2" />
             <input
@@ -2794,9 +3198,29 @@ export default function JevAnalysisPage() {
               placeholder="جستجو در زمان، ساعت یا اسکور..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="bg-white/[0.05] border border-white/[0.1] rounded-lg pr-8 pl-3 py-1 text-xs text-white placeholder-[#5d628f] focus:outline-none focus:border-[#38bdf8] w-56"
+              className="bg-white/[0.05] border border-white/[0.1] rounded-lg pr-8 pl-3 py-1 text-xs text-white placeholder-[#5d628f] focus:outline-none focus:border-[#38bdf8] w-52"
             />
           </div>
+
+          <button
+            onClick={exportCsv}
+            disabled={sortedData.length === 0}
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] text-xs text-[#c3c8ee] border border-white/[0.08] transition-all disabled:opacity-50"
+            title="دانلود خروجی CSV"
+          >
+            <Download className="w-3 h-3 text-[#38bdf8]" />
+            <span className="hidden sm:inline">CSV</span>
+          </button>
+
+          <button
+            onClick={exportPdf}
+            disabled={sortedData.length === 0}
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#38bdf8]/15 hover:bg-[#38bdf8]/25 text-xs text-[#38bdf8] border border-[#38bdf8]/30 transition-all disabled:opacity-50 font-medium"
+            title="چاپ و دانلود خروجی PDF"
+          >
+            <Printer className="w-3 h-3" />
+            <span className="hidden sm:inline">PDF</span>
+          </button>
         </div>
       </div>
 
@@ -2809,7 +3233,7 @@ export default function JevAnalysisPage() {
           </div>
         ) : error ? (
           <div className="p-8 text-center text-xs text-[#ff6b9d]">{error}</div>
-        ) : filteredData.length === 0 ? (
+        ) : sortedData.length === 0 ? (
           <div className="p-12 text-center text-xs text-[#8b91c5]">
             هیچ داده‌ای مطابق با بازه زمانی یا فیلترهای انتخابی یافت نشد.
           </div>
@@ -2818,18 +3242,54 @@ export default function JevAnalysisPage() {
             <table className="w-full text-right text-xs border-collapse">
               <thead className="sticky top-0 z-10 bg-[#0d0f22] text-[#8b91c5] border-b border-white/[0.1] uppercase text-[11px] tracking-wider">
                 <tr>
-                  <th className="py-3.5 px-4 font-semibold">ردیف</th>
-                  <th className="py-3.5 px-4 font-semibold">زمان و ساعت (ET)</th>
-                  {activeColumns.map((col) => (
-                    <th key={col.id} className="py-3.5 px-4 font-semibold">
-                      {col.label}
-                    </th>
-                  ))}
+                  <th className="py-3.5 px-4 font-semibold text-center w-14">ردیف</th>
+                  <th
+                    onClick={() => handleSort("time")}
+                    className="py-3.5 px-4 font-semibold cursor-pointer select-none hover:text-white transition-colors group"
+                    title="برای مرتب‌سازی بر اساس زمان و تاریخ کلیک کنید"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span>زمان و ساعت (ET)</span>
+                      {sortConfig?.key === "time" ? (
+                        sortConfig.dir === "desc" ? (
+                          <ArrowDown className="w-3.5 h-3.5 text-[#38bdf8]" />
+                        ) : (
+                          <ArrowUp className="w-3.5 h-3.5 text-[#38bdf8]" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 text-[#5d628f] opacity-40 group-hover:opacity-100" />
+                      )}
+                    </div>
+                  </th>
+                  {activeColumns.map((col) => {
+                    const isSorted = sortConfig?.key === col.id;
+                    return (
+                      <th
+                        key={col.id}
+                        onClick={() => handleSort(col.id)}
+                        className="py-3.5 px-4 font-semibold cursor-pointer select-none hover:text-white transition-colors group"
+                        title={`برای مرتب‌سازی بر اساس ${col.label} کلیک کنید`}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <span>{col.label}</span>
+                          {isSorted ? (
+                            sortConfig.dir === "desc" ? (
+                              <ArrowDown className="w-3.5 h-3.5 text-[#38bdf8]" />
+                            ) : (
+                              <ArrowUp className="w-3.5 h-3.5 text-[#38bdf8]" />
+                            )
+                          ) : (
+                            <ArrowUpDown className="w-3 h-3 text-[#5d628f] opacity-40 group-hover:opacity-100" />
+                          )}
+                        </div>
+                      </th>
+                    );
+                  })}
                   <th className="py-3.5 px-4 font-semibold text-center">عملیات</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/[0.05]">
-                {filteredData.map((row, index) => {
+                {sortedData.map((row, index) => {
                   const outcomeInfo = evaluateSignalOutcome(row, signals);
                   return (
                     <tr
@@ -2841,18 +3301,20 @@ export default function JevAnalysisPage() {
                       }`}
                       onClick={() => viewFile(row.filename)}
                     >
-                    <td className="py-3 px-4 text-[#5d628f] font-mono tabular-nums">
-                      {filteredData.length - index}
-                    </td>
+                      <td className="py-3 px-4 text-[#5d628f] font-mono tabular-nums text-center">
+                        {sortConfig && sortConfig.dir === "asc"
+                          ? index + 1
+                          : sortedData.length - index}
+                      </td>
 
-                    <td className="py-3 px-4 font-mono text-[#eef0ff] whitespace-nowrap">
-                      <div className="font-semibold text-white">
-                        {row.current_time_et || row.et_time}
-                      </div>
-                      <div className="text-[10px] text-[#5d628f] truncate max-w-[170px]" title={row.filename}>
-                        {row.filename}
-                      </div>
-                    </td>
+                      <td className="py-3 px-4 font-mono text-[#eef0ff] whitespace-nowrap">
+                        <div className="font-semibold text-white">
+                          {row.current_time_et || row.et_time}
+                        </div>
+                        <div className="text-[10px] text-[#5d628f] truncate max-w-[170px]" title={row.filename}>
+                          {row.filename}
+                        </div>
+                      </td>
 
                     {activeColumns.map((col) => (
                       <td key={col.id} className="py-3 px-4 whitespace-nowrap">
