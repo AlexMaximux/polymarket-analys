@@ -1,5 +1,6 @@
 import { initializeDb } from '../src/lib/db';
 import { fetchTrueFirstTrade, saveTrueFirst, pendingBackfillQueue } from '../src/lib/truefirst';
+import { beat } from '../src/lib/heartbeat';
 
 /**
  * Backfill worker: continuously resolves the TRUE on-chain first trade for wallets
@@ -12,6 +13,7 @@ async function backfill() {
   while (true) {
     const wallets = pendingBackfillQueue(25);
     if (wallets.length === 0) {
+      beat('backfill', true);
       await new Promise(r => setTimeout(r, 15000)); // wait for crawler to discover new users
       continue;
     }
@@ -19,6 +21,7 @@ async function backfill() {
       try {
         const r = await fetchTrueFirstTrade(w);
         saveTrueFirst(r);
+        beat('backfill', true);
         console.log(
           `[${new Date().toISOString()}] ${w.slice(0, 10)}... first=${
             r.true_first_trade_at ? new Date(r.true_first_trade_at * 1000).toISOString() : 'none'
@@ -26,6 +29,7 @@ async function backfill() {
         );
       } catch (err) {
         console.error(`[${new Date().toISOString()}] backfill error for ${w}:`, err);
+        beat('backfill', false, String((err as Error)?.message ?? err));
         await new Promise(r => setTimeout(r, 3000));
       }
       await new Promise(r => setTimeout(r, 400)); // polite between wallets

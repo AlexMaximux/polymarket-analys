@@ -2,6 +2,7 @@ import { initializeDb } from '../src/lib/db';
 import { evaluateAllAlerts } from '../src/lib/alerts';
 import { recordUpdownTicks } from '../src/lib/updownRecorder';
 import { getSetting } from '../src/lib/settings';
+import { beat } from '../src/lib/heartbeat';
 
 /**
  * Alert worker: evaluates all enabled alert rules every 60s and pushes
@@ -18,8 +19,10 @@ async function alertLoop() {
       if (r.sent > 0 || r.failed > 0) {
         console.log(`[${new Date().toISOString()}] alerts: evaluated=${r.evaluated} sent=${r.sent} failed=${r.failed}`);
       }
+      beat('alerts', true);
     } catch (err) {
       console.error(`[${new Date().toISOString()}] alert loop error:`, err);
+      beat('alerts', false, String((err as Error)?.message ?? err));
     }
     await new Promise(r => setTimeout(r, intervalMs));
   }

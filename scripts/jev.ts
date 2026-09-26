@@ -11,6 +11,7 @@ import {
 import { initializeAlertTracker } from '../src/lib/jevAlerts';
 import { updateMarketResolutions } from '../src/lib/marketResolver';
 import { getSetting } from '../src/lib/settings';
+import { beat } from '../src/lib/heartbeat';
 
 const SNAPSHOT_INTERVAL_MS = getSetting('jev.snapshotIntervalSec') * 1000; // live cache refresh (default 30s)
 const JEV_RECORD_INTERVAL_MS = getSetting('jev.recordIntervalSec') * 1000; // multi-model record (default 5 min)
@@ -95,8 +96,10 @@ async function startLoop() {
       console.log(
         `[${new Date().toISOString()}] Multi-coin JEV live cache refreshed (all ${SUPPORTED_COINS.length} coins) -> next check cycle in ${nextSec}s`
       );
+      beat('jev', true);
     } catch (err: any) {
       console.error(`[${new Date().toISOString()}] 30s update error:`, err.message || err);
+      beat('jev', false, err.message || String(err));
     }
   };
 
