@@ -83,13 +83,18 @@ Rule: first-ever trade within last 24h & max single bet ≥ $25,000
 
 ```bash
 npm install
-
-# three long-running processes (separate terminals or tmux):
-npm run dev        # dashboard on :3000
-npm run crawl      # feed poller
-npm run backfill   # true-first-trade resolver
-npm run alerts     # alert evaluator
+npm run supervisor   # web app on http://127.0.0.1:8000 + crawl, backfill, alerts, jev workers
 ```
+
+Open **http://127.0.0.1:8000/control** to start/stop/restart workers, read their logs, see heartbeats and edit settings
+(OpenRouter key, Jev Telegram target, coins, models, intervals). Saving a setting restarts only the workers that use it.
+
+- The app listens on `127.0.0.1` only and rejects cross-site API writes — it is meant to be used from this Mac.
+- A worker already running elsewhere (another terminal, launchd, the IDE) is shown as **external** and is not started twice.
+  To hand the launchd alerts worker to the supervisor: `launchctl unload ~/Library/LaunchAgents/com.polymarket-pulse.alerts.plist`.
+- Logs: `logs/<worker>.log` (rotated at 5 MB). Ports: `PMP_PORT` (default 8000), `SUPERVISOR_PORT` (default 8001).
+
+Running workers by hand still works: `npm run dev`, `npm run crawl`, `npm run backfill`, `npm run alerts`, `npm run jev`.
 
 Create your first alert at `/alerts` → fill Telegram bot token + chat ID → **Test**.
 
