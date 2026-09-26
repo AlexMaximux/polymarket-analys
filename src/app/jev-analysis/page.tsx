@@ -54,6 +54,7 @@ export const DEFAULT_SIGNAL_CONFIG: SignalMarkerConfig = {
 
 export interface SignalMatch {
   type: "BULLISH" | "BEARISH";
+  direction: "UP" | "DOWN";
   label: string;
   rule: string;
   color: string;
@@ -106,6 +107,7 @@ export function evaluateSignal(r: JevFileRecord, cfg: SignalMarkerConfig): Signa
   if (targetScore > cfg.bullishScore && conf >= cfg.bullishMinConf) {
     return {
       type: "BULLISH",
+      direction: "UP",
       label: `سیگنال صعود (${modelName} - تیک آبی)`,
       rule: `اسکور ${modelName} > ${cfg.bullishScore} و اطمینان ≥ ${cfg.bullishMinConf}%`,
       color: cfg.bullishColor || "#38bdf8",
@@ -121,6 +123,7 @@ export function evaluateSignal(r: JevFileRecord, cfg: SignalMarkerConfig): Signa
   if (targetScore < cfg.bearishScore && conf >= cfg.bearishMinConf) {
     return {
       type: "BEARISH",
+      direction: "DOWN",
       label: `سیگنال نزول (${modelName} - تیک قرمز)`,
       rule: `اسکور ${modelName} < ${cfg.bearishScore} و اطمینان ≥ ${cfg.bearishMinConf}%`,
       color: cfg.bearishColor || "#ef4444",
@@ -185,6 +188,65 @@ interface JevFileRecord {
   consensus_direction?: "UP" | "DOWN" | "SPLIT" | null;
   consensus_summary?: string | null;
   consensus_agreement?: number | null;
+
+  // Market Resolution & Outcome
+  market_slug?: string | null;
+  market_outcome?: "UP" | "DOWN" | "PENDING" | null;
+}
+
+export function evaluateSignalOutcome(r: JevFileRecord, cfg: SignalMarkerConfig): {
+  hasSignal: boolean;
+  signalDirection?: "UP" | "DOWN";
+  marketOutcome?: "UP" | "DOWN" | "PENDING" | null;
+  status: "WIN" | "LOSS" | "PENDING" | "NO_SIGNAL";
+  bgClass: string;
+  borderClass: string;
+} {
+  const sig = evaluateSignal(r, cfg);
+  const outcome = r.market_outcome;
+
+  if (!sig) {
+    return {
+      hasSignal: false,
+      marketOutcome: outcome,
+      status: "NO_SIGNAL",
+      bgClass: "",
+      borderClass: "",
+    };
+  }
+
+  const sigDir = sig.direction;
+
+  if (!outcome || outcome === "PENDING") {
+    return {
+      hasSignal: true,
+      signalDirection: sigDir,
+      marketOutcome: outcome || "PENDING",
+      status: "PENDING",
+      bgClass: "bg-amber-500/[0.08] hover:bg-amber-500/[0.15]",
+      borderClass: "border-l-4 border-l-amber-500",
+    };
+  }
+
+  if (sigDir === outcome) {
+    return {
+      hasSignal: true,
+      signalDirection: sigDir,
+      marketOutcome: outcome,
+      status: "WIN",
+      bgClass: "bg-emerald-500/[0.14] hover:bg-emerald-500/[0.22]",
+      borderClass: "border-l-4 border-l-emerald-500",
+    };
+  } else {
+    return {
+      hasSignal: true,
+      signalDirection: sigDir,
+      marketOutcome: outcome,
+      status: "LOSS",
+      bgClass: "bg-rose-500/[0.14] hover:bg-rose-500/[0.22]",
+      borderClass: "border-l-4 border-l-rose-500",
+    };
+  }
 }
 
 interface ColumnDef {
@@ -288,6 +350,70 @@ const ALL_COLUMNS: ColumnDef[] = [
       const sig = evaluateSignal(r, cfg || DEFAULT_SIGNAL_CONFIG);
       return sig ? sig.label : "";
     },
+  },
+  {
+    id: "signal_result",
+    label: "نتیجه سیگنال (برد / باخت)",
+    shortLabel: "برد / باخت",
+    category: "models",
+    render: (r, cfg) => {
+      const res = evaluateSignalOutcome(r, cfg || DEFAULT_SIGNAL_CONFIG);
+      if (!res.hasSignal) return <span className="text-[#5d628f]">—</span>;
+      if (res.status === "WIN") {
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-sm animate-pulse">
+            <span className="text-emerald-300 font-bold">✓</span>
+            برد (WIN)
+          </span>
+        );
+      }
+      if (res.status === "LOSS") {
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-500/20 text-rose-400 border border-rose-500/40 shadow-sm">
+            <span className="text-rose-300 font-bold">✗</span>
+            باخت (LOSS)
+          </span>
+        );
+      }
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-500/15 text-amber-300 border border-amber-500/30">
+          ⏳ در انتظار
+        </span>
+      );
+    },
+    exportVal: (r, cfg) => {
+      const res = evaluateSignalOutcome(r, cfg || DEFAULT_SIGNAL_CONFIG);
+      return res.hasSignal ? (res.status === "WIN" ? "برد" : res.status === "LOSS" ? "باخت" : "در انتظار") : "";
+    },
+  },
+  {
+    id: "market_outcome",
+    label: "نتیجه نهایی مارکت ۱ ساعته (Polymarket Outcome)",
+    shortLabel: "نتیجه مارکت",
+    category: "market",
+    render: (r) => {
+      if (!r.market_outcome) return <span className="text-[#5d628f]">—</span>;
+      if (r.market_outcome === "UP") {
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+            🟢 صعود (UP)
+          </span>
+        );
+      }
+      if (r.market_outcome === "DOWN") {
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30">
+            🔴 نزول (DOWN)
+          </span>
+        );
+      }
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs text-amber-300 bg-amber-500/15 border border-amber-500/30">
+          🟡 زنده (Live)
+        </span>
+      );
+    },
+    exportVal: (r) => r.market_outcome || "",
   },
   {
     id: "direction",
@@ -790,12 +916,12 @@ const PRESETS = [
   {
     id: "multi_models",
     title: "🤖 ۳ مدل هوش مصنوعی (Jev + Kev + Span)",
-    cols: ["coin", "consensus", "direction", "score", "kev_direction", "kev_score", "span_direction", "span_score", "up_1h"],
+    cols: ["coin", "consensus", "signal", "signal_result", "direction", "score", "kev_direction", "kev_score", "span_direction", "span_score", "up_1h", "market_outcome"],
   },
   {
     id: "top3",
     title: "🌟 شاخص‌های اصلی + ۳ مدل",
-    cols: ["coin", "consensus", "direction", "score", "kev_direction", "kev_score", "span_direction", "span_score", "up_1h"],
+    cols: ["coin", "consensus", "signal", "signal_result", "direction", "score", "kev_direction", "kev_score", "span_direction", "span_score", "up_1h", "market_outcome"],
   },
   {
     id: "ai",
@@ -805,7 +931,7 @@ const PRESETS = [
   {
     id: "markets",
     title: "📈 مقایسه ۳ تایم‌فریم بازار (1h / 15m / 5m)",
-    cols: ["coin", "direction", "up_1h", "up_15m", "up_5m"],
+    cols: ["coin", "direction", "up_1h", "up_15m", "up_5m", "market_outcome"],
   },
   {
     id: "fair_values",
@@ -814,13 +940,13 @@ const PRESETS = [
   },
   {
     id: "signals",
-    title: "🎯 تمرکز روی سیگنال‌های شرطی (تیک آبی/قرمز)",
-    cols: ["coin", "signal", "direction", "score", "score_confidence", "up_1h"],
+    title: "🎯 تمرکز روی سیگنال‌ها و نتایج (برد / باخت)",
+    cols: ["coin", "signal", "signal_result", "market_outcome", "direction", "score", "score_confidence", "up_1h"],
   },
   {
     id: "full",
     title: "🔍 نمایش جامع (تمام شاخص‌های ۳ مدل + بازار)",
-    cols: ["coin", "consensus", "direction", "score", "score_confidence", "kev_direction", "kev_score", "kev_score_confidence", "kev_direction_confidence", "span_direction", "span_score", "span_confidence", "span_prob_up", "up_1h", "fair_15m"],
+    cols: ["coin", "consensus", "signal", "signal_result", "market_outcome", "direction", "score", "score_confidence", "kev_direction", "kev_score", "kev_score_confidence", "kev_direction_confidence", "span_direction", "span_score", "span_confidence", "span_prob_up", "up_1h", "fair_15m"],
   },
 ];
 
@@ -913,7 +1039,7 @@ export default function JevAnalysisPage() {
   const [activeIntervalPreset, setActiveIntervalPreset] = useState<string>("ALL");
 
   // General Filters & Search
-  const [dirFilter, setDirFilter] = useState<"ALL" | "UP" | "DOWN">("ALL");
+  const [dirFilter, setDirFilter] = useState<"ALL" | "UP" | "DOWN" | "SIGNALS" | "WINS" | "LOSSES">("ALL");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFileForModal, setSelectedFileForModal] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState<string | null>(null);
@@ -1175,9 +1301,21 @@ export default function JevAnalysisPage() {
         }
       }
 
-      // Direction filter
+      // Direction & Signal filter
       if (dirFilter === "UP" && row.direction !== "UP") return false;
       if (dirFilter === "DOWN" && row.direction !== "DOWN") return false;
+      if (dirFilter === "SIGNALS") {
+        const out = evaluateSignalOutcome(row, signals);
+        if (!out.hasSignal) return false;
+      }
+      if (dirFilter === "WINS") {
+        const out = evaluateSignalOutcome(row, signals);
+        if (out.status !== "WIN") return false;
+      }
+      if (dirFilter === "LOSSES") {
+        const out = evaluateSignalOutcome(row, signals);
+        if (out.status !== "LOSS") return false;
+      }
 
       // Text search
       if (searchQuery.trim()) {
@@ -1190,7 +1328,7 @@ export default function JevAnalysisPage() {
 
       return true;
     });
-  }, [data, dateFilter, startHour, endHour, dirFilter, searchQuery]);
+  }, [data, dateFilter, startHour, endHour, dirFilter, searchQuery, signals]);
 
   // Chronological data for charting (oldest to newest)
   const chartData = useMemo(() => {
@@ -1210,8 +1348,40 @@ export default function JevAnalysisPage() {
     const upPct = total > 0 ? ((upCount / total) * 100).toFixed(0) : "0";
     const downPct = total > 0 ? ((downCount / total) * 100).toFixed(0) : "0";
 
-    return { total, avgScore: avgScore.toFixed(2), upCount, downCount, upPct, downPct };
-  }, [filteredData]);
+    let signalCount = 0;
+    let winCount = 0;
+    let lossCount = 0;
+    let pendingCount = 0;
+
+    filteredData.forEach((d) => {
+      const outcome = evaluateSignalOutcome(d, signals);
+      if (outcome.hasSignal) {
+        signalCount++;
+        if (outcome.status === "WIN") winCount++;
+        else if (outcome.status === "LOSS") lossCount++;
+        else if (outcome.status === "PENDING") pendingCount++;
+      }
+    });
+
+    const winRate =
+      winCount + lossCount > 0
+        ? Number(((winCount / (winCount + lossCount)) * 100).toFixed(1))
+        : null;
+
+    return {
+      total,
+      avgScore: avgScore.toFixed(2),
+      upCount,
+      downCount,
+      upPct,
+      downPct,
+      signalCount,
+      winCount,
+      lossCount,
+      pendingCount,
+      winRate,
+    };
+  }, [filteredData, signals]);
 
   // Export CSV
   const exportCsv = () => {
@@ -2526,6 +2696,42 @@ export default function JevAnalysisPage() {
           >
             فقط نزولی DOWN ({stats.downCount})
           </button>
+          <button
+            onClick={() => setDirFilter("SIGNALS")}
+            className={`text-xs px-2.5 py-1 rounded-md transition-all ${
+              dirFilter === "SIGNALS"
+                ? "bg-[#38bdf8]/20 text-[#38bdf8] font-semibold border border-[#38bdf8]/40"
+                : "text-[#8b91c5] hover:text-[#38bdf8]"
+            }`}
+          >
+            🎯 دارای سیگنال ({stats.signalCount})
+          </button>
+          <button
+            onClick={() => setDirFilter("WINS")}
+            className={`text-xs px-2.5 py-1 rounded-md transition-all ${
+              dirFilter === "WINS"
+                ? "bg-emerald-500/25 text-emerald-300 font-semibold border border-emerald-500/40"
+                : "text-[#8b91c5] hover:text-emerald-400"
+            }`}
+          >
+            🏆 برد ({stats.winCount})
+          </button>
+          <button
+            onClick={() => setDirFilter("LOSSES")}
+            className={`text-xs px-2.5 py-1 rounded-md transition-all ${
+              dirFilter === "LOSSES"
+                ? "bg-rose-500/25 text-rose-300 font-semibold border border-rose-500/40"
+                : "text-[#8b91c5] hover:text-rose-400"
+            }`}
+          >
+            ❌ باخت ({stats.lossCount})
+          </button>
+          {stats.winRate != null && (
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold">
+              <span>وین‌ریت:</span>
+              <span className="font-mono text-sm">{stats.winRate}%</span>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -2571,12 +2777,18 @@ export default function JevAnalysisPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/[0.05]">
-                {filteredData.map((row, index) => (
-                  <tr
-                    key={row.filename}
-                    className="hover:bg-white/[0.03] transition-colors group cursor-pointer"
-                    onClick={() => viewFile(row.filename)}
-                  >
+                {filteredData.map((row, index) => {
+                  const outcomeInfo = evaluateSignalOutcome(row, signals);
+                  return (
+                    <tr
+                      key={row.filename}
+                      className={`transition-colors group cursor-pointer ${
+                        outcomeInfo.hasSignal
+                          ? `${outcomeInfo.bgClass} ${outcomeInfo.borderClass}`
+                          : "hover:bg-white/[0.03]"
+                      }`}
+                      onClick={() => viewFile(row.filename)}
+                    >
                     <td className="py-3 px-4 text-[#5d628f] font-mono tabular-nums">
                       {filteredData.length - index}
                     </td>
@@ -2621,8 +2833,9 @@ export default function JevAnalysisPage() {
                       </div>
                     </td>
                   </tr>
-                ))}
-              </tbody>
+                );
+              })}
+            </tbody>
             </table>
           </div>
         )}

@@ -32,6 +32,12 @@ export async function GET(req: Request) {
 
     const coinFilter = searchParams.get('coin')?.toLowerCase();
 
+    const resFile = path.join(process.cwd(), 'jev', 'market_resolutions.json');
+    let resolutionsMap: Record<string, string> = {};
+    if (fs.existsSync(resFile)) {
+      try { resolutionsMap = JSON.parse(fs.readFileSync(resFile, 'utf8')); } catch {}
+    }
+
     let fileNames = fs.readdirSync(historyDir).filter(f => f.endsWith('.json'));
     if (coinFilter && coinFilter !== 'all') {
       fileNames = fileNames.filter(f => f.toLowerCase().startsWith(coinFilter + '_'));
@@ -136,6 +142,8 @@ export async function GET(req: Request) {
           spot_price: content.spot_price != null ? Number(content.spot_price) : null,
           open_price: content.open_price != null ? Number(content.open_price) : null,
           price_to_beat: content.price_to_beat != null ? Number(content.price_to_beat) : (content.open_price != null ? Number(content.open_price) : null),
+          market_slug: cards['1h']?.slug || null,
+          market_outcome: (cards['1h']?.slug && resolutionsMap[cards['1h'].slug]) ? resolutionsMap[cards['1h'].slug] : null,
           tokens: p.tokens ?? null,
           cost: p.cost != null ? Number(p.cost.toFixed(6)) : null,
         };
