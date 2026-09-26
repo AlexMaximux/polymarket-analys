@@ -1067,7 +1067,17 @@ export default function JevAnalysisPage() {
   const [activeIntervalPreset, setActiveIntervalPreset] = useState<string>("ALL");
 
   // General Filters & Search
-  const [dirFilter, setDirFilter] = useState<"ALL" | "UP" | "DOWN" | "SIGNALS" | "WINS" | "LOSSES">("ALL");
+  const [dirFilter, setDirFilter] = useState<
+    | "ALL"
+    | "UP"
+    | "DOWN"
+    | "SIGNALS"
+    | "WINS"
+    | "LOSSES"
+    | "CONSENSUS_3_UP"
+    | "CONSENSUS_3_DOWN"
+    | "CONSENSUS_3_3"
+  >("ALL");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFileForModal, setSelectedFileForModal] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState<string | null>(null);
@@ -1331,11 +1341,25 @@ export default function JevAnalysisPage() {
 
       // Text search
       if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
+        const q = searchQuery.toLowerCase().trim();
         const matchTime = row.et_time?.toLowerCase().includes(q);
         const matchFile = row.filename?.toLowerCase().includes(q);
         const matchScore = row.score?.toString().includes(q);
-        if (!matchTime && !matchFile && !matchScore) return false;
+
+        const dirs = [row.direction, row.kev_direction, row.span_direction].filter(Boolean);
+        const ups = dirs.filter((d) => d === "UP").length;
+        const downs = dirs.filter((d) => d === "DOWN").length;
+        const is3Up = ups === 3;
+        const is3Down = downs === 3;
+
+        const matchConsensus =
+          (row.consensus_summary?.toLowerCase().includes(q) ?? false) ||
+          (q === "3/3" && (is3Up || is3Down)) ||
+          ((q.includes("3/3") || q === "up" || q === "صعود") && is3Up) ||
+          ((q.includes("3/3") || q === "down" || q === "نزول") && is3Down);
+
+        const matchDir = row.direction?.toLowerCase() === q;
+        if (!matchTime && !matchFile && !matchScore && !matchConsensus && !matchDir) return false;
       }
 
       return true;
@@ -1358,6 +1382,20 @@ export default function JevAnalysisPage() {
       if (dirFilter === "LOSSES") {
         const out = evaluateSignalOutcome(row, signals);
         if (out.status !== "LOSS") return false;
+      }
+      if (dirFilter === "CONSENSUS_3_UP") {
+        const dirs = [row.direction, row.kev_direction, row.span_direction].filter(Boolean);
+        if (dirs.filter((d) => d === "UP").length !== 3) return false;
+      }
+      if (dirFilter === "CONSENSUS_3_DOWN") {
+        const dirs = [row.direction, row.kev_direction, row.span_direction].filter(Boolean);
+        if (dirs.filter((d) => d === "DOWN").length !== 3) return false;
+      }
+      if (dirFilter === "CONSENSUS_3_3") {
+        const dirs = [row.direction, row.kev_direction, row.span_direction].filter(Boolean);
+        const ups = dirs.filter((d) => d === "UP").length;
+        const downs = dirs.filter((d) => d === "DOWN").length;
+        if (ups !== 3 && downs !== 3) return false;
       }
       return true;
     });
@@ -1436,6 +1474,24 @@ export default function JevAnalysisPage() {
         ? Number(((winCount / (winCount + lossCount)) * 100).toFixed(1))
         : null;
 
+    // Consensus 3/3 counts across base filtered data
+    const consensusUp3Count = baseFilteredData.filter((d) => {
+      const dirs = [d.direction, d.kev_direction, d.span_direction].filter(Boolean);
+      return dirs.filter((x) => x === "UP").length === 3;
+    }).length;
+
+    const consensusDown3Count = baseFilteredData.filter((d) => {
+      const dirs = [d.direction, d.kev_direction, d.span_direction].filter(Boolean);
+      return dirs.filter((x) => x === "DOWN").length === 3;
+    }).length;
+
+    const consensusFull3Count = baseFilteredData.filter((d) => {
+      const dirs = [d.direction, d.kev_direction, d.span_direction].filter(Boolean);
+      const ups = dirs.filter((x) => x === "UP").length;
+      const downs = dirs.filter((x) => x === "DOWN").length;
+      return ups === 3 || downs === 3;
+    }).length;
+
     return {
       total,
       avgScore: avgScore.toFixed(2),
@@ -1449,6 +1505,9 @@ export default function JevAnalysisPage() {
       lossCount,
       pendingCount,
       winRate,
+      consensusUp3Count,
+      consensusDown3Count,
+      consensusFull3Count,
     };
   }, [baseFilteredData, signals]);
 
@@ -3122,6 +3181,48 @@ export default function JevAnalysisPage() {
           >
             فقط نزولی DOWN ({stats.downCount})
           </button>
+
+          <div className="h-4 w-[1px] bg-white/10 mx-0.5 hidden sm:block" />
+
+          <button
+            onClick={() => setDirFilter("CONSENSUS_3_UP")}
+            className={`text-xs px-2.5 py-1 rounded-md transition-all flex items-center gap-1.5 ${
+              dirFilter === "CONSENSUS_3_UP"
+                ? "bg-[#2ce5a7]/25 text-[#2ce5a7] font-semibold border border-[#2ce5a7]/50 shadow-sm"
+                : "text-[#8b91c5] hover:text-[#2ce5a7]"
+            }`}
+            title="فقط اسنپ‌شات‌هایی که هر ۳ مدل (Jev + Kev + Span) صعود کامل ۳/۳ داده‌اند"
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-[#2ce5a7] animate-pulse" />
+            <span>۳/۳ صعود ({stats.consensusUp3Count})</span>
+          </button>
+
+          <button
+            onClick={() => setDirFilter("CONSENSUS_3_DOWN")}
+            className={`text-xs px-2.5 py-1 rounded-md transition-all flex items-center gap-1.5 ${
+              dirFilter === "CONSENSUS_3_DOWN"
+                ? "bg-[#ff6b9d]/25 text-[#ff6b9d] font-semibold border border-[#ff6b9d]/50 shadow-sm"
+                : "text-[#8b91c5] hover:text-[#ff6b9d]"
+            }`}
+            title="فقط اسنپ‌شات‌هایی که هر ۳ مدل (Jev + Kev + Span) نزول کامل ۳/۳ داده‌اند"
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-[#ff6b9d] animate-pulse" />
+            <span>۳/۳ نزول ({stats.consensusDown3Count})</span>
+          </button>
+
+          <button
+            onClick={() => setDirFilter("CONSENSUS_3_3")}
+            className={`text-xs px-2.5 py-1 rounded-md transition-all flex items-center gap-1.5 ${
+              dirFilter === "CONSENSUS_3_3"
+                ? "bg-[#a855f7]/25 text-[#c084fc] font-semibold border border-[#a855f7]/50 shadow-sm"
+                : "text-[#8b91c5] hover:text-[#c084fc]"
+            }`}
+            title="هر نوع اجماع قاطع ۳ از ۳ (چه صعود و چه نزول)"
+          >
+            <span>⚡ هر ۳/۳ ({stats.consensusFull3Count})</span>
+          </button>
+
+          <div className="h-4 w-[1px] bg-white/10 mx-0.5 hidden sm:block" />
           <button
             onClick={() => setDirFilter("SIGNALS")}
             title={`${stats.signalCount} سیگنال منحصربه‌فرد ۱ ساعته (تجمیع‌شده از ${stats.rawSignalSnapshots} اسنپ‌شات ۵ دقیقه‌ای در کندل‌های ساعتی)`}
