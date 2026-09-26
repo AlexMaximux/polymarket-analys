@@ -13,18 +13,21 @@ export const dynamic = 'force-dynamic';
  *  - fair value of the 1H Up market, per user's drift-extraction model:
  *      x_t = ln(St/S0), y = ln(St/Sa)
  *      z = Phi^-1(p15); mu = (z*sigma_m*sqrt(tau15) - y) / tau15
- *      fair = Phi((x_t + mu*tau60) / (sigma_m*sqrt(tau60)))
- *    sigma_1h defaults to the coin's realized hourly vol (last 7 days of Binance 1h candles),
- *    overridable via ?sigma=
+ *      fair = Phi((x_t + mu*tau15) / (sigma_m*sqrt(tau60)))
+ *    The implied drift applies only over the window the 15m market prices (tau15), not the rest of
+ *    the hour: extrapolating it over tau60 doubled log loss on a 4-week backfill (1.00 vs 0.485).
+ *    sigma_1h defaults to realized vol of the last 60 one-minute bars (fallback: last 7 days of 1h
+ *    candles), overridable via ?sigma=. rv60 calibrated Base best out of sample on an untouched holdout.
  */
 
-const COINS: Record<string, { binance: string; label: string; slugPrefix: string; hourWord: string }> = {
+const COINS: Record<string, { binance: string; label: string; slugPrefix: string; hourWord: string; futures?: boolean }> = {
   btc: { binance: 'BTCUSDT', label: 'Bitcoin', slugPrefix: 'btc-updown', hourWord: 'bitcoin' },
   eth: { binance: 'ETHUSDT', label: 'Ethereum', slugPrefix: 'eth-updown', hourWord: 'ethereum' },
   sol: { binance: 'SOLUSDT', label: 'Solana', slugPrefix: 'sol-updown', hourWord: 'solana' },
   xrp: { binance: 'XRPUSDT', label: 'XRP', slugPrefix: 'xrp-updown', hourWord: 'xrp' },
   doge: { binance: 'DOGEUSDT', label: 'Dogecoin', slugPrefix: 'doge-updown', hourWord: 'dogecoin' },
-  hype: { binance: 'HYPEUSDT', label: 'Hyperliquid', slugPrefix: 'hype-updown', hourWord: 'hype' },
+  // HYPE 1H markets resolve on the Binance USD-M futures HYPEUSDT candle, not spot
+  hype: { binance: 'HYPEUSDT', label: 'Hyperliquid', slugPrefix: 'hype-updown', hourWord: 'hype', futures: true },
   bnb: { binance: 'BNBUSDT', label: 'BNB', slugPrefix: 'bnb-updown', hourWord: 'bnb' },
 };
 
@@ -74,11 +77,13 @@ async function gammaEventCached(key: string, url: string): Promise<any> {
   return d;
 }
 
-async function binanceKlineCached(symbol: string, startSec: number): Promise<number | null> {
-  const key = `${symbol}:${startSec}`;
+const binanceHost = (futures: boolean) => (futures ? 'https://fapi.binance.com/fapi/v1' : 'https://api.binance.com/api/v3');
+
+async function binanceKlineCached(symbol: string, startSec: number, futures: boolean): Promise<number | null> {
+  const key = `${futures ? 'f' : 's'}:${symbol}:${startSec}`;
   const hit = klineCache.get(key);
   if (hit && hit.expires > Date.now()) return hit.value;
-  const v = await binanceKline(symbol, startSec);
+  const v = await binanceKline(symbol, startSec, futures);
   // historical 1m open never changes; a miss (candle not published yet) is retried after 5 s
   klineCache.set(key, { value: v, expires: Date.now() + (v != null ? 120_000 : 5_000) });
   return v;
@@ -160,25 +165,24 @@ async function polymarketOpenPrice(slug: string, startSec: number): Promise<numb
   } catch { return null; }
 }
 
-async function binanceKline(symbol: string, startSec: number): Promise<number | null> {
+async function binanceKline(symbol: string, startSec: number, futures: boolean): Promise<number | null> {
   if (!symbol) return null;
-  // Spot Binance
-  const d = await j(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=1m&startTime=${startSec * 1000}&limit=1`);
-  if (Array.isArray(d) && d[0] && d[0][1]) return parseFloat(d[0][1]);
-  // Futures Binance (for HYPEUSDT)
-  const fd = await j(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1m&startTime=${startSec * 1000}&limit=1`);
-  if (Array.isArray(fd) && fd[0] && fd[0][1]) return parseFloat(fd[0][1]);
+  // the coin's resolution venue first (spot, or USD-M futures for HYPE), then the other one
+  for (const f of futures ? [true] : [false, true]) {
+    const d = await j(`${binanceHost(f)}/klines?symbol=${symbol}&interval=1m&startTime=${startSec * 1000}&limit=1`);
+    if (Array.isArray(d) && d[0] && d[0][1]) return parseFloat(d[0][1]);
+  }
   return null;
 }
 
 // Realized hourly vol: sample stdev of ln(close/open) over the last 7 days of Binance 1h candles
 // (in-progress candle excluded). Refreshed every 10 min; a failed refresh keeps the previous value.
 const sigmaCache = new Map<string, { value: number | null; expires: number }>();
-async function realizedSigma1h(symbol: string): Promise<number | null> {
-  const hit = sigmaCache.get(symbol);
+async function realizedSigma1h(symbol: string, futures: boolean): Promise<number | null> {
+  const key = `${futures ? 'f' : 's'}:${symbol}`;
+  const hit = sigmaCache.get(key);
   if (hit && hit.expires > Date.now()) return hit.value;
-  let d = await j(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=1h&limit=169`);
-  if (!Array.isArray(d) || d.length < 25) d = await j(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1h&limit=169`);
+  const d = await j(`${binanceHost(futures)}/klines?symbol=${symbol}&interval=1h&limit=169`);
   let value: number | null = null;
   if (Array.isArray(d) && d.length >= 25) {
     const r = d.slice(0, -1).map((k: any) => Math.log(parseFloat(k[4]) / parseFloat(k[1]))).filter(Number.isFinite);
@@ -186,7 +190,32 @@ async function realizedSigma1h(symbol: string): Promise<number | null> {
     value = Math.sqrt(r.reduce((s: number, x: number) => s + (x - mean) ** 2, 0) / (r.length - 1));
   }
   value = value ?? hit?.value ?? null;
-  sigmaCache.set(symbol, { value, expires: Date.now() + (value != null ? 600_000 : 60_000) });
+  sigmaCache.set(key, { value, expires: Date.now() + (value != null ? 600_000 : 60_000) });
+  return value;
+}
+
+// Trailing 60-min realized vol in hourly units: sqrt(60 · mean of ln(close/open)²) over the 1m bars
+// that closed within the last hour (at least 45 of them). On a 4-week backfill and an untouched
+// 4-week holdout it calibrated Base better than the 7-day sigma (log loss −0.013, t≈5).
+// Cached until the next 1m bar closes.
+const rv60Cache = new Map<string, { value: number | null; expires: number }>();
+async function realizedVol60m(symbol: string, futures: boolean): Promise<number | null> {
+  const key = `${futures ? 'f' : 's'}:${symbol}`;
+  const hit = rv60Cache.get(key);
+  if (hit && hit.expires > Date.now()) return hit.value;
+  const d = await j(`${binanceHost(futures)}/klines?symbol=${symbol}&interval=1m&limit=61`);
+  let value: number | null = null;
+  if (Array.isArray(d)) {
+    const now = Date.now();
+    const r2 = d
+      .filter((k: any) => Number(k[6]) < now)                      // close time passed → bar is final
+      .slice(-60)
+      .map((k: any) => Math.log(parseFloat(k[4]) / parseFloat(k[1])) ** 2)
+      .filter(Number.isFinite);
+    if (r2.length >= 45) value = Math.sqrt((60 * r2.reduce((s: number, x: number) => s + x, 0)) / r2.length);
+  }
+  const nextBar = (Math.floor(Date.now() / 60_000) + 1) * 60_000 + 2_000;
+  rv60Cache.set(key, { value, expires: value != null ? nextBar : Date.now() + 10_000 });
   return value;
 }
 
@@ -197,8 +226,9 @@ export async function GET(request: Request) {
   if (!cfg) return NextResponse.json({ error: 'unknown coin' }, { status: 400 });
   const sigmaParam = parseFloat(searchParams.get('sigma') || '');
   const sigmaManual = Number.isFinite(sigmaParam) && sigmaParam > 0;
-  // started now, awaited just before the models so the kline fetch overlaps the market lookups
-  const sigmaAutoP = sigmaManual ? Promise.resolve(null) : realizedSigma1h(cfg.binance);
+  const futures = !!cfg.futures;
+  // started now, awaited just before the models so the kline fetches overlap the market lookups
+  const sigmasP = Promise.all([realizedVol60m(cfg.binance, futures), realizedSigma1h(cfg.binance, futures)]);
 
   const now = new Date();
   const nowSec = Math.floor(now.getTime() / 1000);
@@ -227,10 +257,10 @@ export async function GET(request: Request) {
   //      Binance 1h candle; 15m/5m resolve on Chainlink, whose window-to-window moves track Binance).
   //      The Polymarket page's Chainlink open is fetched only when Binance has no candle. ----
   const [s0b, sab, sa5b, stRaw] = await Promise.all([
-    binanceKlineCached(cfg.binance, hourStartSec),
-    binanceKlineCached(cfg.binance, win15Sec),
-    binanceKlineCached(cfg.binance, win5Sec),
-    j(`https://api.binance.com/api/v3/ticker/price?symbol=${cfg.binance}`, 5000),
+    binanceKlineCached(cfg.binance, hourStartSec, futures),
+    binanceKlineCached(cfg.binance, win15Sec, futures),
+    binanceKlineCached(cfg.binance, win5Sec, futures),
+    j(`${binanceHost(futures)}/ticker/price?symbol=${cfg.binance}`, 5000),
   ]);
   const [s0pm, sapm, sa5pm] = await Promise.all([
     m1h && s0b == null ? polymarketOpenPriceCached(m1h.slug, hourStartSec, 3600) : Promise.resolve(null),
@@ -274,9 +304,9 @@ export async function GET(request: Request) {
   const p5 = m5?.live ?? m5?.up ?? null;
   let model: any = null;
   let model5: any = null;
-  const sigmaAuto = await sigmaAutoP;
-  const sigmaSource = sigmaManual ? 'manual' : sigmaAuto != null ? 'realized-7d' : 'default';
-  const sigma1h = Math.min(Math.max(sigmaManual ? sigmaParam : (sigmaAuto ?? 0.02), 0.002), 0.2);
+  const [sigma60m, sigma7d] = await sigmasP;
+  const sigmaSource = sigmaManual ? 'manual' : sigma60m != null ? 'realized-60m' : sigma7d != null ? 'realized-7d' : 'default';
+  const sigma1h = Math.min(Math.max(sigmaManual ? sigmaParam : (sigma60m ?? sigma7d ?? 0.02), 0.002), 0.2);
   const sigmaM = sigma1h / Math.sqrt(60);
   const a = 15 * Math.floor(t / 15);
   const q = t - a;
@@ -292,7 +322,8 @@ export async function GET(request: Request) {
   if (s0 && st && p15 && p15 > 0.0005 && p15 < 0.9995 && xt != null && y != null) {
     const z15 = normInv(p15);
     const mu = tau15 > 0.01 ? (z15 * sigmaM * Math.sqrt(tau15) - y) / tau15 : 0;
-    const fair = normCdf((xt + mu * tau60) / (sigmaM * Math.sqrt(tau60)));
+    // drift only until the 15m window ends (zero drift for the rest of the hour)
+    const fair = normCdf((xt + mu * tau15) / (sigmaM * Math.sqrt(tau60)));
     model = {
       t, a, q, tau15, tau60, sigma1h, sigmaM,
       s0, sa, st, xt, y, p15, z15, mu,
@@ -306,7 +337,7 @@ export async function GET(request: Request) {
   if (s0 && st && p5 && p5 > 0.0005 && p5 < 0.9995 && xt != null && y5 != null) {
     const z5 = normInv(p5);
     const mu5 = tau5 > 0.01 ? (z5 * sigmaM * Math.sqrt(tau5) - y5) / tau5 : 0;
-    const fair5 = normCdf((xt + mu5 * tau60) / (sigmaM * Math.sqrt(tau60)));
+    const fair5 = normCdf((xt + mu5 * tau5) / (sigmaM * Math.sqrt(tau60)));   // drift only over the 5m window
     model5 = {
       a5, q5, tau5, y5, p5, z5, mu5,
       sa5,
@@ -332,6 +363,7 @@ export async function GET(request: Request) {
   // system:  Φ⁻¹(p₅)  = (y₅  + μ·τ₅)  / (σ_m·√τ₅)
   //          Φ⁻¹(p₁₅) = (y₁₅ + μ·τ₁₅) / (σ_m·√τ₁₅)
   // → σ_m = (y₁₅·τ₅ − y₅·τ₁₅) / (b·τ₅·√τ₁₅ − a·τ₁₅·√τ₅),  μ = (a·σ_m·√τ₅ − y₅)/τ₅
+  // fair = Φ((x_t + μ·τ₁₅)/(σ_m·√τ₆₀)): drift only until the 15m window ends (log loss 0.96 → 0.54 on the backfill)
   let modelC: any = null;
   if (xt != null && y != null && y5 != null && p5 && p15 &&
       p5 > 0.0005 && p5 < 0.9995 && p15 > 0.0005 && p15 < 0.9995) {
@@ -342,7 +374,7 @@ export async function GET(request: Request) {
       const sigmaMj = (y * tau5 - y5 * tau15) / denom;
       const sigma1hJ = sigmaMj * Math.sqrt(60);
       const muJ = tau5 > 0.01 ? (aq * sigmaMj * Math.sqrt(tau5) - y5) / tau5 : 0;
-      const fairJ = sigmaMj > 0 ? normCdf((xt + muJ * tau60) / (sigmaMj * Math.sqrt(tau60))) : null;
+      const fairJ = sigmaMj > 0 ? normCdf((xt + muJ * tau15) / (sigmaMj * Math.sqrt(tau60))) : null;
       modelC = {
         tau5, tau15, y5, y15: y, p5, p15, z5: aq, z15: bq,
         sigmaM: sigmaMj, sigma1h: sigma1hJ, mu: muJ,
@@ -362,7 +394,7 @@ export async function GET(request: Request) {
       sa: sab != null ? 'binance' : sapm != null ? 'polymarket-chainlink' : null,
       sa5: sa5b != null ? 'binance' : sa5pm != null ? 'polymarket-chainlink' : null,
     },
-    sigma1h, sigmaSource,
+    sigma1h, sigmaSource, sigma60m, sigma7d, priceVenue: futures ? 'binance-futures' : 'binance-spot',
     serverTime: nowSec, t, hourStartSec, win15Sec, win5Sec, next15Sec, next5Sec,
     m1h, m15, m5, n15, n5, model, model5, modelA, modelC, sa5,
   });

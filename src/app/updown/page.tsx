@@ -44,7 +44,7 @@ function pct(v: number | null | undefined) {
 
 export default function UpDownPage() {
   const [coin, setCoin] = useState("btc");
-  const [sigmaInput, setSigmaInput] = useState(""); // "" = auto (API uses realized 7d hourly vol)
+  const [sigmaInput, setSigmaInput] = useState(""); // "" = auto (API uses realized vol of the last 60 1m bars)
   const sigmaVal = parseFloat(sigmaInput);
   const sigma = Number.isFinite(sigmaVal) && sigmaVal > 0 ? sigmaVal : null;
   const sigmaQs = sigma != null ? `&sigma=${sigma}` : "";
@@ -675,7 +675,7 @@ const m = data?.model;
               onChange={e => setSigmaInput(e.target.value)}
               className="w-20 bg-white/[0.08] border border-[rgba(140,130,255,0.15)] rounded-lg px-2 py-1 text-white tabular-nums focus:outline-none focus:border-[#a99cff]" />
             {sigma == null
-              ? <span className="text-[10px] text-[#5d628f]">auto · 7d realized</span>
+              ? <span className="text-[10px] text-[#5d628f]">auto · {data?.sigmaSource === "realized-7d" ? "7d" : "60m"} realized</span>
               : <button onClick={() => setSigmaInput("")} className="text-[10px] text-[#a99cff] hover:underline">reset to auto</button>}
           </label>
         </div>
@@ -717,7 +717,7 @@ const m = data?.model;
               </table>
             </div>
             <p className="text-[11px] text-[#5d628f]">
-              μ extracted from the live 15¢ market: μ = (z₁₅·σₘ·√τ₁₅ − y) / τ₁₅ · fair = Φ((xₜ + μ·τ₆₀)/(σₘ·√τ₆₀)) · spot: Binance 1m klines (S₀ = hour open, Sₐ = active 15m block open) · market: CLOB midpoints
+              μ extracted from the live 15¢ market: μ = (z₁₅·σₘ·√τ₁₅ − y) / τ₁₅ · fair = Φ((xₜ + μ·τ₁₅)/(σₘ·√τ₆₀)) (drift only until the 15m window ends) · spot: Binance 1m klines (S₀ = hour open, Sₐ = active 15m block open) · market: CLOB midpoints
             </p>
           </div>
         ) : (
@@ -762,7 +762,7 @@ const m = data?.model;
             </table>
           </div>
           <p className="text-[11px] text-[#5d628f] mt-3">
-            Same formula as the 15m panel, but μ extracted from the live 5¢ market: μ₅ = (z₅·σₘ·√τ₅ − y₅) / τ₅ · fair = Φ((xₜ + μ₅·τ₆₀)/(σₘ·√τ₆₀))
+            Same formula as the 15m panel, but μ extracted from the live 5¢ market: μ₅ = (z₅·σₘ·√τ₅ − y₅) / τ₅ · fair = Φ((xₜ + μ₅·τ₅)/(σₘ·√τ₆₀)) (drift only until the 5m window ends)
           </p>
         </>
         ) : <p className="text-xs text-[#5d628f]">5m model inactive (market near resolution or missing data).</p>}
@@ -806,7 +806,7 @@ const m = data?.model;
         {modelC && modelC.valid ? (
         <>
           <p className="text-[11px] text-[#5d628f] mb-4">
-            Φ⁻¹(p₅) = (y₅ + μ·τ₅)/(σₘ·√τ₅) · Φ⁻¹(p₁₅) = (y₁₅ + μ·τ₁₅)/(σₘ·√τ₁₅) → solves σₘ and μ simultaneously, then fair = Φ((xₜ + μ·τ₆₀)/(σₘ·√τ₆₀))
+            Φ⁻¹(p₅) = (y₅ + μ·τ₅)/(σₘ·√τ₅) · Φ⁻¹(p₁₅) = (y₁₅ + μ·τ₁₅)/(σₘ·√τ₁₅) → solves σₘ and μ simultaneously, then fair = Φ((xₜ + μ·τ₁₅)/(σₘ·√τ₆₀))
           </p>
           <div className="grid md:grid-cols-3 gap-4">
             <div className="bg-[#0d0f22]/80 rounded-xl p-4 border border-[rgba(140,130,255,0.13)]">
