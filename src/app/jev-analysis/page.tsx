@@ -1280,8 +1280,8 @@ export default function JevAnalysisPage() {
     }
   };
 
-  // Filtered dataset (applied across table and chart!)
-  const filteredData = useMemo(() => {
+  // Base Filtered dataset (before direction/signal filter)
+  const baseFilteredData = useMemo(() => {
     return data.filter((row) => {
       // Date filter
       if (dateFilter !== "ALL") {
@@ -1301,7 +1301,22 @@ export default function JevAnalysisPage() {
         }
       }
 
-      // Direction & Signal filter
+      // Text search
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchTime = row.et_time?.toLowerCase().includes(q);
+        const matchFile = row.filename?.toLowerCase().includes(q);
+        const matchScore = row.score?.toString().includes(q);
+        if (!matchTime && !matchFile && !matchScore) return false;
+      }
+
+      return true;
+    });
+  }, [data, dateFilter, startHour, endHour, searchQuery]);
+
+  // Data with direction/signal filters applied (for table display)
+  const filteredData = useMemo(() => {
+    return baseFilteredData.filter((row) => {
       if (dirFilter === "UP" && row.direction !== "UP") return false;
       if (dirFilter === "DOWN" && row.direction !== "DOWN") return false;
       if (dirFilter === "SIGNALS") {
@@ -1316,51 +1331,76 @@ export default function JevAnalysisPage() {
         const out = evaluateSignalOutcome(row, signals);
         if (out.status !== "LOSS") return false;
       }
-
-      // Text search
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const matchTime = row.et_time?.toLowerCase().includes(q);
-        const matchFile = row.filename?.toLowerCase().includes(q);
-        const matchScore = row.score?.toString().includes(q);
-        if (!matchTime && !matchFile && !matchScore) return false;
-      }
-
       return true;
     });
-  }, [data, dateFilter, startHour, endHour, dirFilter, searchQuery, signals]);
+  }, [baseFilteredData, dirFilter, signals]);
 
   // Chronological data for charting (oldest to newest)
   const chartData = useMemo(() => {
     return [...filteredData].reverse();
   }, [filteredData]);
 
-  // Summary KPIs for current view
+  // Summary KPIs for current view with 1-Hour Signal Deduplication
   const stats = useMemo(() => {
-    const total = filteredData.length;
-    const withScore = filteredData.filter((d) => d.score != null);
+    const total = baseFilteredData.length;
+    const withScore = baseFilteredData.filter((d) => d.score != null);
     const avgScore =
       withScore.length > 0
         ? withScore.reduce((acc, cur) => acc + (cur.score || 0), 0) / withScore.length
         : 0;
-    const upCount = filteredData.filter((d) => d.direction === "UP").length;
-    const downCount = filteredData.filter((d) => d.direction === "DOWN").length;
+    const upCount = baseFilteredData.filter((d) => d.direction === "UP").length;
+    const downCount = baseFilteredData.filter((d) => d.direction === "DOWN").length;
     const upPct = total > 0 ? ((upCount / total) * 100).toFixed(0) : "0";
     const downPct = total > 0 ? ((downCount / total) * 100).toFixed(0) : "0";
 
-    let signalCount = 0;
+    // Deduplicate signals per 1-hour market interval:
+    // If multiple 5-min snapshots in the same 1h market have signals in the same direction,
+    // they are collapsed into ONE trade/signal.
+    const hourlySignalsMap = new Map<
+      string,
+      {
+        marketKey: string;
+        direction: "UP" | "DOWN";
+        status: "WIN" | "LOSS" | "PENDING";
+        snapshotCount: number;
+      }
+    >();
+
+    let rawSignalSnapshots = 0;
+
+    baseFilteredData.forEach((d) => {
+      const outcome = evaluateSignalOutcome(d, signals);
+      if (outcome.hasSignal && outcome.signalDirection) {
+        rawSignalSnapshots++;
+        const hourMatch = d.filename?.match(/^([a-z0-9]+)_updown_(\d{4}-\d{2}-\d{2}_\d{2})/i);
+        const fallbackHour = hourMatch
+          ? `${hourMatch[1].toUpperCase()}_${hourMatch[2]}`
+          : d.et_time?.slice(0, 13) || d.filename;
+        const marketKey = d.market_slug ? `${d.coin || "BTC"}_${d.market_slug}` : fallbackHour;
+        const groupKey = `${marketKey}_${outcome.signalDirection}`;
+
+        if (!hourlySignalsMap.has(groupKey)) {
+          hourlySignalsMap.set(groupKey, {
+            marketKey,
+            direction: outcome.signalDirection,
+            status: outcome.status as "WIN" | "LOSS" | "PENDING",
+            snapshotCount: 1,
+          });
+        } else {
+          hourlySignalsMap.get(groupKey)!.snapshotCount++;
+        }
+      }
+    });
+
+    const signalCount = hourlySignalsMap.size;
     let winCount = 0;
     let lossCount = 0;
     let pendingCount = 0;
 
-    filteredData.forEach((d) => {
-      const outcome = evaluateSignalOutcome(d, signals);
-      if (outcome.hasSignal) {
-        signalCount++;
-        if (outcome.status === "WIN") winCount++;
-        else if (outcome.status === "LOSS") lossCount++;
-        else if (outcome.status === "PENDING") pendingCount++;
-      }
+    hourlySignalsMap.forEach((entry) => {
+      if (entry.status === "WIN") winCount++;
+      else if (entry.status === "LOSS") lossCount++;
+      else if (entry.status === "PENDING") pendingCount++;
     });
 
     const winRate =
@@ -1376,12 +1416,13 @@ export default function JevAnalysisPage() {
       upPct,
       downPct,
       signalCount,
+      rawSignalSnapshots,
       winCount,
       lossCount,
       pendingCount,
       winRate,
     };
-  }, [filteredData, signals]);
+  }, [baseFilteredData, signals]);
 
   // Export CSV
   const exportCsv = () => {
@@ -2698,16 +2739,18 @@ export default function JevAnalysisPage() {
           </button>
           <button
             onClick={() => setDirFilter("SIGNALS")}
+            title={`${stats.signalCount} سیگنال منحصربه‌فرد ۱ ساعته (تجمیع‌شده از ${stats.rawSignalSnapshots} اسنپ‌شات ۵ دقیقه‌ای در کندل‌های ساعتی)`}
             className={`text-xs px-2.5 py-1 rounded-md transition-all ${
               dirFilter === "SIGNALS"
                 ? "bg-[#38bdf8]/20 text-[#38bdf8] font-semibold border border-[#38bdf8]/40"
                 : "text-[#8b91c5] hover:text-[#38bdf8]"
             }`}
           >
-            🎯 دارای سیگنال ({stats.signalCount})
+            🎯 دارای سیگنال ({stats.signalCount} ساعتی)
           </button>
           <button
             onClick={() => setDirFilter("WINS")}
+            title={`${stats.winCount} کندل ساعتی برنده`}
             className={`text-xs px-2.5 py-1 rounded-md transition-all ${
               dirFilter === "WINS"
                 ? "bg-emerald-500/25 text-emerald-300 font-semibold border border-emerald-500/40"
@@ -2718,6 +2761,7 @@ export default function JevAnalysisPage() {
           </button>
           <button
             onClick={() => setDirFilter("LOSSES")}
+            title={`${stats.lossCount} کندل ساعتی بازنده`}
             className={`text-xs px-2.5 py-1 rounded-md transition-all ${
               dirFilter === "LOSSES"
                 ? "bg-rose-500/25 text-rose-300 font-semibold border border-rose-500/40"
@@ -2727,9 +2771,17 @@ export default function JevAnalysisPage() {
             ❌ باخت ({stats.lossCount})
           </button>
           {stats.winRate != null && (
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold">
-              <span>وین‌ریت:</span>
+            <div
+              className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold"
+              title={`${stats.winCount} برد از ${stats.winCount + stats.lossCount} کندل ساعتی بسته‌شده (${stats.rawSignalSnapshots} اسنپ‌شات کل)`}
+            >
+              <span>وین‌ریت ساعتی:</span>
               <span className="font-mono text-sm">{stats.winRate}%</span>
+              {stats.pendingCount > 0 && (
+                <span className="text-[10px] text-amber-300 font-normal mr-1">
+                  ({stats.pendingCount} زنده)
+                </span>
+              )}
             </div>
           )}
         </div>

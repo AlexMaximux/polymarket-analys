@@ -137,6 +137,33 @@ export async function generateJevSnapshot(coin = 'btc') {
   return payload;
 }
 
+async function fetchWithRetry(url: string, options: RequestInit, retries = 2, delayMs = 1200): Promise<Response> {
+  let lastError: any = null;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(url, options);
+      if (res.status === 429 || res.status >= 500) {
+        if (attempt < retries) {
+          const waitTime = delayMs * (attempt + 1);
+          console.warn(`[OpenRouter] Received ${res.status}, retrying in ${waitTime}ms (attempt ${attempt + 1}/${retries})...`);
+          await new Promise((r) => setTimeout(r, waitTime));
+          continue;
+        }
+      }
+      return res;
+    } catch (err: any) {
+      lastError = err;
+      if (attempt < retries) {
+        const waitTime = delayMs * (attempt + 1);
+        console.warn(`[OpenRouter] Network error (${err.message}), retrying in ${waitTime}ms...`);
+        await new Promise((r) => setTimeout(r, waitTime));
+        continue;
+      }
+    }
+  }
+  throw lastError || new Error(`Fetch failed after ${retries} retries`);
+}
+
 export async function callJevDecision(snapshotData: any, apiKey?: string) {
   const key = apiKey || OPENROUTER_API_KEY;
   const coinLabel = snapshotData.coin_label || snapshotData.coin || 'Crypto';
@@ -175,7 +202,7 @@ export async function callJevDecision(snapshotData: any, apiKey?: string) {
     },
   };
 
-  const res = await fetch('https://openrouter.ai/api/alpha/decisions', {
+  const res = await fetchWithRetry('https://openrouter.ai/api/alpha/decisions', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${key}`,
@@ -259,7 +286,7 @@ export async function callKevDecision(snapshotData: any, apiKey?: string) {
     },
   };
 
-  const res = await fetch('https://openrouter.ai/api/alpha/decisions', {
+  const res = await fetchWithRetry('https://openrouter.ai/api/alpha/decisions', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${key}`,
@@ -358,7 +385,7 @@ export async function callSpanDecision(snapshotData: any, apiKey?: string) {
     },
   };
 
-  const res = await fetch('https://openrouter.ai/api/alpha/decisions', {
+  const res = await fetchWithRetry('https://openrouter.ai/api/alpha/decisions', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${key}`,
