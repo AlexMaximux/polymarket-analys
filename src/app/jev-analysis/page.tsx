@@ -1380,104 +1380,63 @@ export default function JevAnalysisPage() {
     }
   };
 
-  // Pre-calculate which records are the FIRST signal of their hour (with the same direction)
-  const firstHourlySignalFilenames = useMemo(() => {
-    // Sort chronologically (oldest first)
-    const chrono = [...data].sort((a, b) => {
-      const tA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
-      const tB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
-      if (tA && tB) return tA - tB;
-      return a.filename.localeCompare(b.filename);
-    });
-
-    const seenGroup = new Set<string>();
-    const firstFiles = new Set<string>();
-
-    chrono.forEach((r) => {
-      const outcome = evaluateSignalOutcome(r, signals);
-      if (outcome.hasSignal && outcome.signalDirection) {
-        const hourMatch = r.filename?.match(/^([a-z0-9]+)_updown_(\d{4}-\d{2}-\d{2}_\d{2})/i);
-        const fallbackHour = hourMatch
-          ? `${hourMatch[1].toUpperCase()}_${hourMatch[2]}`
-          : r.et_time?.slice(0, 13) || r.filename;
-        const marketKey = r.market_slug ? `${r.coin || "BTC"}_${r.market_slug}` : fallbackHour;
-        const groupKey = `${marketKey}_${outcome.signalDirection}`;
-
-        if (!seenGroup.has(groupKey)) {
-          seenGroup.add(groupKey);
-          firstFiles.add(r.filename);
-        }
-      }
-    });
-
-    return firstFiles;
-  }, [data, signals]);
-
   // Base Filtered dataset (before direction/signal filter)
   const baseFilteredData = useMemo(() => {
-    return data
-      .map((r) => ({
-        ...r,
-        is_first_hourly_signal: firstHourlySignalFilenames.has(r.filename),
-      }))
-      .filter((row) => {
-        // Date filter
-        if (dateFilter !== "ALL") {
-          if (!row.et_time.startsWith(dateFilter)) return false;
-        }
+    return data.filter((row) => {
+      // Date filter
+      if (dateFilter !== "ALL") {
+        if (!row.et_time.startsWith(dateFilter)) return false;
+      }
 
-        // Hour interval filter
-        if (startHour != null && endHour != null) {
-          try {
-            const timePart = row.et_time.split(" ")[1];
-            if (timePart) {
-              const h = parseInt(timePart.split(":")[0], 10);
-              if (h < startHour || h >= endHour) return false;
-            }
-          } catch {
-            return false;
+      // Hour interval filter
+      if (startHour != null && endHour != null) {
+        try {
+          const timePart = row.et_time.split(" ")[1];
+          if (timePart) {
+            const h = parseInt(timePart.split(":")[0], 10);
+            if (h < startHour || h >= endHour) return false;
           }
+        } catch {
+          return false;
         }
+      }
 
-        // Text search
-        if (searchQuery.trim()) {
-          const q = searchQuery.toLowerCase().trim();
-          const matchTime = row.et_time?.toLowerCase().includes(q);
-          const matchFile = row.filename?.toLowerCase().includes(q);
-          const matchScore = row.score?.toString().includes(q);
+      // Text search
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const matchTime = row.et_time?.toLowerCase().includes(q);
+        const matchFile = row.filename?.toLowerCase().includes(q);
+        const matchScore = row.score?.toString().includes(q);
 
-          const dirs = [row.direction, row.kev_direction, row.span_direction].filter(Boolean);
-          const ups = dirs.filter((d) => d === "UP").length;
-          const downs = dirs.filter((d) => d === "DOWN").length;
-          const is3Up = ups === 3;
-          const is3Down = downs === 3;
+        const dirs = [row.direction, row.kev_direction, row.span_direction].filter(Boolean);
+        const ups = dirs.filter((d) => d === "UP").length;
+        const downs = dirs.filter((d) => d === "DOWN").length;
+        const is3Up = ups === 3;
+        const is3Down = downs === 3;
 
-          const matchConsensus =
-            (row.consensus_summary?.toLowerCase().includes(q) ?? false) ||
-            (q === "3/3" && (is3Up || is3Down)) ||
-            ((q.includes("3/3") || q === "up" || q === "صعود") && is3Up) ||
-            ((q.includes("3/3") || q === "down" || q === "نزول") && is3Down);
+        const matchConsensus =
+          (row.consensus_summary?.toLowerCase().includes(q) ?? false) ||
+          (q === "3/3" && (is3Up || is3Down)) ||
+          ((q.includes("3/3") || q === "up" || q === "صعود") && is3Up) ||
+          ((q.includes("3/3") || q === "down" || q === "نزول") && is3Down);
 
-          const matchDir = row.direction?.toLowerCase() === q;
-          if (!matchTime && !matchFile && !matchScore && !matchConsensus && !matchDir) return false;
-        }
+        const matchDir = row.direction?.toLowerCase() === q;
+        if (!matchTime && !matchFile && !matchScore && !matchConsensus && !matchDir) return false;
+      }
 
-        return true;
-      });
-  }, [data, dateFilter, startHour, endHour, searchQuery, firstHourlySignalFilenames]);
+      return true;
+    });
+  }, [data, dateFilter, startHour, endHour, searchQuery]);
 
   // Data with direction/signal filters applied (for table display)
   const filteredData = useMemo(() => {
-    return baseFilteredData.filter((row) => {
+    // 1. Filter rows matching active direction/signal/consensus criteria
+    const matchingRows = baseFilteredData.filter((row) => {
       if (dirFilter === "UP" && row.direction !== "UP") return false;
       if (dirFilter === "DOWN" && row.direction !== "DOWN") return false;
-      if (dirFilter === "SIGNALS") {
+      if (dirFilter === "SIGNALS" || dirFilter === "FIRST_HOURLY_SIGNAL") {
         const out = evaluateSignalOutcome(row, signals);
         if (!out.hasSignal) return false;
-      }
-      if (dirFilter === "FIRST_HOURLY_SIGNAL") {
-        const out = evaluateSignalOutcome(row, signals);
-        if (!out.hasSignal || !row.is_first_hourly_signal) return false;
       }
       if (dirFilter === "WINS") {
         const out = evaluateSignalOutcome(row, signals);
@@ -1501,17 +1460,59 @@ export default function JevAnalysisPage() {
         const downs = dirs.filter((d) => d === "DOWN").length;
         if (ups !== 3 && downs !== 3) return false;
       }
-
-      // Checkbox filter: If onlyFirstHourlySignal is active, hide any subsequent identical signal in the same hour
-      if (onlyFirstHourlySignal) {
-        const out = evaluateSignalOutcome(row, signals);
-        if (out.hasSignal && !row.is_first_hourly_signal) {
-          return false;
-        }
-      }
-
       return true;
     });
+
+    // 2. Identify first hourly signal chronologically within the matching rows
+    const chrono = [...matchingRows].sort((a, b) => {
+      const tA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+      const tB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+      if (tA && tB) return tA - tB;
+      return a.filename.localeCompare(b.filename);
+    });
+
+    const seenGroup = new Set<string>();
+    const firstHourlySignalFilenames = new Set<string>();
+
+    for (const r of chrono) {
+      const outcome = evaluateSignalOutcome(r, signals);
+      if (outcome.hasSignal && outcome.signalDirection) {
+        const hourMatch = r.filename?.match(/^([a-z0-9]+)_updown_(\d{4}-\d{2}-\d{2}_\d{2})/i);
+        const fallbackHour = hourMatch
+          ? `${hourMatch[1].toUpperCase()}_${hourMatch[2]}`
+          : r.et_time?.slice(0, 13) || r.filename;
+        const marketKey = r.market_slug ? `${r.coin || "BTC"}_${r.market_slug}` : fallbackHour;
+        const groupKey = `${marketKey}_${outcome.signalDirection}`;
+
+        if (!seenGroup.has(groupKey)) {
+          seenGroup.add(groupKey);
+          firstHourlySignalFilenames.add(r.filename);
+        }
+      }
+    }
+
+    // 3. Attach is_first_hourly_signal metadata
+    const enriched = matchingRows.map((r) => ({
+      ...r,
+      is_first_hourly_signal: firstHourlySignalFilenames.has(r.filename),
+    }));
+
+    // 4. Apply deduplication if FIRST_HOURLY_SIGNAL or onlyFirstHourlySignal is active
+    if (dirFilter === "FIRST_HOURLY_SIGNAL") {
+      return enriched.filter((r) => firstHourlySignalFilenames.has(r.filename));
+    }
+
+    if (onlyFirstHourlySignal) {
+      return enriched.filter((r) => {
+        const out = evaluateSignalOutcome(r, signals);
+        if (out.hasSignal && !firstHourlySignalFilenames.has(r.filename)) {
+          return false;
+        }
+        return true;
+      });
+    }
+
+    return enriched;
   }, [baseFilteredData, dirFilter, signals, onlyFirstHourlySignal]);
 
   // Chronological data for charting (oldest to newest)
