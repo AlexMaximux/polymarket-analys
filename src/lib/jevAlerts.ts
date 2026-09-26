@@ -282,6 +282,24 @@ export function formatTelegramSignalMessage(
   const up15m = cards['15m']?.up_display || '—';
   const fair15m = fv.model_15m != null ? (fv.model_15m * 100).toFixed(1) + '%' : '—';
 
+  const preds = record.predictions || {};
+  let multiModelBlock = '';
+  if (preds.kev || preds.span) {
+    multiModelBlock = `🤖 <b>دیدگاه سایر مدل‌های هوش‌مصنوعی:</b>\n`;
+    if (preds.kev) {
+      const kScore = preds.kev.score != null ? `امتیاز: ${preds.kev.score.toFixed(2)}` : '';
+      multiModelBlock += `• <b>Kev-4b:</b> جهت <b>${preds.kev.direction || '—'}</b> (${kScore})\n`;
+    }
+    if (preds.span) {
+      const sProb = preds.span.prob_up != null ? `احتمال صعود: ${preds.span.prob_up}%` : '';
+      multiModelBlock += `• <b>Span-01:</b> جهت <b>${preds.span.direction || '—'}</b> (${sProb})\n`;
+    }
+    if (preds.consensus?.summary) {
+      multiModelBlock += `• <b>اجماع مدل‌ها:</b> <code>${preds.consensus.summary}</code>\n`;
+    }
+    multiModelBlock += '\n';
+  }
+
   return (
     `${headerIcon} <b>هشدار سیگنال Jev — ${signalTitle}</b>\n\n` +
     `🪙 <b>ارز:</b> <b>${coinLabel} (${coin})</b>\n` +
@@ -290,6 +308,7 @@ export function formatTelegramSignalMessage(
     `🎯 <b>درصد اطمینان اسکور:</b> <code>${signal.confidence}%</code> (قانون: بالای ۹۰٪)\n` +
     `🧭 <b>جهت و احتمالات:</b> <b>${direction}</b> (صعود: ${probUp} | نزول: ${probDown})\n` +
     `⚡ <b>تفسیر وضعیت:</b> ${interpretation}\n\n` +
+    `${multiModelBlock}` +
     `📈 <b>داده‌های لحظه‌ای بازار Polymarket:</b>\n` +
     `• قیمت ۱ ساعته: UP: <b>${up1h}</b> | DOWN: <b>${down1h}</b>\n` +
     `• بازار ۱۵ دقیقه‌ای: UP: <b>${up15m}</b>\n` +

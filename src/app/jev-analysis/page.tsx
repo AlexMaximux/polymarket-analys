@@ -135,13 +135,33 @@ interface JevFileRecord {
   fair_joint?: number | null;
   tokens?: number | null;
   cost?: number | null;
+
+  // Kev-4b (jaredpalmer/kev-4b)
+  kev_direction?: "UP" | "DOWN" | null;
+  kev_score?: number | null;
+  kev_score_label?: string | null;
+  kev_confidence?: number | null;
+  kev_prob_up?: number | null;
+
+  // Span-01 (respan/span-01)
+  span_direction?: "UP" | "DOWN" | null;
+  span_score?: number | null;
+  span_score_label?: string | null;
+  span_confidence?: number | null;
+  span_prob_up?: number | null;
+  span_prob_down?: number | null;
+
+  // Consensus (3 Models)
+  consensus_direction?: "UP" | "DOWN" | "SPLIT" | null;
+  consensus_summary?: string | null;
+  consensus_agreement?: number | null;
 }
 
 interface ColumnDef {
   id: string;
   label: string;
   shortLabel: string;
-  category: "jev" | "market" | "fair";
+  category: "jev" | "market" | "fair" | "models";
   render: (row: JevFileRecord, signalConfig?: SignalMarkerConfig) => React.ReactNode;
   exportVal: (row: JevFileRecord, signalConfig?: SignalMarkerConfig) => string | number;
 }
@@ -158,6 +178,59 @@ const ALL_COLUMNS: ColumnDef[] = [
       </span>
     ),
     exportVal: (r) => r.coin || "BTC",
+  },
+  {
+    id: "consensus",
+    label: "اجماع ۳ مدل (Consensus: Jev + Kev + Span)",
+    shortLabel: "اجماع مدل‌ها",
+    category: "models",
+    render: (r) => {
+      const dirs = [r.direction, r.kev_direction, r.span_direction].filter(Boolean) as ("UP" | "DOWN")[];
+      if (dirs.length === 0) return <span className="text-[#5d628f]">—</span>;
+      const ups = dirs.filter((d) => d === "UP").length;
+      const downs = dirs.filter((d) => d === "DOWN").length;
+
+      if (ups === dirs.length) {
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#2ce5a7]/20 text-[#2ce5a7] border border-[#2ce5a7]/40">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#2ce5a7] animate-pulse" />
+            {ups}/3 صعود کامل (UP)
+          </span>
+        );
+      }
+      if (downs === dirs.length) {
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#ff6b9d]/20 text-[#ff6b9d] border border-[#ff6b9d]/40">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#ff6b9d] animate-pulse" />
+            {downs}/3 نزول کامل (DOWN)
+          </span>
+        );
+      }
+      if (ups > downs) {
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-[#2ce5a7]/10 text-[#86efac] border border-[#2ce5a7]/20">
+            {ups}/3 تمایل صعود
+          </span>
+        );
+      }
+      if (downs > ups) {
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-[#ff6b9d]/10 text-[#ffa8b8] border border-[#ff6b9d]/20">
+            {downs}/3 تمایل نزول
+          </span>
+        );
+      }
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs text-[#8b91c5] bg-white/[0.05] border border-white/[0.1]">
+          اختلاف نظر (Split)
+        </span>
+      );
+    },
+    exportVal: (r) => {
+      const dirs = [r.direction, r.kev_direction, r.span_direction].filter(Boolean);
+      const ups = dirs.filter((d) => d === "UP").length;
+      return `${ups}/${dirs.length} UP`;
+    },
   },
   {
     id: "signal",
@@ -241,6 +314,117 @@ const ALL_COLUMNS: ColumnDef[] = [
         <span className="text-[#5d628f]">—</span>
       ),
     exportVal: (r) => r.score ?? "",
+  },
+  {
+    id: "kev_direction",
+    label: "جهت Kev-4b (Direction)",
+    shortLabel: "جهت Kev",
+    category: "models",
+    render: (r) =>
+      r.kev_direction ? (
+        <div className="flex items-center gap-1.5">
+          <span
+            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold ${
+              r.kev_direction === "UP"
+                ? "bg-[#38bdf8]/20 text-[#38bdf8] border border-[#38bdf8]/30"
+                : "bg-[#f43f5e]/20 text-[#f43f5e] border border-[#f43f5e]/30"
+            }`}
+          >
+            {r.kev_direction === "UP" ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+            {r.kev_direction}
+          </span>
+          {r.kev_score != null && (
+            <span className="font-mono text-[11px] text-[#8b91c5]">({r.kev_score.toFixed(2)})</span>
+          )}
+        </div>
+      ) : (
+        <span className="text-[#5d628f]">—</span>
+      ),
+    exportVal: (r) => r.kev_direction || "",
+  },
+  {
+    id: "kev_score",
+    label: "اسکور Kev-4b (0 - 4)",
+    shortLabel: "اسکور Kev",
+    category: "models",
+    render: (r) =>
+      r.kev_score != null ? (
+        <div className="flex items-center gap-1.5">
+          <span
+            className="font-mono text-xs font-bold tabular-nums"
+            style={{
+              color:
+                r.kev_score >= 3.0
+                  ? "#2ce5a7"
+                  : r.kev_score >= 2.2
+                  ? "#86efac"
+                  : r.kev_score >= 1.8
+                  ? "#8b91c5"
+                  : r.kev_score >= 1.0
+                  ? "#ffa8b8"
+                  : "#ff6b9d",
+            }}
+          >
+            {r.kev_score.toFixed(2)}
+          </span>
+          {r.kev_confidence != null && (
+            <span className="text-[10px] text-[#eab308]">({r.kev_confidence}%)</span>
+          )}
+        </div>
+      ) : (
+        <span className="text-[#5d628f]">—</span>
+      ),
+    exportVal: (r) => r.kev_score ?? "",
+  },
+  {
+    id: "span_direction",
+    label: "جهت Span-01 (Direction)",
+    shortLabel: "جهت Span",
+    category: "models",
+    render: (r) =>
+      r.span_direction ? (
+        <div className="flex items-center gap-1.5">
+          <span
+            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold ${
+              r.span_direction === "UP"
+                ? "bg-[#c084fc]/20 text-[#c084fc] border border-[#c084fc]/30"
+                : "bg-[#fb7185]/20 text-[#fb7185] border border-[#fb7185]/30"
+            }`}
+          >
+            {r.span_direction === "UP" ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+            {r.span_direction}
+          </span>
+          {r.span_prob_up != null && (
+            <span className="font-mono text-[11px] text-[#c084fc] font-semibold">{r.span_prob_up}% UP</span>
+          )}
+        </div>
+      ) : (
+        <span className="text-[#5d628f]">—</span>
+      ),
+    exportVal: (r) => r.span_direction || "",
+  },
+  {
+    id: "span_prob_up",
+    label: "احتمال صعود Span-01 (%UP)",
+    shortLabel: "Span-01 %UP",
+    category: "models",
+    render: (r) =>
+      r.span_prob_up != null ? (
+        <div className="flex items-center gap-1.5">
+          <span className="font-mono text-xs text-[#c084fc] font-semibold tabular-nums">
+            {r.span_prob_up}%
+          </span>
+          <div className="w-10 h-1.5 bg-white/[0.08] rounded-full overflow-hidden hidden sm:block">
+            <div
+              className="h-full bg-gradient-to-r from-[#a855f7] to-[#c084fc] rounded-full"
+              style={{ width: `${Math.min(100, Math.max(0, r.span_prob_up))}%` }}
+            />
+          </div>
+        </div>
+      ) : (
+        <span className="text-[#5d628f]">—</span>
+      ),
+    exportVal: (r) => (r.span_prob_up != null ? `${r.span_prob_up}%` : ""),
   },
   {
     id: "prob_up",
@@ -435,34 +619,39 @@ const ALL_COLUMNS: ColumnDef[] = [
 
 const PRESETS = [
   {
+    id: "multi_models",
+    title: "🤖 ۳ مدل هوش مصنوعی (Jev + Kev + Span)",
+    cols: ["coin", "consensus", "direction", "score", "kev_direction", "span_direction", "up_1h"],
+  },
+  {
     id: "top3",
-    title: "🌟 ۳ شاخص کلیدی اصلی (پیش‌فرض)",
-    cols: ["direction", "score", "up_1h"],
+    title: "🌟 شاخص‌های اصلی + ۳ مدل",
+    cols: ["coin", "consensus", "direction", "score", "kev_direction", "span_direction", "up_1h"],
   },
   {
     id: "ai",
-    title: "🤖 تمرکز روی هوش مصنوعی Jev",
-    cols: ["direction", "score", "score_confidence", "prob_up"],
+    title: "🧠 مقایسه تفصیلی اسکور و درصد مدل‌ها",
+    cols: ["coin", "direction", "score", "score_confidence", "kev_direction", "kev_score", "span_direction", "span_prob_up"],
   },
   {
     id: "markets",
     title: "📈 مقایسه ۳ تایم‌فریم بازار (1h / 15m / 5m)",
-    cols: ["up_1h", "up_15m", "up_5m"],
+    cols: ["coin", "direction", "up_1h", "up_15m", "up_5m"],
   },
   {
     id: "fair_values",
     title: "🧮 مقایسه مدل‌های Fair Value",
-    cols: ["fair_15m", "fair_5m", "fair_joint"],
+    cols: ["coin", "direction", "fair_15m", "fair_5m", "fair_joint"],
   },
   {
     id: "signals",
     title: "🎯 تمرکز روی سیگنال‌های شرطی (تیک آبی/قرمز)",
-    cols: ["signal", "direction", "score", "score_confidence", "up_1h"],
+    cols: ["coin", "signal", "direction", "score", "score_confidence", "up_1h"],
   },
   {
     id: "full",
-    title: "🔍 نمایش جامع (تمام شاخص‌های مهم)",
-    cols: ["signal", "direction", "score", "up_1h", "up_15m", "fair_15m"],
+    title: "🔍 نمایش جامع (تمام شاخص‌های ۳ مدل + بازار)",
+    cols: ["coin", "consensus", "direction", "score", "kev_direction", "span_direction", "span_prob_up", "up_1h", "fair_15m"],
   },
 ];
 
@@ -508,11 +697,14 @@ export default function JevAnalysisPage() {
   // Selected coin filter (all, btc, eth, sol, ...)
   const [selectedCoin, setSelectedCoin] = useState<string>("all");
 
-  // Selected columns (default: 3 key metrics)
+  // Selected columns (default: coin, consensus, Jev, Kev, Span, and 1H market)
   const [selectedColIds, setSelectedColIds] = useState<string[]>([
     "coin",
+    "consensus",
     "direction",
     "score",
+    "kev_direction",
+    "span_direction",
     "up_1h",
   ]);
 
@@ -666,7 +858,7 @@ export default function JevAnalysisPage() {
         localStorage.removeItem(STORAGE_KEY);
       } catch {}
       setSelectedCoin("all");
-      setSelectedColIds(["coin", "direction", "score", "up_1h"]);
+      setSelectedColIds(["coin", "consensus", "direction", "score", "kev_direction", "span_direction", "up_1h"]);
       setVisibleCurves({
         score: true,
         scoreConfidence: false,

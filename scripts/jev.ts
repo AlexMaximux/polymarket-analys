@@ -4,6 +4,7 @@ loadEnvConfig(process.cwd());
 import {
   generateJevSnapshot,
   callJevDecision,
+  callMultiModelDecisions,
   saveHistoricalJevRecord,
   getLatestHistoricalFile,
 } from '../src/lib/jevSnapshot';
@@ -12,13 +13,13 @@ import { initializeAlertTracker } from '../src/lib/jevAlerts';
 const SNAPSHOT_INTERVAL_MS = 30000; // 30s live cache refresh
 const JEV_RECORD_INTERVAL_MS = 300000; // 5 minutes (300 seconds)
 
-const SUPPORTED_COINS = ['btc', 'eth', 'sol', 'xrp', 'doge', 'hype', 'zec', 'bnb'];
+const SUPPORTED_COINS = ['btc', 'eth', 'sol', 'xrp', 'doge', 'hype', 'bnb'];
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 async function startLoop() {
   console.log(
-    `[${new Date().toISOString()}] Starting Multi-Coin JEV 5-Minute Historical Collector & 30s Worker for: ${SUPPORTED_COINS.map(c => c.toUpperCase()).join(', ')}...`
+    `[${new Date().toISOString()}] Starting Multi-Coin Multi-Model (Jev, Kev-4b, Span-01) 5-Minute Historical Collector & 30s Worker for: ${SUPPORTED_COINS.map(c => c.toUpperCase()).join(', ')}...`
   );
 
   // Initialize Telegram alert tracker with existing files so no duplicate spam occurs
@@ -37,16 +38,19 @@ async function startLoop() {
 
       console.log(`[${new Date().toISOString()}] [${coin.toUpperCase()}] Fetching fresh snapshot...`);
       const snapshot = await generateJevSnapshot(coin);
-      console.log(`[${new Date().toISOString()}] [${coin.toUpperCase()}] Querying OpenRouter typesafe/jev-1.13...`);
-      const prediction = await callJevDecision(snapshot);
-      const { filename, skippedDuplicate } = saveHistoricalJevRecord(snapshot, prediction);
+      console.log(`[${new Date().toISOString()}] [${coin.toUpperCase()}] Querying OpenRouter models (Jev, Kev-4b, Span-01)...`);
+      const multi = await callMultiModelDecisions(snapshot);
+      const { filename, skippedDuplicate } = saveHistoricalJevRecord(snapshot, multi);
       if (!skippedDuplicate) {
+        const jevDir = multi.jev ? `${multi.jev.direction} (${multi.jev.score})` : 'N/A';
+        const kevDir = multi.kev ? `${multi.kev.direction} (${multi.kev.score})` : 'N/A';
+        const spanDir = multi.span ? `${multi.span.direction} (${multi.span.prob_up}% UP)` : 'N/A';
         console.log(
-          `[${new Date().toISOString()}] 💾 SAVED 5-MIN HISTORICAL RECORD -> ${filename} | Score: ${prediction.score} (${prediction.score_interpretation}) | Direction: ${prediction.direction} (${((prediction.direction_probabilities?.UP || 0) * 100).toFixed(0)}% UP)`
+          `[${new Date().toISOString()}] 💾 SAVED 5-MIN MULTI-MODEL RECORD -> ${filename} | Consensus: ${multi.consensus?.summary || 'N/A'} | Jev: ${jevDir} | Kev: ${kevDir} | Span: ${spanDir}`
         );
       }
     } catch (err: any) {
-      console.error(`[${new Date().toISOString()}] [${coin.toUpperCase()}] Error in 5-min Jev record:`, err.message || err);
+      console.error(`[${new Date().toISOString()}] [${coin.toUpperCase()}] Error in 5-min multi-model record:`, err.message || err);
     }
   };
 

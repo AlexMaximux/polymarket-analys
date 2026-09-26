@@ -4,6 +4,7 @@ import path from 'path';
 import {
   generateJevSnapshot,
   callJevDecision,
+  callMultiModelDecisions,
   saveHistoricalJevRecord,
   OPENROUTER_API_KEY,
 } from '@/lib/jevSnapshot';
@@ -87,10 +88,10 @@ async function handlePredict(req: Request) {
       }
     }
 
-    // Otherwise, generate fresh snapshot and query Jev automatically
+    // Otherwise, generate fresh snapshot and query multi-models (Jev, Kev-4b, Span-01) automatically
     const data = await generateJevSnapshot(coin);
-    const prediction = await callJevDecision(data, apiKey);
-    const { filename, fullRecord } = saveHistoricalJevRecord(data, prediction, force);
+    const multiPredictions = await callMultiModelDecisions(data, apiKey);
+    const { filename, fullRecord } = saveHistoricalJevRecord(data, multiPredictions, force);
 
     return NextResponse.json({
       success: true,
@@ -99,7 +100,7 @@ async function handlePredict(req: Request) {
       filename,
       age_seconds: 0,
       next_refresh_seconds: 300,
-      timestamp: new Date().toISOString(),
+      timestamp: fullRecord.timestamp || new Date().toISOString(),
       state: {
         et_time: data.et_time,
         coin: data.coin,
@@ -107,8 +108,9 @@ async function handlePredict(req: Request) {
         cards: data.cards,
         fair_values: data.fair_values,
       },
-      decision: prediction.raw_decision,
-      prediction,
+      decision: multiPredictions.primary?.raw_decision,
+      prediction: multiPredictions.primary,
+      predictions: multiPredictions,
       fullRecord,
     });
   } catch (err: any) {

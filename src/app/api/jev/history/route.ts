@@ -42,7 +42,11 @@ export async function GET(req: Request) {
     const files = fileNames.map(f => {
       try {
         const content = JSON.parse(fs.readFileSync(path.join(historyDir, f), 'utf8'));
-        const p = content.prediction || {};
+        const preds = content.predictions || {};
+        const p = preds.jev || content.prediction || {};
+        const pKev = preds.kev || null;
+        const pSpan = preds.span || null;
+        const consensus = preds.consensus || null;
         const cards = content.cards || {};
         const fv = content.fair_values || {};
         const detectedCoin = content.coin || (f.toLowerCase().startsWith('btc') ? 'BTC' : f.split('_')[0].toUpperCase());
@@ -75,8 +79,37 @@ export async function GET(req: Request) {
               : p.direction_confidence != null
               ? Number((p.direction_confidence * 100).toFixed(0))
               : null,
-          prob_up: p.direction_probabilities?.UP != null ? Number((p.direction_probabilities.UP * 100).toFixed(1)) : null,
-          prob_down: p.direction_probabilities?.DOWN != null ? Number((p.direction_probabilities.DOWN * 100).toFixed(1)) : null,
+          prob_up: p.prob_up ?? (p.direction_probabilities?.UP != null ? Number((p.direction_probabilities.UP * 100).toFixed(1)) : null),
+          prob_down: p.prob_down ?? (p.direction_probabilities?.DOWN != null ? Number((p.direction_probabilities.DOWN * 100).toFixed(1)) : null),
+          
+          // Kev-4b predictions
+          kev_direction: pKev?.direction ?? null,
+          kev_score: pKev?.score != null ? Number(pKev.score) : null,
+          kev_score_label: pKev?.score_interpretation ?? null,
+          kev_confidence:
+            pKev?.score_confidence != null
+              ? Number((pKev.score_confidence * 100).toFixed(0))
+              : pKev?.direction_confidence != null
+              ? Number((pKev.direction_confidence * 100).toFixed(0))
+              : null,
+          kev_prob_up: pKev?.prob_up ?? (pKev?.direction_probabilities?.UP != null ? Number((pKev.direction_probabilities.UP * 100).toFixed(1)) : null),
+
+          // Respan / Span-01 predictions
+          span_direction: pSpan?.direction ?? null,
+          span_score: pSpan?.score != null ? Number(pSpan.score) : null,
+          span_score_label: pSpan?.score_interpretation ?? null,
+          span_confidence: pSpan?.score_confidence != null ? Number((pSpan.score_confidence * 100).toFixed(0)) : null,
+          span_prob_up: pSpan?.prob_up ?? null,
+          span_prob_down: pSpan?.prob_down ?? null,
+
+          // Consensus
+          consensus_direction: consensus?.direction ?? null,
+          consensus_summary: consensus?.summary ?? null,
+          consensus_agreement: consensus?.agreement ?? null,
+
+          // Multi-model object
+          predictions: preds,
+
           up_1h: cards['1h']?.up_display ?? null,
           down_1h: cards['1h']?.down_display ?? null,
           up_1h_num: cards['1h']?.up != null ? Number((cards['1h'].up * 100).toFixed(1)) : null,

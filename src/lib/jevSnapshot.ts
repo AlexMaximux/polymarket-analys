@@ -213,9 +213,224 @@ export async function callJevDecision(snapshotData: any, apiKey?: string) {
     direction: answers.one_hour_direction?.choice ?? null,
     direction_confidence: answers.one_hour_direction?.confidence ?? null,
     direction_probabilities: answers.one_hour_direction?.probabilities ?? null,
+    prob_up: answers.one_hour_direction?.probabilities?.UP != null ? Number((answers.one_hour_direction.probabilities.UP * 100).toFixed(1)) : null,
+    prob_down: answers.one_hour_direction?.probabilities?.DOWN != null ? Number((answers.one_hour_direction.probabilities.DOWN * 100).toFixed(1)) : null,
     tokens: decision.usage?.input_tokens ?? null,
     cost: decision.usage?.cost ?? null,
     raw_decision: decision,
+  };
+}
+
+export async function callKevDecision(snapshotData: any, apiKey?: string) {
+  const key = apiKey || OPENROUTER_API_KEY;
+  const coinLabel = snapshotData.coin_label || snapshotData.coin || 'Crypto';
+
+  const payload = {
+    model: 'jaredpalmer/kev-4b',
+    state: {
+      et_time: snapshotData.et_time,
+      coin: snapshotData.coin,
+      coin_label: coinLabel,
+      cards: snapshotData.cards,
+      fair_values: snapshotData.fair_values,
+    },
+    questions: {
+      one_hour_score: {
+        type: 'score',
+        instructions:
+          `Predict the 1-hour ${coinLabel} outcome score on an ordered scale (0 to 4) from Strong Down to Strong Up based on current market probabilities and fair values.`,
+        criteria: [
+          'Strong Down',
+          'Lean Down',
+          'Neutral',
+          'Lean Up',
+          'Strong Up',
+        ],
+      },
+      one_hour_direction: {
+        type: 'choice',
+        instructions:
+          `Which direction is more probable for ${coinLabel} 1-hour market close?`,
+        criteria: {
+          UP: `${coinLabel} is more likely to close above the hour open price.`,
+          DOWN: `${coinLabel} is more likely to close below the hour open price.`,
+        },
+      },
+    },
+  };
+
+  const res = await fetch('https://openrouter.ai/api/alpha/decisions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${key}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`OpenRouter Kev error (${res.status}): ${errText}`);
+  }
+
+  const decision = await res.json();
+  const answers = decision.answers || {};
+  const scoreRaw = answers.one_hour_score?.score;
+  const score = scoreRaw != null ? Number(Number(scoreRaw).toFixed(2)) : null;
+
+  let scoreInterpretation = 'نامشخص';
+  if (score != null) {
+    if (score >= 3.0) scoreInterpretation = 'Strong Up (صعودی قوی) 🚀';
+    else if (score >= 2.2) scoreInterpretation = 'Lean Up (تمایل به صعود) ↗';
+    else if (score >= 1.8) scoreInterpretation = 'Neutral (خنثی / تعادل) ⚖';
+    else if (score >= 1.0) scoreInterpretation = 'Lean Down (تمایل به نزول) ↘';
+    else scoreInterpretation = 'Strong Down (نزولی قوی) 🔻';
+  }
+
+  const upProb = answers.one_hour_direction?.probabilities?.UP;
+  const downProb = answers.one_hour_direction?.probabilities?.DOWN;
+
+  return {
+    model: decision.model || 'jaredpalmer/kev-4b',
+    coin: snapshotData.coin,
+    score,
+    score_interpretation: scoreInterpretation,
+    score_confidence: answers.one_hour_score?.confidence != null ? Number(answers.one_hour_score.confidence.toFixed(4)) : null,
+    score_probabilities: answers.one_hour_score?.probabilities ?? null,
+    direction: answers.one_hour_direction?.choice ?? null,
+    direction_confidence: answers.one_hour_direction?.confidence != null ? Number(answers.one_hour_direction.confidence.toFixed(4)) : null,
+    direction_probabilities: answers.one_hour_direction?.probabilities ?? null,
+    prob_up: upProb != null ? Number((upProb * 100).toFixed(1)) : null,
+    prob_down: downProb != null ? Number((downProb * 100).toFixed(1)) : null,
+    tokens: decision.usage?.input_tokens ?? null,
+    cost: decision.usage?.cost ?? null,
+    raw_decision: decision,
+  };
+}
+
+export async function callSpanDecision(snapshotData: any, apiKey?: string) {
+  const key = apiKey || OPENROUTER_API_KEY;
+  const coinLabel = snapshotData.coin_label || snapshotData.coin || 'Crypto';
+  const coin = (snapshotData.coin || 'Crypto').toUpperCase();
+
+  const c1h = snapshotData.cards?.['1h'];
+  const c15m = snapshotData.cards?.['15m'];
+  const c5m = snapshotData.cards?.['5m'];
+  const fv = snapshotData.fair_values || {};
+
+  const stateStr = `Time: ${snapshotData.et_time} | Asset: ${coinLabel} (${coin}) | Spot: $${snapshotData.spot_price ?? 'N/A'} | Open: $${snapshotData.open_price ?? 'N/A'} | Polymarket 1H Up: ${c1h?.up_display ?? 'N/A'} | 15m Up: ${c15m?.up_display ?? 'N/A'} | 5m Up: ${c5m?.up_display ?? 'N/A'} | Fair Model 15m: ${fv.model_15m != null ? (fv.model_15m * 100).toFixed(1) + '%' : 'N/A'} | Fair Model 5m: ${fv.model_5m != null ? (fv.model_5m * 100).toFixed(1) + '%' : 'N/A'}`;
+
+  const payload = {
+    model: 'respan/span-01',
+    state: stateStr,
+    questions: {
+      one_hour_up: {
+        type: 'noul',
+        instructions: `Will ${coinLabel} (${coin}) close above its hour open price (UP) in the 1-hour market?`,
+        criteria: {
+          true: `${coinLabel} closes above hour open price (UP outcome wins).`,
+          false: `${coinLabel} closes below hour open price (DOWN outcome wins).`,
+        },
+      },
+    },
+  };
+
+  const res = await fetch('https://openrouter.ai/api/alpha/decisions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${key}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`OpenRouter Span error (${res.status}): ${errText}`);
+  }
+
+  const decision = await res.json();
+  const noul = decision.answers?.one_hour_up?.noul;
+  const probUp = noul != null ? Number((noul * 100).toFixed(1)) : null;
+  const probDown = noul != null ? Number(((1 - noul) * 100).toFixed(1)) : null;
+  const direction = noul != null ? (noul >= 0.5 ? 'UP' : 'DOWN') : null;
+  const score = noul != null ? Number((noul * 4).toFixed(2)) : null;
+
+  let scoreInterpretation = 'نامشخص';
+  if (score != null) {
+    if (score >= 3.0) scoreInterpretation = 'Strong Up (صعودی قوی) 🚀';
+    else if (score >= 2.2) scoreInterpretation = 'Lean Up (تمایل به صعود) ↗';
+    else if (score >= 1.8) scoreInterpretation = 'Neutral (خنثی / تعادل) ⚖';
+    else if (score >= 1.0) scoreInterpretation = 'Lean Down (تمایل به نزول) ↘';
+    else scoreInterpretation = 'Strong Down (نزولی قوی) 🔻';
+  }
+
+  const confidence = noul != null ? Number((Math.abs(noul - 0.5) * 2).toFixed(4)) : null;
+
+  return {
+    model: decision.model || 'respan/span-01',
+    coin: snapshotData.coin,
+    score,
+    score_interpretation: scoreInterpretation,
+    score_confidence: confidence,
+    direction,
+    direction_confidence: confidence,
+    prob_up: probUp,
+    prob_down: probDown,
+    tokens: decision.usage?.input_tokens ?? null,
+    cost: decision.usage?.cost ?? null,
+    raw_decision: decision,
+  };
+}
+
+export async function callMultiModelDecisions(snapshotData: any, apiKey?: string) {
+  const [jevRes, kevRes, spanRes] = await Promise.allSettled([
+    callJevDecision(snapshotData, apiKey),
+    callKevDecision(snapshotData, apiKey),
+    callSpanDecision(snapshotData, apiKey),
+  ]);
+
+  const jev = jevRes.status === 'fulfilled' ? jevRes.value : null;
+  const kev = kevRes.status === 'fulfilled' ? kevRes.value : null;
+  const span = spanRes.status === 'fulfilled' ? spanRes.value : null;
+
+  if (jevRes.status === 'rejected') {
+    console.error('[MultiModel] Jev error:', jevRes.reason?.message || jevRes.reason);
+  }
+  if (kevRes.status === 'rejected') {
+    console.error('[MultiModel] Kev error:', kevRes.reason?.message || kevRes.reason);
+  }
+  if (spanRes.status === 'rejected') {
+    console.error('[MultiModel] Span error:', spanRes.reason?.message || spanRes.reason);
+  }
+
+  const votes = [jev?.direction, kev?.direction, span?.direction].filter(Boolean) as ('UP' | 'DOWN')[];
+  const upVotes = votes.filter(v => v === 'UP').length;
+  const downVotes = votes.filter(v => v === 'DOWN').length;
+  const totalVotes = votes.length;
+
+  let consensusDirection: 'UP' | 'DOWN' | 'SPLIT' | null = null;
+  if (upVotes > downVotes) consensusDirection = 'UP';
+  else if (downVotes > upVotes) consensusDirection = 'DOWN';
+  else if (totalVotes > 0) consensusDirection = 'SPLIT';
+
+  const consensus = {
+    direction: consensusDirection,
+    up_votes: upVotes,
+    down_votes: downVotes,
+    total_models: totalVotes,
+    summary: totalVotes > 0 ? `${upVotes}/${totalVotes} UP (${downVotes} DOWN)` : null,
+    agreement: totalVotes > 0 ? Number(((Math.max(upVotes, downVotes) / totalVotes) * 100).toFixed(0)) : null,
+  };
+
+  const primary = jev || kev || span;
+
+  return {
+    jev,
+    kev,
+    span,
+    consensus,
+    primary,
   };
 }
 
@@ -247,10 +462,32 @@ export function getLatestHistoricalFile(coin?: string): { filename: string; time
   }
 }
 
-export function saveHistoricalJevRecord(snapshotData: any, prediction: any, force = false) {
+export function saveHistoricalJevRecord(
+  snapshotData: any,
+  predictionOrMulti: any,
+  force = false,
+  extraPredictions?: any
+) {
   const coinKey = (snapshotData.coin || 'btc').toLowerCase();
   const safeTime = snapshotData.current_time_et_24h.replace(/:/g, '-');
   const filename = `${coinKey}_updown_${snapshotData.date_et}_${safeTime}_ET.json`;
+
+  let primaryPrediction = predictionOrMulti;
+  let predictionsObj: any = null;
+
+  if (predictionOrMulti && (predictionOrMulti.jev !== undefined || predictionOrMulti.predictions !== undefined)) {
+    predictionsObj = predictionOrMulti.predictions || {
+      jev: predictionOrMulti.jev,
+      kev: predictionOrMulti.kev,
+      span: predictionOrMulti.span,
+      consensus: predictionOrMulti.consensus,
+    };
+    primaryPrediction = predictionOrMulti.primary || predictionOrMulti.jev || primaryPrediction;
+  } else if (extraPredictions) {
+    predictionsObj = extraPredictions;
+  } else if (predictionOrMulti) {
+    predictionsObj = { jev: predictionOrMulti };
+  }
 
   const fullRecord = {
     et_time: snapshotData.et_time,
@@ -267,7 +504,8 @@ export function saveHistoricalJevRecord(snapshotData: any, prediction: any, forc
     fair_values: snapshotData.fair_values,
     model_inputs: snapshotData.model_inputs ?? null,
     books: snapshotData.books ?? null,
-    prediction,
+    prediction: primaryPrediction,
+    predictions: predictionsObj,
   };
 
   const jsonStr = JSON.stringify(fullRecord, null, 2);
