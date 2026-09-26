@@ -16,6 +16,7 @@ export function Navigation() {
     { href: "/jev-analysis", label: "Jev Analysis 🤖" },
     { href: "/starred", label: "Starred" },
     { href: "/flow", label: "Money Flow" },
+    { href: "/control", label: "Control" },
   ];
 
   return (
