@@ -55,3 +55,13 @@ polymarket.db*
 
 # Up/Down per-minute tick recorder output (src/lib/updownRecorder.ts)
 /ticks/
+
+# Up/Down backfill research outputs (re-created by research/updown/*.py; see research/updown/README.md)
+/research/updown/*.parquet
+/research/updown/raw/
+/research/updown/period.json
+/research/updown/validation.json
+/research/updown/bt_dataset.json
+/research/updown/*.log
+/research/updown/.venv/
+/research/updown/__pycache__/

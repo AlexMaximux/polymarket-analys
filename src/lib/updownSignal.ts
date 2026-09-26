@@ -13,6 +13,7 @@ export const takerFee = (p: number) => 0.07 * p * (1 - p);
 export const UPDOWN_RULE = {
   maxSpread: 0.04,     // skip books wider than 4¢ (alt 1H books are often 5–10¢, HYPE ~33¢)
   minNetEdge: 0.01,    // fair − (entry + fee) must be at least 1¢
+  minNotional: 20,     // $ available at the best price (alt books often show a 5-share dust quote)
 };
 
 export type UpdownSignal = {
@@ -25,22 +26,28 @@ export type UpdownSignal = {
 
 export function updownSignal(i: {
   fv1h: number; base: number; bid: number | null; ask: number | null; mid: number | null;
+  bidSize?: number; askSize?: number;
 }): UpdownSignal | null {
-  const { fv1h, base, bid, ask, mid } = i;
+  const { fv1h, base, bid, ask } = i;
   if (!Number.isFinite(fv1h) || !Number.isFinite(base) || bid == null || ask == null) return null;
   if (!(bid > 0 && ask < 1 && ask > bid)) return null;                   // one-sided or crossed book
   if (ask - bid > UPDOWN_RULE.maxSpread + 1e-9) return null;
   // hollow quote: mid near 50/50 while spot has already all but decided the hour
-  if (mid != null && mid >= 0.4 && mid <= 0.6 && (base < 0.05 || base > 0.95)) return null;
+  const mid = i.mid ?? (bid + ask) / 2;
+  if (mid >= 0.4 && mid <= 0.6 && (base < 0.05 || base > 0.95)) return null;
 
   const lo = Math.min(fv1h, base), hi = Math.max(fv1h, base);
   const buyFee = takerFee(ask);
   const buyEdge = lo - ask - buyFee;
-  if (buyEdge >= UPDOWN_RULE.minNetEdge) return { side: 'BUY', entry: ask, fee: buyFee, fair: lo, netEdge: buyEdge };
+  if (buyEdge >= UPDOWN_RULE.minNetEdge && (i.askSize ?? 0) * ask >= UPDOWN_RULE.minNotional) {
+    return { side: 'BUY', entry: ask, fee: buyFee, fair: lo, netEdge: buyEdge };
+  }
 
-  const downAsk = 1 - bid;
+  const downAsk = 1 - bid;            // buying Down fills against the Up bids
   const sellFee = takerFee(downAsk);
   const sellEdge = (1 - hi) - downAsk - sellFee;
-  if (sellEdge >= UPDOWN_RULE.minNetEdge) return { side: 'SELL', entry: downAsk, fee: sellFee, fair: 1 - hi, netEdge: sellEdge };
+  if (sellEdge >= UPDOWN_RULE.minNetEdge && (i.bidSize ?? 0) * downAsk >= UPDOWN_RULE.minNotional) {
+    return { side: 'SELL', entry: downAsk, fee: sellFee, fair: 1 - hi, netEdge: sellEdge };
+  }
   return null;
 }

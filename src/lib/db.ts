@@ -8,6 +8,9 @@ export function getDb() {
 
   const dbPath = path.join(process.cwd(), 'polymarket.db');
   db = new Database(dbPath, {
+    // several processes (crawler, backfills, alerts worker, server) write this file; wait up to 15 s
+    // for a lock instead of the 5 s default, which failed the alerts worker with SQLITE_BUSY every minute
+    timeout: 15_000,
     // verbose: console.log
   });
 

@@ -99,6 +99,7 @@ export async function generateJevSnapshot(coin = 'btc') {
     // Kept for backtests only (callJevDecision forwards cards + fair_values, not these):
     // the exact model inputs and the tradeable Up-token book at snapshot time.
     model_inputs: {
+      model_version: data.modelVersion ?? null,   // which fair-value formulas produced fair_values
       t: data.t ?? null,
       s0: data.openPrice ?? null,
       sa: data.model?.sa ?? null,

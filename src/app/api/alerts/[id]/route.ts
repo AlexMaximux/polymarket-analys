@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
-import { evaluateAlert, sendTelegram, formatWhaleMessage, formatPositionMessage, AlertRow } from '@/lib/alerts';
+import { evaluateAlert, sendTelegram, formatAlertMessage, AlertRow } from '@/lib/alerts';
 import { markAlertSeen } from '@/lib/alerts';
 
 export const dynamic = 'force-dynamic';
@@ -41,7 +41,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           : alert.alert_type === 'starred_open'
           ? `⭐ <b>Test alert: ${alert.name}</b>\nWatchlist position-open alert wiring works.`
           : alert.alert_type === 'updown'
-          ? `📈 <b>Test alert: ${alert.name}</b>\nUP/DOWN signal alert wiring works. Fires when both Fair-Value-1H and Base(no-drift) are on the same side of the 1H market UP price.`
+          ? `📈 <b>Test alert: ${alert.name}</b>\nUP/DOWN signal alert wiring works. Fires when both Fair-Value-1H and Base(no-drift) beat the Up ask (BUY) or 1 − Up bid (SELL) plus the taker fee by at least 1¢, on a book at most 4¢ wide.`
           : `🔔 <b>Test alert: ${alert.name}</b>\nRule: first-ever trade within ${alert.hours}h &amp; max bet ≥ $${alert.min_bet.toLocaleString()}\nIf you can read this, the Telegram wiring works.`;
       const ok = await sendTelegram(alert.telegram_token, alert.telegram_chat, sample);
       return NextResponse.json({ ok, sent: ok }, { status: ok ? 200 : 502 });
@@ -52,9 +52,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       const matches = await evaluateAlert(alert);
       let sent = false;
       if (matches.length > 0) {
-        const msg = alert.alert_type === 'starred_open'
-          ? await formatPositionMessage(alert, matches)
-          : formatWhaleMessage(alert, matches);
+        const msg = await formatAlertMessage(alert, matches);
         sent = await sendTelegram(alert.telegram_token, alert.telegram_chat, msg);
         if (sent) {
           markAlertSeen(alert, matches);

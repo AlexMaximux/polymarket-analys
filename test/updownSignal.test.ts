@@ -10,7 +10,7 @@ describe('takerFee', () => {
 });
 
 describe('updownSignal', () => {
-  const book = { bid: 0.60, ask: 0.61, mid: 0.605 };
+  const book = { bid: 0.60, ask: 0.61, mid: 0.605, bidSize: 100, askSize: 100 };
 
   it('BUY when both fair values clear ask + fee + 1¢', () => {
     // fee at 0.61 = 0.07·0.61·0.39 ≈ 0.01665 → need fair ≥ 0.61 + 0.01665 + 0.01 ≈ 0.6367
@@ -47,7 +47,21 @@ describe('updownSignal', () => {
   });
 
   it('skips hollow quotes (mid near 50/50 while Base says the hour is decided)', () => {
-    expect(updownSignal({ fv1h: 0.98, base: 0.98, bid: 0.49, ask: 0.51, mid: 0.50 })).toBeNull();
+    const hollow = { bid: 0.49, ask: 0.51, bidSize: 500, askSize: 500 };
+    expect(updownSignal({ fv1h: 0.98, base: 0.98, mid: 0.50, ...hollow })).toBeNull();
+    // midpoint call failed: the guard uses the book mid instead of failing open
+    expect(updownSignal({ fv1h: 0.98, base: 0.98, mid: null, ...hollow })).toBeNull();
+  });
+
+  it('needs at least $20 at the best price on the side it buys', () => {
+    // 20 shares × 0.61 = $12.2 at the Up ask → no BUY
+    expect(updownSignal({ fv1h: 0.66, base: 0.64, ...book, askSize: 20 })).toBeNull();
+    expect(updownSignal({ fv1h: 0.66, base: 0.64, ...book, askSize: 40 })?.side).toBe('BUY');
+    // SELL buys Down against the Up bids: 40 shares × (1 − 0.60) = $16 → no SELL; 60 × 0.40 = $24 → SELL
+    expect(updownSignal({ fv1h: 0.55, base: 0.56, ...book, bidSize: 40 })).toBeNull();
+    expect(updownSignal({ fv1h: 0.55, base: 0.56, ...book, bidSize: 60 })?.side).toBe('SELL');
+    // size unknown (older server without book sizes) → no signal
+    expect(updownSignal({ fv1h: 0.66, base: 0.64, bid: 0.60, ask: 0.61, mid: 0.605 })).toBeNull();
   });
 
   it('ignores non-finite fair values', () => {

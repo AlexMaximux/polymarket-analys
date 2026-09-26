@@ -675,7 +675,7 @@ const m = data?.model;
               onChange={e => setSigmaInput(e.target.value)}
               className="w-20 bg-white/[0.08] border border-[rgba(140,130,255,0.15)] rounded-lg px-2 py-1 text-white tabular-nums focus:outline-none focus:border-[#a99cff]" />
             {sigma == null
-              ? <span className="text-[10px] text-[#5d628f]">auto · {data?.sigmaSource === "realized-7d" ? "7d" : "60m"} realized</span>
+              ? <span className="text-[10px] text-[#5d628f]">auto · {({ "realized-60m": "60m realized", "realized-7d": "7d realized", default: "default 0.02 (no Binance data)" } as Record<string, string>)[data?.sigmaSource] ?? "…"}</span>
               : <button onClick={() => setSigmaInput("")} className="text-[10px] text-[#a99cff] hover:underline">reset to auto</button>}
           </label>
         </div>
