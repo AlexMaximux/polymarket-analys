@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import { updateMarketResolutions, getResolutionsMap } from '@/lib/marketResolver';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,13 +31,18 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'File not found' }, { status: 404 });
     }
 
-    const coinFilter = searchParams.get('coin')?.toLowerCase();
-
-    const resFile = path.join(process.cwd(), 'jev', 'market_resolutions.json');
-    let resolutionsMap: Record<string, string> = {};
-    if (fs.existsSync(resFile)) {
-      try { resolutionsMap = JSON.parse(fs.readFileSync(resFile, 'utf8')); } catch {}
+    // Trigger automatic market resolution check:
+    // If requested with refresh=true, wait for it; otherwise run throttled in background
+    if (searchParams.get('refresh') === 'true') {
+      try {
+        await updateMarketResolutions(false);
+      } catch {}
+    } else {
+      updateMarketResolutions(false).catch(() => {});
     }
+
+    const coinFilter = searchParams.get('coin')?.toLowerCase();
+    const resolutionsMap = getResolutionsMap();
 
     let fileNames = fs.readdirSync(historyDir).filter(f => f.endsWith('.json'));
     if (coinFilter && coinFilter !== 'all') {

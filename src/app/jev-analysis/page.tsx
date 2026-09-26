@@ -396,8 +396,12 @@ const ALL_COLUMNS: ColumnDef[] = [
         );
       }
       return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-500/15 text-amber-300 border border-amber-500/30">
-          ⏳ در انتظار
+        <span
+          className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-500/15 text-amber-300 border border-amber-500/30"
+          title="سیگنال فعال است و در انتظار اتمام کندل یا تایید نهایی اوراکل UMA (بازه ۱۰-۳۰ دقیقه) می‌باشد"
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+          ⏳ در انتظار نتیجه
         </span>
       );
     },
@@ -419,7 +423,6 @@ const ALL_COLUMNS: ColumnDef[] = [
     shortLabel: "نتیجه مارکت",
     category: "market",
     render: (r) => {
-      if (!r.market_outcome) return <span className="text-[#5d628f]">—</span>;
       if (r.market_outcome === "UP") {
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
@@ -434,9 +437,20 @@ const ALL_COLUMNS: ColumnDef[] = [
           </span>
         );
       }
+      if (r.market_outcome === "PENDING") {
+        return (
+          <span
+            className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium text-amber-300 bg-amber-500/15 border border-amber-500/30"
+            title="کندل پایان یافته و طبق روند اوراکل Polymarket UMA تایید نهایی آن بین ۱۰ الی ۳۰ دقیقه زمان می‌برد"
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+            ⏳ در انتظار تایید (۱۰-۳۰ دقیقه)
+          </span>
+        );
+      }
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs text-amber-300 bg-amber-500/15 border border-amber-500/30">
-          🟡 زنده (Live)
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] text-sky-400/80 bg-sky-500/10 border border-sky-500/20">
+          ⚡ در حال معامله (جاری)
         </span>
       );
     },
@@ -1224,31 +1238,58 @@ export default function JevAnalysisPage() {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
 
-  const loadHistory = useCallback(async (coinToLoad = selectedCoin) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const url =
-        coinToLoad && coinToLoad !== "all"
-          ? `/api/jev/history?coin=${coinToLoad}`
-          : "/api/jev/history";
-      const res = await fetch(url, { cache: "no-store" });
-      const json = await res.json();
-      if (json.files) {
-        setData(json.files);
+  // Auto-refresh state (every 30s)
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null);
+
+  const loadHistory = useCallback(
+    async (coinToLoad = selectedCoin, isSilent = false) => {
+      if (!isSilent) {
+        setLoading(true);
+        setError(null);
       } else {
-        throw new Error(json.error || "خطا در بارگذاری اطلاعات");
+        setIsRefreshing(true);
       }
-    } catch (err: any) {
-      setError(err.message || "خطا در ارتباط با سرور");
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedCoin]);
+      try {
+        const baseUrl =
+          coinToLoad && coinToLoad !== "all"
+            ? `/api/jev/history?coin=${coinToLoad}`
+            : "/api/jev/history";
+        // Pass refresh=true so server runs throttled Polymarket resolution updates
+        const url = `${baseUrl}${baseUrl.includes("?") ? "&" : "?"}refresh=true`;
+        const res = await fetch(url, { cache: "no-store" });
+        const json = await res.json();
+        if (json.files) {
+          setData(json.files);
+          setLastRefreshedAt(new Date());
+        } else {
+          throw new Error(json.error || "خطا در بارگذاری اطلاعات");
+        }
+      } catch (err: any) {
+        if (!isSilent) {
+          setError(err.message || "خطا در ارتباط با سرور");
+        }
+      } finally {
+        if (!isSilent) setLoading(false);
+        setIsRefreshing(false);
+      }
+    },
+    [selectedCoin]
+  );
 
   useEffect(() => {
-    loadHistory(selectedCoin);
+    loadHistory(selectedCoin, false);
   }, [selectedCoin, loadHistory]);
+
+  // Periodic auto-refresh every 30 seconds
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const interval = setInterval(() => {
+      loadHistory(selectedCoin, true);
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [autoRefresh, selectedCoin, loadHistory]);
 
   const viewFile = async (filename: string) => {
     setSelectedFileForModal(filename);
@@ -2067,12 +2108,41 @@ export default function JevAnalysisPage() {
             <span>خروجی PDF ({sortedData.length})</span>
           </button>
 
+          {/* Auto Refresh Toggle Button */}
           <button
-            onClick={() => loadHistory(selectedCoin)}
-            disabled={loading}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gradient-to-r from-[#6366f1] to-[#38bdf8] text-white text-xs font-medium hover:opacity-90 transition-opacity shadow-md disabled:opacity-50"
+            onClick={() => setAutoRefresh((prev) => !prev)}
+            className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border transition-all ${
+              autoRefresh
+                ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25"
+                : "bg-white/[0.04] text-[#8b91c5] border-white/[0.08] hover:bg-white/[0.08]"
+            }`}
+            title="بروزرسانی خودکار جدول هر ۳۰ ثانیه (همگام با تاخیر ۱۰-۳۰ دقیقه‌ای تایید نهایی اوراکل Polymarket)"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+            <span
+              className={`w-2 h-2 rounded-full ${
+                autoRefresh ? "bg-emerald-400 animate-pulse shadow-[0_0_8px_#2ce5a7]" : "bg-[#5d628f]"
+              }`}
+            />
+            <span className="hidden sm:inline">
+              {autoRefresh ? "بروزرسانی خودکار: روشن (۳۰s)" : "بروزرسانی خودکار: خاموش"}
+            </span>
+            <span className="sm:hidden">{autoRefresh ? "خودکار: روشن" : "خودکار: خاموش"}</span>
+            {isRefreshing && <RefreshCw className="w-3 h-3 text-emerald-400 animate-spin" />}
+          </button>
+
+          {lastRefreshedAt && (
+            <span className="text-[11px] text-[#5d628f] hidden xl:inline-block font-mono" title="زمان آخرین دریافت داده‌ها از سرور">
+              آخرین دریافت: {lastRefreshedAt.toLocaleTimeString("fa-IR")}
+            </span>
+          )}
+
+          <button
+            onClick={() => loadHistory(selectedCoin, false)}
+            disabled={loading || isRefreshing}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gradient-to-r from-[#6366f1] to-[#38bdf8] text-white text-xs font-medium hover:opacity-90 transition-opacity shadow-md disabled:opacity-50"
+            title="تازه‌سازی دستی و استعلام آخرین نتایج تایید شده از Polymarket"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading || isRefreshing ? "animate-spin" : ""}`} />
             تازه‌سازی
           </button>
         </div>

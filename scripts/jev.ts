@@ -9,9 +9,13 @@ import {
   getLatestHistoricalFile,
 } from '../src/lib/jevSnapshot';
 import { initializeAlertTracker } from '../src/lib/jevAlerts';
+import { updateMarketResolutions } from '../src/lib/marketResolver';
 
 const SNAPSHOT_INTERVAL_MS = 30000; // 30s live cache refresh
 const JEV_RECORD_INTERVAL_MS = 300000; // 5 minutes (300 seconds)
+const RESOLUTION_CHECK_INTERVAL_MS = 90000; // 90s market resolution checker (handles 10-30m UMA lag)
+
+let lastResolutionCheckTime = 0;
 
 const SUPPORTED_COINS = ['btc', 'eth', 'sol', 'xrp', 'doge', 'hype', 'bnb'];
 
@@ -77,6 +81,13 @@ async function startLoop() {
       // 2. Check and collect for any coin that is due for 5-minute file
       await runAllDueCoins();
 
+      // 3. Automatically check and update market outcomes (Polymarket 10-30m UMA resolution)
+      const timeSinceLastResCheck = Date.now() - lastResolutionCheckTime;
+      if (timeSinceLastResCheck >= RESOLUTION_CHECK_INTERVAL_MS) {
+        lastResolutionCheckTime = Date.now();
+        await updateMarketResolutions();
+      }
+
       const latestBtc = getLatestHistoricalFile('btc');
       const btcElapsed = latestBtc ? Date.now() - latestBtc.timestamp : 0;
       const nextSec = Math.max(0, Math.round((JEV_RECORD_INTERVAL_MS - btcElapsed) / 1000));
@@ -91,6 +102,11 @@ async function startLoop() {
   // On start: run for any coin that has no record within the last 5 minutes
   console.log(`[${new Date().toISOString()}] Initializing startup check for all coins...`);
   await runAllDueCoins();
+
+  // Run initial market resolution check immediately on startup
+  console.log(`[${new Date().toISOString()}] Initializing market resolutions check...`);
+  lastResolutionCheckTime = Date.now();
+  await updateMarketResolutions(true);
 
   // Run the 30s cycle
   setInterval(run30sUpdate, SNAPSHOT_INTERVAL_MS);
