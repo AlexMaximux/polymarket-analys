@@ -18,7 +18,7 @@ import { updownSignal } from './updownSignal';
 export interface AlertRow {
   id: number;
   name: string;
-  alert_type: 'new_whale' | 'starred_open' | 'updown' | 'starred_gold';
+  alert_type: 'new_whale' | 'starred_open' | 'updown' | 'starred_gold' | 'jev';
   hours: number;
   min_bet: number;
   telegram_token: string;

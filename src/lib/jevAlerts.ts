@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { loadEnvConfig } from '@next/env';
 import { sendTelegram } from './alerts';
+import { getDb } from './db';
 
 try {
   loadEnvConfig(process.cwd());
@@ -12,6 +13,25 @@ export const JEV_TELEGRAM_BOT_TOKEN =
 
 export const JEV_TELEGRAM_CHAT_ID =
   process.env.JEV_TELEGRAM_CHAT_ID || process.env.TELEGRAM_CHAT_ID || '';
+
+/**
+ * Check if the UP/DOWN / JEV alert rule is enabled in the database.
+ * If paused by the user in /alerts, returns enabled: false.
+ */
+export function getJevAlertRule(): { enabled: boolean; alertRow?: any } {
+  try {
+    const db = getDb();
+    const row = db
+      .prepare("SELECT * FROM alerts WHERE alert_type IN ('updown', 'jev') ORDER BY id ASC LIMIT 1")
+      .get() as any;
+    if (!row) {
+      return { enabled: true };
+    }
+    return { enabled: Boolean(row.enabled), alertRow: row };
+  } catch (e) {
+    return { enabled: true };
+  }
+}
 
 const ALERTS_TRACKER_FILE = path.join(process.cwd(), 'jev', 'alerts_sent.json');
 
@@ -334,6 +354,12 @@ export async function checkAndSendJevSignalAlert(
       return { sent: false, reason: 'Does not match signal criteria' };
     }
 
+    const { enabled, alertRow } = getJevAlertRule();
+    if (!enabled) {
+      console.log(`[JEV TELEGRAM ALERT] ⏸️ Skipped sending (${filename}) — UP/DOWN alert is PAUSED in /alerts dashboard.`);
+      return { sent: false, reason: 'Alert is paused in dashboard' };
+    }
+
     const sentSet = loadSentAlerts();
     if (sentSet.has(filename)) {
       return { sent: false, reason: 'Already alerted for this file' };
@@ -368,12 +394,26 @@ export async function checkAndSendJevSignalAlert(
       openPrice
     );
 
+    const botToken = alertRow?.telegram_token || JEV_TELEGRAM_BOT_TOKEN;
+    const chatId = alertRow?.telegram_chat || JEV_TELEGRAM_CHAT_ID;
+
     console.log(`[JEV TELEGRAM ALERT] Firing ${signal.type} alert for ${record.coin || 'BTC'} (${filename})...`);
-    const ok = await sendTelegram(JEV_TELEGRAM_BOT_TOKEN, JEV_TELEGRAM_CHAT_ID, message);
+    const ok = await sendTelegram(botToken, chatId, message);
 
     if (ok) {
       saveSentAlert(filename);
-      console.log(`[JEV TELEGRAM ALERT] ✅ Alert successfully delivered to Telegram chat ${JEV_TELEGRAM_CHAT_ID}!`);
+      console.log(`[JEV TELEGRAM ALERT] ✅ Alert successfully delivered to Telegram chat ${chatId}!`);
+      if (alertRow?.id) {
+        try {
+          const db = getDb();
+          const now = Math.floor(Date.now() / 1000);
+          db.prepare(`UPDATE alerts SET last_fired_at = ?, last_evaluated_at = ? WHERE id = ?`).run(now, now, alertRow.id);
+          const alertSeenKey = `${record.coin || 'BTC'}_${filename}`;
+          db.prepare(`INSERT OR IGNORE INTO alert_seen (alert_id, wallet, fired_at) VALUES (?, ?, ?)`).run(alertRow.id, alertSeenKey, now);
+        } catch (dbErr) {
+          console.error('[JEV TELEGRAM ALERT] Error updating alerts stats in DB:', dbErr);
+        }
+      }
       return { sent: true };
     } else {
       console.error(`[JEV TELEGRAM ALERT] ❌ Telegram API call failed for file ${filename}`);

@@ -40,8 +40,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           ? `🥇 <b>Test alert: ${alert.name}</b>\nGold-starred wallets position-open alert wiring works.`
           : alert.alert_type === 'starred_open'
           ? `⭐ <b>Test alert: ${alert.name}</b>\nWatchlist position-open alert wiring works.`
-          : alert.alert_type === 'updown'
-          ? `📈 <b>Test alert: ${alert.name}</b>\nUP/DOWN signal alert wiring works. Fires when both Fair-Value-1H and Base(no-drift) beat the Up ask (BUY) or 1 − Up bid (SELL) plus the taker fee by at least 1¢, on a book at most 4¢ wide.`
+          : alert.alert_type === 'updown' || alert.alert_type === 'jev'
+          ? `📈 <b>تست هشدار: ${alert.name}</b>\nاتصال بات تلگرام با سیستم سیگنال‌های UP/DOWN و مدل‌های هوش مصنوعی (Jev + Kev + Span) با موفقیت تأیید شد ✅\nوضعیت در پنل: <b>${alert.enabled ? 'روشن (ACTIVE)' : 'متوقف (PAUSED)'}</b>`
           : `🔔 <b>Test alert: ${alert.name}</b>\nRule: first-ever trade within ${alert.hours}h &amp; max bet ≥ $${alert.min_bet.toLocaleString()}\nIf you can read this, the Telegram wiring works.`;
       const ok = await sendTelegram(alert.telegram_token, alert.telegram_chat, sample);
       return NextResponse.json({ ok, sent: ok }, { status: ok ? 200 : 502 });
