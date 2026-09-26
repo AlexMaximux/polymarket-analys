@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { parseWallet } from '@/lib/validate';
 import { getDb } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
@@ -18,11 +19,8 @@ async function getLlm() {
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ wallet: string }> }) {
-  const { wallet: rawWallet } = await params;
-  const wallet = rawWallet.toLowerCase();
-  if (!/^0x[a-f0-9]{40}$/.test(wallet)) {
-    return NextResponse.json({ error: 'valid wallet required' }, { status: 400 });
-  }
+  const wallet = parseWallet((await params).wallet);
+  if (!wallet) return NextResponse.json({ error: 'valid wallet required' }, { status: 400 });
   const llm = await getLlm();
   if (!llm) return NextResponse.json({ error: 'LLM not configured — set it in Settings' }, { status: 400 });
 
@@ -132,7 +130,8 @@ ${JSON.stringify(brief)}`;
 }
 
 export async function GET(request: Request, { params }: { params: Promise<{ wallet: string }> }) {
-  const { wallet } = await params;
+  const wallet = parseWallet((await params).wallet);
+  if (!wallet) return NextResponse.json({ error: 'valid wallet required' }, { status: 400 });
   const db = getDb();
   db.exec(`CREATE TABLE IF NOT EXISTS wallet_analyses_v2 (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

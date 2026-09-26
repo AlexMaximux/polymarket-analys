@@ -43,16 +43,16 @@ describe('leaderboard fallback and minTrades filter', () => {
     });
 
     const req = new Request('http://localhost/api/users/0xunknown');
-    const res = await getWallet(req, { params: Promise.resolve({ wallet: '0xunknown' }) });
+    const res = await getWallet(req, { params: Promise.resolve({ wallet: '0x00000000000000000000000000000000000000aa' }) });
     const data = await res.json();
 
     expect(data.isLiveFallback).toBe(true);
     expect(data.trades.length).toBe(1);
-    expect(data.user.wallet).toBe('0xunknown');
+    expect(data.user.wallet).toBe('0x00000000000000000000000000000000000000aa');
     expect(data.user.trade_count).toBe(1);
 
     // Should have been inserted into DB
-    const dbUser = db.prepare('SELECT * FROM users WHERE wallet = ?').get('0xunknown');
+    const dbUser = db.prepare('SELECT * FROM users WHERE wallet = ?').get('0x00000000000000000000000000000000000000aa');
     expect(dbUser).toBeDefined();
   });
 });

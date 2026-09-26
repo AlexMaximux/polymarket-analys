@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { parseWallet } from '@/lib/validate';
 import { getDb } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
@@ -14,7 +15,8 @@ export const dynamic = 'force-dynamic';
  * Returns rows newest-first with title/slug/conditionId for search + deep links.
  */
 export async function GET(request: Request, { params }: { params: Promise<{ wallet: string }> }) {
-  const { wallet } = await params;
+  const wallet = parseWallet((await params).wallet);
+  if (!wallet) return NextResponse.json({ error: 'valid wallet required' }, { status: 400 });
   const { searchParams } = new URL(request.url);
   const limit = Math.min(parseInt(searchParams.get('limit') || '500'), 5000);
 

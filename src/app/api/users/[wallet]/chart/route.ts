@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
+import { parseWallet } from '@/lib/validate';
 import { getDb } from '@/lib/db';
 import { buildChartSeries } from '@/lib/chart';
 
 export async function GET(request: Request, { params }: { params: Promise<{ wallet: string }> }) {
-  const { wallet } = await params;
+  const wallet = parseWallet((await params).wallet);
+  if (!wallet) return NextResponse.json({ error: 'valid wallet required' }, { status: 400 });
   const db = getDb();
   
   let trades = db.prepare('SELECT * FROM trades WHERE proxyWallet = ? ORDER BY timestamp ASC').all(wallet) as any[];

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { parseWallet } from '@/lib/validate';
 import { getDb } from '@/lib/db';
 
 export const revalidate = 300; // Cache for 5 mins
@@ -13,7 +14,8 @@ export const revalidate = 300; // Cache for 5 mins
  */
 
 export async function GET(request: Request, { params }: { params: Promise<{ wallet: string }> }) {
-  const { wallet } = await params;
+  const wallet = parseWallet((await params).wallet);
+  if (!wallet) return NextResponse.json({ error: 'valid wallet required' }, { status: 400 });
   const db = getDb();
   try {
     const res = await fetch(

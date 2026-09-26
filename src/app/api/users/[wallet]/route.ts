@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
+import { parseWallet } from '@/lib/validate';
 import { getDb } from '@/lib/db';
 
 export async function GET(request: Request, { params }: { params: Promise<{ wallet: string }> }) {
-  const { wallet } = await params;
+  const wallet = parseWallet((await params).wallet);
+  if (!wallet) return NextResponse.json({ error: 'valid wallet required' }, { status: 400 });
   const db = getDb();
   
   let user = db.prepare('SELECT * FROM users WHERE wallet = ?').get(wallet) as any;

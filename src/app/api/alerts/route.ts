@@ -1,18 +1,21 @@
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
+import { maskSecret } from '@/lib/secrets';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   const db = getDb();
-  const alerts = db
+  const rows = db
     .prepare(
       `SELECT a.*,
               (SELECT COUNT(*) FROM alert_seen s WHERE s.alert_id = a.id) as fired_count,
               (SELECT COUNT(*) FROM alert_wallets w WHERE w.alert_id = a.id) as wallet_count
        FROM alerts a ORDER BY a.id`
     )
-    .all();
+    .all() as Array<Record<string, unknown> & { telegram_token: string }>;
+  // Bot tokens stay server-side: anyone holding one controls the bot.
+  const alerts = rows.map(({ telegram_token, ...rest }) => ({ ...rest, telegram_token_masked: maskSecret(telegram_token) }));
   return NextResponse.json({ alerts });
 }
 

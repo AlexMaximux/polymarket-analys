@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { parseWallet } from '@/lib/validate';
 
 export const revalidate = 300; // Cache for 5 mins
 
@@ -8,7 +9,8 @@ export const revalidate = 300; // Cache for 5 mins
  * Points are CUMULATIVE PnL snapshots (not deltas). Windows: 1d(1h) / 1w(1h) / 1m(1d) / all(1d).
  */
 export async function GET(request: Request, { params }: { params: Promise<{ wallet: string }> }) {
-  const { wallet } = await params;
+  const wallet = parseWallet((await params).wallet);
+  if (!wallet) return NextResponse.json({ error: 'valid wallet required' }, { status: 400 });
   const { searchParams } = new URL(request.url);
   const interval = searchParams.get('interval') || '1d';
   const fidelity = interval === '1d' ? '1h' : interval === '1w' ? '1h' : '1d';

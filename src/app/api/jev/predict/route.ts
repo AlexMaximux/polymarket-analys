@@ -1,13 +1,8 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
-import {
-  generateJevSnapshot,
-  callJevDecision,
-  callMultiModelDecisions,
-  saveHistoricalJevRecord,
-  OPENROUTER_API_KEY,
-} from '@/lib/jevSnapshot';
+import { generateJevSnapshot, callMultiModelDecisions, saveHistoricalJevRecord } from '@/lib/jevSnapshot';
+import { isJevCoin } from '@/lib/coins';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,31 +16,17 @@ export async function GET(req: Request) {
 
 async function handlePredict(req: Request) {
   try {
-    let apiKey = OPENROUTER_API_KEY;
-    let force = req.method === 'POST';
-    let coin = 'btc';
-
+    // POST = manual refresh (forces a paid model call); GET only serves cache or refreshes a stale one.
+    // The API key always comes from server settings, never from the request.
+    const force = req.method === 'POST';
+    const { searchParams } = new URL(req.url);
+    let coin = (searchParams.get('coin') || 'btc').toLowerCase();
     if (req.method === 'POST') {
-      try {
-        const body = await req.json();
-        if (body.apiKey && typeof body.apiKey === 'string' && body.apiKey.trim()) {
-          apiKey = body.apiKey.trim();
-        }
-        if (body.force) force = true;
-        if (body.coin && typeof body.coin === 'string') coin = body.coin.toLowerCase();
-      } catch {}
-    } else {
-      const { searchParams } = new URL(req.url);
-      const k = searchParams.get('apiKey');
-      if (k && k.trim()) {
-        apiKey = k.trim();
-      }
-      if (searchParams.get('force') === 'true' || searchParams.get('force') === '1') {
-        force = true;
-      }
-      if (searchParams.get('coin')) {
-        coin = searchParams.get('coin')!.toLowerCase();
-      }
+      const body = await req.json().catch(() => null);
+      if (body && typeof body.coin === 'string') coin = body.coin.toLowerCase();
+    }
+    if (!isJevCoin(coin)) {
+      return NextResponse.json({ error: `unknown coin: ${coin}` }, { status: 400 });
     }
 
     const coinPath = path.join(process.cwd(), 'jev', `${coin}_updown.json`);
@@ -90,7 +71,7 @@ async function handlePredict(req: Request) {
 
     // Otherwise, generate fresh snapshot and query multi-models (Jev, Kev-4b, Span-01) automatically
     const data = await generateJevSnapshot(coin);
-    const multiPredictions = await callMultiModelDecisions(data, apiKey);
+    const multiPredictions = await callMultiModelDecisions(data);
     const { filename, fullRecord } = saveHistoricalJevRecord(data, multiPredictions, force);
 
     return NextResponse.json({

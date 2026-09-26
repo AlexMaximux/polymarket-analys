@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
+import { isHttpUrl } from '@/lib/validate';
+import { pingLlm } from '@/lib/llmPing';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,23 +30,13 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: 'baseUrl, apiKey and model are required' }, { status: 400 });
   }
 
-  // test the connection before saving
-  let testOk = false;
-  let testError = '';
-  try {
-    const res = await fetch(`${baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ model, stream: false, max_tokens: 5, messages: [{ role: 'user', content: 'ping' }] }),
-      signal: AbortSignal.timeout(20_000),
-    });
-    testOk = res.ok;
-    if (!res.ok) testError = `HTTP ${res.status}: ${(await res.text()).slice(0, 160)}`;
-  } catch (e: any) {
-    testError = e?.message || 'connection failed';
+  if (!isHttpUrl(baseUrl)) {
+    return NextResponse.json({ error: 'baseUrl must be an http:// or https:// URL' }, { status: 400 });
   }
-  if (!testOk) {
-    return NextResponse.json({ ok: false, testError }, { status: 400 });
+  // test the connection before saving
+  const test = await pingLlm(baseUrl, apiKey, model);
+  if (!test.ok) {
+    return NextResponse.json({ ok: false, testError: test.error }, { status: 400 });
   }
 
   const db = getDb();
