@@ -30,6 +30,7 @@ import {
   ArrowUp,
   ArrowDown,
   Printer,
+  Zap,
 } from "lucide-react";
 
 export interface SignalMarkerConfig {
@@ -196,6 +197,9 @@ interface JevFileRecord {
   // Market Resolution & Outcome
   market_slug?: string | null;
   market_outcome?: "UP" | "DOWN" | "PENDING" | null;
+
+  // Hourly signal deduplication metadata
+  is_first_hourly_signal?: boolean;
 }
 
 export function evaluateSignalOutcome(r: JevFileRecord, cfg: SignalMarkerConfig): {
@@ -349,26 +353,40 @@ const ALL_COLUMNS: ColumnDef[] = [
       const sig = evaluateSignal(r, cfg || DEFAULT_SIGNAL_CONFIG);
       if (!sig) return <span className="text-[#5d628f]">—</span>;
       return (
-        <span
-          className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold border shadow-sm"
-          style={{
-            color: sig.color,
-            borderColor: `${sig.borderColor}60`,
-            backgroundColor: sig.bgColor,
-          }}
-        >
-          <span className="font-bold">✓</span>
-          {sig.type === "BULLISH" ? "سیگنال صعود (آبی)" : "سیگنال نزول (قرمز)"}
-        </span>
+        <div className="flex flex-col gap-0.5 items-start">
+          <span
+            className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold border shadow-sm"
+            style={{
+              color: sig.color,
+              borderColor: `${sig.borderColor}60`,
+              backgroundColor: sig.bgColor,
+            }}
+          >
+            <span className="font-bold">✓</span>
+            {sig.type === "BULLISH" ? "سیگنال صعود (آبی)" : "سیگنال نزول (قرمز)"}
+          </span>
+          {r.is_first_hourly_signal ? (
+            <span className="text-[10px] text-amber-300 font-semibold flex items-center gap-0.5 pr-1" title="اولین سیگنال صادر شده در این ساعت (کندل ۱ ساعته)">
+              <Zap className="w-2.5 h-2.5 text-amber-400" />
+              اولین سیگنال ساعت
+            </span>
+          ) : (
+            <span className="text-[10px] text-[#5d628f] pr-1" title="سیگنال تکراری با جهت یکسان در این ساعت">
+              تکرار در ساعت
+            </span>
+          )}
+        </div>
       );
     },
     exportVal: (r, cfg) => {
       const sig = evaluateSignal(r, cfg || DEFAULT_SIGNAL_CONFIG);
-      return sig ? sig.label : "";
+      if (!sig) return "";
+      return `${sig.label} ${r.is_first_hourly_signal ? "(اولین سیگنال ساعت)" : "(تکرار در ساعت)"}`;
     },
     sortVal: (r, cfg) => {
       const sig = evaluateSignal(r, cfg || DEFAULT_SIGNAL_CONFIG);
-      return sig ? (sig.type === "BULLISH" ? 2 : 1) : 0;
+      if (!sig) return 0;
+      return r.is_first_hourly_signal ? (sig.type === "BULLISH" ? 4 : 3) : (sig.type === "BULLISH" ? 2 : 1);
     },
   },
   {
@@ -1086,12 +1104,14 @@ export default function JevAnalysisPage() {
     | "UP"
     | "DOWN"
     | "SIGNALS"
+    | "FIRST_HOURLY_SIGNAL"
     | "WINS"
     | "LOSSES"
     | "CONSENSUS_3_UP"
     | "CONSENSUS_3_DOWN"
     | "CONSENSUS_3_3"
   >("ALL");
+  const [onlyFirstHourlySignal, setOnlyFirstHourlySignal] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFileForModal, setSelectedFileForModal] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState<string | null>(null);
@@ -1229,6 +1249,7 @@ export default function JevAnalysisPage() {
       setEndHour(null);
       setActiveIntervalPreset("ALL");
       setDirFilter("ALL");
+      setOnlyFirstHourlySignal(false);
       setSaveStatus("تمام تنظیمات به حالت اولیه بازنشانی شد");
       setTimeout(() => setSaveStatus(null), 3000);
     }
@@ -1359,53 +1380,91 @@ export default function JevAnalysisPage() {
     }
   };
 
-  // Base Filtered dataset (before direction/signal filter)
-  const baseFilteredData = useMemo(() => {
-    return data.filter((row) => {
-      // Date filter
-      if (dateFilter !== "ALL") {
-        if (!row.et_time.startsWith(dateFilter)) return false;
-      }
+  // Pre-calculate which records are the FIRST signal of their hour (with the same direction)
+  const firstHourlySignalFilenames = useMemo(() => {
+    // Sort chronologically (oldest first)
+    const chrono = [...data].sort((a, b) => {
+      const tA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+      const tB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+      if (tA && tB) return tA - tB;
+      return a.filename.localeCompare(b.filename);
+    });
 
-      // Hour interval filter
-      if (startHour != null && endHour != null) {
-        try {
-          const timePart = row.et_time.split(" ")[1];
-          if (timePart) {
-            const h = parseInt(timePart.split(":")[0], 10);
-            if (h < startHour || h >= endHour) return false;
-          }
-        } catch {
-          return false;
+    const seenGroup = new Set<string>();
+    const firstFiles = new Set<string>();
+
+    chrono.forEach((r) => {
+      const outcome = evaluateSignalOutcome(r, signals);
+      if (outcome.hasSignal && outcome.signalDirection) {
+        const hourMatch = r.filename?.match(/^([a-z0-9]+)_updown_(\d{4}-\d{2}-\d{2}_\d{2})/i);
+        const fallbackHour = hourMatch
+          ? `${hourMatch[1].toUpperCase()}_${hourMatch[2]}`
+          : r.et_time?.slice(0, 13) || r.filename;
+        const marketKey = r.market_slug ? `${r.coin || "BTC"}_${r.market_slug}` : fallbackHour;
+        const groupKey = `${marketKey}_${outcome.signalDirection}`;
+
+        if (!seenGroup.has(groupKey)) {
+          seenGroup.add(groupKey);
+          firstFiles.add(r.filename);
         }
       }
-
-      // Text search
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase().trim();
-        const matchTime = row.et_time?.toLowerCase().includes(q);
-        const matchFile = row.filename?.toLowerCase().includes(q);
-        const matchScore = row.score?.toString().includes(q);
-
-        const dirs = [row.direction, row.kev_direction, row.span_direction].filter(Boolean);
-        const ups = dirs.filter((d) => d === "UP").length;
-        const downs = dirs.filter((d) => d === "DOWN").length;
-        const is3Up = ups === 3;
-        const is3Down = downs === 3;
-
-        const matchConsensus =
-          (row.consensus_summary?.toLowerCase().includes(q) ?? false) ||
-          (q === "3/3" && (is3Up || is3Down)) ||
-          ((q.includes("3/3") || q === "up" || q === "صعود") && is3Up) ||
-          ((q.includes("3/3") || q === "down" || q === "نزول") && is3Down);
-
-        const matchDir = row.direction?.toLowerCase() === q;
-        if (!matchTime && !matchFile && !matchScore && !matchConsensus && !matchDir) return false;
-      }
-
-      return true;
     });
-  }, [data, dateFilter, startHour, endHour, searchQuery]);
+
+    return firstFiles;
+  }, [data, signals]);
+
+  // Base Filtered dataset (before direction/signal filter)
+  const baseFilteredData = useMemo(() => {
+    return data
+      .map((r) => ({
+        ...r,
+        is_first_hourly_signal: firstHourlySignalFilenames.has(r.filename),
+      }))
+      .filter((row) => {
+        // Date filter
+        if (dateFilter !== "ALL") {
+          if (!row.et_time.startsWith(dateFilter)) return false;
+        }
+
+        // Hour interval filter
+        if (startHour != null && endHour != null) {
+          try {
+            const timePart = row.et_time.split(" ")[1];
+            if (timePart) {
+              const h = parseInt(timePart.split(":")[0], 10);
+              if (h < startHour || h >= endHour) return false;
+            }
+          } catch {
+            return false;
+          }
+        }
+
+        // Text search
+        if (searchQuery.trim()) {
+          const q = searchQuery.toLowerCase().trim();
+          const matchTime = row.et_time?.toLowerCase().includes(q);
+          const matchFile = row.filename?.toLowerCase().includes(q);
+          const matchScore = row.score?.toString().includes(q);
+
+          const dirs = [row.direction, row.kev_direction, row.span_direction].filter(Boolean);
+          const ups = dirs.filter((d) => d === "UP").length;
+          const downs = dirs.filter((d) => d === "DOWN").length;
+          const is3Up = ups === 3;
+          const is3Down = downs === 3;
+
+          const matchConsensus =
+            (row.consensus_summary?.toLowerCase().includes(q) ?? false) ||
+            (q === "3/3" && (is3Up || is3Down)) ||
+            ((q.includes("3/3") || q === "up" || q === "صعود") && is3Up) ||
+            ((q.includes("3/3") || q === "down" || q === "نزول") && is3Down);
+
+          const matchDir = row.direction?.toLowerCase() === q;
+          if (!matchTime && !matchFile && !matchScore && !matchConsensus && !matchDir) return false;
+        }
+
+        return true;
+      });
+  }, [data, dateFilter, startHour, endHour, searchQuery, firstHourlySignalFilenames]);
 
   // Data with direction/signal filters applied (for table display)
   const filteredData = useMemo(() => {
@@ -1415,6 +1474,10 @@ export default function JevAnalysisPage() {
       if (dirFilter === "SIGNALS") {
         const out = evaluateSignalOutcome(row, signals);
         if (!out.hasSignal) return false;
+      }
+      if (dirFilter === "FIRST_HOURLY_SIGNAL") {
+        const out = evaluateSignalOutcome(row, signals);
+        if (!out.hasSignal || !row.is_first_hourly_signal) return false;
       }
       if (dirFilter === "WINS") {
         const out = evaluateSignalOutcome(row, signals);
@@ -1438,9 +1501,18 @@ export default function JevAnalysisPage() {
         const downs = dirs.filter((d) => d === "DOWN").length;
         if (ups !== 3 && downs !== 3) return false;
       }
+
+      // Checkbox filter: If onlyFirstHourlySignal is active, hide any subsequent identical signal in the same hour
+      if (onlyFirstHourlySignal) {
+        const out = evaluateSignalOutcome(row, signals);
+        if (out.hasSignal && !row.is_first_hourly_signal) {
+          return false;
+        }
+      }
+
       return true;
     });
-  }, [baseFilteredData, dirFilter, signals]);
+  }, [baseFilteredData, dirFilter, signals, onlyFirstHourlySignal]);
 
   // Chronological data for charting (oldest to newest)
   const chartData = useMemo(() => {
@@ -3295,14 +3367,26 @@ export default function JevAnalysisPage() {
           <div className="h-4 w-[1px] bg-white/10 mx-0.5 hidden sm:block" />
           <button
             onClick={() => setDirFilter("SIGNALS")}
-            title={`${stats.signalCount} سیگنال منحصربه‌فرد ۱ ساعته (تجمیع‌شده از ${stats.rawSignalSnapshots} اسنپ‌شات ۵ دقیقه‌ای در کندل‌های ساعتی)`}
+            title={`نمایش تمام اسنپ‌شات‌های دارای سیگنال (${stats.rawSignalSnapshots} اسنپ‌شات ۵ دقیقه‌ای)`}
             className={`text-xs px-2.5 py-1 rounded-md transition-all ${
               dirFilter === "SIGNALS"
                 ? "bg-[#38bdf8]/20 text-[#38bdf8] font-semibold border border-[#38bdf8]/40"
                 : "text-[#8b91c5] hover:text-[#38bdf8]"
             }`}
           >
-            🎯 دارای سیگنال ({stats.signalCount} ساعتی)
+            🎯 تمام سیگنال‌ها ({stats.rawSignalSnapshots})
+          </button>
+          <button
+            onClick={() => setDirFilter("FIRST_HOURLY_SIGNAL")}
+            title="فقط اولین سیگنال صادر شده در هر ساعت (حذف سیگنال‌های تکراری با جهت یکسان در همان ساعت)"
+            className={`text-xs px-2.5 py-1 rounded-md transition-all flex items-center gap-1.5 ${
+              dirFilter === "FIRST_HOURLY_SIGNAL"
+                ? "bg-amber-500/25 text-amber-300 font-semibold border border-amber-500/50 shadow-sm"
+                : "text-[#8b91c5] hover:text-amber-300"
+            }`}
+          >
+            <Zap className="w-3 h-3 text-amber-400" />
+            <span>⚡ اولین سیگنال هر ساعت ({stats.signalCount})</span>
           </button>
           <button
             onClick={() => setDirFilter("WINS")}
@@ -3343,6 +3427,26 @@ export default function JevAnalysisPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* Checkbox: Hide Duplicate Hourly Signals */}
+          <label
+            className={`flex items-center gap-1.5 text-xs cursor-pointer select-none px-2.5 py-1 rounded-lg border transition-all ${
+              onlyFirstHourlySignal
+                ? "bg-amber-500/15 text-amber-300 border-amber-500/40 font-medium"
+                : "bg-white/[0.04] text-[#8b91c5] border-white/[0.08] hover:bg-white/[0.08] hover:text-white"
+            }`}
+            title="عدم نمایش سیگنال‌های تکراری با جهت یکسان در طول همان ساعت (فقط اولین اسنپ‌شات سیگنال‌دار در هر ساعت نمایش داده می‌شود)"
+          >
+            <input
+              type="checkbox"
+              checked={onlyFirstHourlySignal}
+              onChange={(e) => setOnlyFirstHourlySignal(e.target.checked)}
+              className="rounded border-white/20 bg-[#0d0f22] text-[#38bdf8] focus:ring-0 focus:ring-offset-0 cursor-pointer w-3.5 h-3.5"
+            />
+            <span className="flex items-center gap-1">
+              <Zap className="w-3 h-3 text-amber-400" />
+              <span>فقط اولین سیگنال ساعت (حذف تکراری‌های هم‌جهت)</span>
+            </span>
+          </label>
           {sortConfig && (
             <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#38bdf8]/15 border border-[#38bdf8]/30 text-[#38bdf8] text-xs font-medium animate-in fade-in">
               <span>
