@@ -1,5 +1,6 @@
 import { getDb } from './db';
 import { fetchUpdownSnapshot } from './updownSnapshot';
+import { updownSignal } from './updownSignal';
 
 /**
  * Alert engine. Two rule types:
@@ -127,16 +128,19 @@ export async function formatPositionMessage(alert: AlertRow, events: any[]): Pro
 }
 
 
-/** updown rule: BOTH Fair-Value-1H and Base(no-drift) on the same side of the 1H market UP price → SELL/BUY signal, target = Base. */
+/**
+ * updown rule: BOTH Fair-Value-1H and Base(no-drift) beat the executable price (Up ask for BUY,
+ * Down ask = 1 − Up bid for SELL) plus the taker fee by ≥1¢, on a book ≤4¢ wide (see updownSignal).
+ * HYPE is excluded: its 1H books are ~33¢ wide and its midpoint is not a tradeable price.
+ */
 async function evaluateUpdownAlert(alert: AlertRow): Promise<any[]> {
   const coins: [string, string][] = [
     ['btc', 'Bitcoin'], ['eth', 'Ethereum'], ['sol', 'Solana'], ['xrp', 'XRP'],
-    ['doge', 'Dogecoin'], ['hype', 'Hyperliquid'], ['bnb', 'BNB'],
+    ['doge', 'Dogecoin'], ['bnb', 'BNB'],
   ];
   const db = getDb();
   const now = Math.floor(Date.now() / 1000);
   const COOLDOWN = 30 * 60;
-  const MIN_EDGE_CENTS = 1.5;
   const out: any[] = [];
   for (const [coin, label] of coins) {
     try {
@@ -146,23 +150,18 @@ async function evaluateUpdownAlert(alert: AlertRow): Promise<any[]> {
       if (!m1h || m1h.closed || !m1h.accepting) continue;
       const fv1h = Number(model?.fairUp);
       const base = Number(modelA?.fairUp);
-      // live CLOB midpoint first — Gamma outcomePrices (m1h.up) lags the book by minutes
-      const marketUp = Number(m1h.live ?? m1h.up);
-      if (!isFinite(fv1h) || !isFinite(base) || !isFinite(marketUp) || marketUp <= 0 || marketUp >= 1) continue;
-      const bothBelow = fv1h < marketUp && base < marketUp;
-      const bothAbove = fv1h > marketUp && base > marketUp;
-      if (!bothBelow && !bothAbove) continue;
-      const closerGap = Math.min(Math.abs(marketUp - fv1h), Math.abs(marketUp - base)) * 100;
-      if (closerGap < MIN_EDGE_CENTS) continue;
-      const side = bothBelow ? 'SELL' : 'BUY';
+      const book = m1h.book;
+      const sig = updownSignal({ fv1h, base, bid: book?.bid ?? null, ask: book?.ask ?? null, mid: m1h.live ?? null });
+      if (!sig) continue;
       // per-alert cooldown per coin+side
-      const key = `${coin}:${side}`;
+      const key = `${coin}:${sig.side}`;
       const seen = db.prepare(`SELECT 1 FROM alert_seen WHERE alert_id = ? AND wallet = ? AND fired_at > ?`).get(alert.id, `ud:${key}`, now - COOLDOWN);
       if (seen) continue;
       out.push({
-        coin, label, side,
-        fv1h: fv1h * 100, base: base * 100, marketUp: marketUp * 100,
-        target: base * 100,
+        coin, label, side: sig.side,
+        fv1h: fv1h * 100, base: base * 100,
+        bid: book.bid * 100, ask: book.ask * 100,
+        entry: sig.entry * 100, fee: sig.fee * 100, fair: sig.fair * 100, netEdge: sig.netEdge * 100,
         slug: m1h.slug,
         seenKey: `ud:${key}`,
       });
@@ -174,12 +173,12 @@ async function evaluateUpdownAlert(alert: AlertRow): Promise<any[]> {
 function formatUpdownMessage(alert: AlertRow, signals: any[]): string {
   const lines = signals.map((s: any) => {
     const arrow = s.side === 'SELL' ? '🔴' : '🟢';
+    const bought = s.side === 'SELL' ? 'DOWN' : 'UP';
     return (
       `${arrow} <b>UP/DOWN ${s.side} — ${s.label} 1H</b>\n` +
-      `• Market UP: <b>${s.marketUp.toFixed(1)}¢</b>\n` +
-      `• Fair Value 1H: ${s.fv1h.toFixed(1)}¢\n` +
-      `• Base (No drift): ${s.base.toFixed(1)}¢\n` +
-      `• Signal: <b>${s.side} UP</b> → target <b>${s.target.toFixed(1)}¢</b> (Base)\n` +
+      `• Book UP: bid ${s.bid.toFixed(1)}¢ / ask ${s.ask.toFixed(1)}¢\n` +
+      `• Fair Value 1H: ${s.fv1h.toFixed(1)}¢ · Base (No drift): ${s.base.toFixed(1)}¢ (UP)\n` +
+      `• Signal: <b>buy ${bought} at ${s.entry.toFixed(1)}¢</b> + fee ${s.fee.toFixed(2)}¢ vs fair ${s.fair.toFixed(1)}¢ → net edge <b>${s.netEdge.toFixed(1)}¢</b>/share, held to expiry\n` +
       `• https://polymarket.com/event/${s.slug}`
     );
   });

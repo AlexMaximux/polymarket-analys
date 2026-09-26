@@ -1,5 +1,6 @@
 import { initializeDb } from '../src/lib/db';
 import { evaluateAllAlerts } from '../src/lib/alerts';
+import { recordUpdownTicks } from '../src/lib/updownRecorder';
 
 /**
  * Alert worker: evaluates all enabled alert rules every 60s and pushes
@@ -16,6 +17,11 @@ async function alertLoop() {
       }
     } catch (err) {
       console.error(`[${new Date().toISOString()}] alert loop error:`, err);
+    }
+    try {
+      await recordUpdownTicks(); // per-minute book + fair-value ticks for executable-price backtests
+    } catch (err) {
+      console.error(`[${new Date().toISOString()}] tick recorder error:`, err);
     }
     await new Promise(r => setTimeout(r, 60000));
   }

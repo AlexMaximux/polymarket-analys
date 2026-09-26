@@ -136,7 +136,7 @@ export default function AlertsPage() {
             </div>
             {alertType === "updown" && (
               <p className="text-[11px] text-[#8b91c5] mt-2 leading-relaxed">
-                Scans all 7 coins every minute. Fires 🔴 <b className="text-[#ff9ec4]">SELL</b> when both <b>Fair Value 1H</b> and <b>Base (No drift)</b> are <b>below</b> the 1H market UP price — and 🟢 <b>BUY</b> when both are <b>above</b>. Target is always Base. 30-min cooldown per coin &amp; direction.
+                Scans BTC, ETH, SOL, XRP, DOGE and BNB every minute (HYPE skipped: its 1H book is too wide to trade). Fires 🟢 <b>BUY</b> when both <b>Fair Value 1H</b> and <b>Base (No drift)</b> beat the Up <b>ask</b> plus the taker fee by at least 1¢, and 🔴 <b className="text-[#ff9ec4]">SELL</b> (buy Down) when both beat the Down ask (1 − Up bid) plus fee the same way. Books wider than 4¢ are skipped. 30-min cooldown per coin &amp; direction. Backtests found no edge after costs, so treat alerts as informational.
               </p>
             )}
           </div>

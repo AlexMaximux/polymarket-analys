@@ -52,3 +52,6 @@ polymarket.db*
 !/jev/.gitkeep
 /public/jev/*
 !/public/jev/.gitkeep
+
+# Up/Down per-minute tick recorder output (src/lib/updownRecorder.ts)
+/ticks/
