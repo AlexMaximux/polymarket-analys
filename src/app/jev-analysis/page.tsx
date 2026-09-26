@@ -37,6 +37,7 @@ export interface SignalMarkerConfig {
   confidenceType: "score" | "direction" | "any";
   bullishColor: string;     // default "#38bdf8"
   bearishColor: string;     // default "#ef4444"
+  modelSource?: "jev" | "kev" | "span" | "consensus"; // Default "jev"
 }
 
 export const DEFAULT_SIGNAL_CONFIG: SignalMarkerConfig = {
@@ -48,6 +49,7 @@ export const DEFAULT_SIGNAL_CONFIG: SignalMarkerConfig = {
   confidenceType: "score",
   bullishColor: "#38bdf8",
   bearishColor: "#ef4444",
+  modelSource: "jev",
 };
 
 export interface SignalMatch {
@@ -59,48 +61,70 @@ export interface SignalMatch {
   borderColor: string;
   score: number;
   confidence: number;
+  sourceModel?: string;
 }
 
 export function evaluateSignal(r: JevFileRecord, cfg: SignalMarkerConfig): SignalMatch | null {
-  if (!cfg.enabled || r.score == null) return null;
+  if (!cfg.enabled) return null;
 
-  // STRICT REQUIREMENT (قانون الزامی کاربر):
-  // اطمینان حتماً باید بر مبنای Jev Score Confidence (اطمینان از اسکور) باشد
-  let conf: number | null = null;
-  if (cfg.confidenceType === "direction") {
-    conf = r.direction_confidence ?? null;
+  const modelSrc = cfg.modelSource || "jev";
+  let targetScore: number | null | undefined = null;
+  let conf: number | null | undefined = null;
+  let modelName = "Jev";
+
+  if (modelSrc === "kev") {
+    targetScore = r.kev_score;
+    conf = r.kev_confidence;
+    modelName = "Kev-4b";
+  } else if (modelSrc === "span") {
+    targetScore = r.span_score;
+    conf = r.span_confidence;
+    modelName = "Span-01";
+  } else if (modelSrc === "consensus") {
+    const scores = [r.score, r.kev_score, r.span_score].filter((s): s is number => s != null);
+    targetScore = scores.length > 0 ? Number((scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(2)) : null;
+    conf = r.consensus_agreement ?? r.score_confidence;
+    modelName = "اجماع مدل‌ها";
   } else {
-    // "score" (default) or legacy "any": strictly require score_confidence
-    conf = r.score_confidence ?? null;
+    // "jev" (default)
+    targetScore = r.score;
+    if (cfg.confidenceType === "direction") {
+      conf = r.direction_confidence ?? null;
+    } else {
+      conf = r.score_confidence ?? null;
+    }
+    modelName = "Jev";
   }
 
-  if (conf == null || isNaN(conf)) return null;
+  if (targetScore == null || conf == null || isNaN(conf)) return null;
 
-  // Bullish: Jev Score > 3.5 AND at the same time Jev Score Confidence >= 90%
-  if (r.score > cfg.bullishScore && conf >= cfg.bullishMinConf) {
+  // Bullish: Target Score > 3.5 AND at the same time Confidence >= 90%
+  if (targetScore > cfg.bullishScore && conf >= cfg.bullishMinConf) {
     return {
       type: "BULLISH",
-      label: "سیگنال صعود (تیک آبی)",
-      rule: `اسکور > ${cfg.bullishScore} و اطمینان اسکور ≥ ${cfg.bullishMinConf}%`,
+      label: `سیگنال صعود (${modelName} - تیک آبی)`,
+      rule: `اسکور ${modelName} > ${cfg.bullishScore} و اطمینان ≥ ${cfg.bullishMinConf}%`,
       color: cfg.bullishColor || "#38bdf8",
       bgColor: "rgba(56, 189, 248, 0.15)",
       borderColor: cfg.bullishColor || "#38bdf8",
-      score: r.score,
+      score: targetScore,
       confidence: conf,
+      sourceModel: modelName,
     };
   }
 
-  // Bearish: Jev Score < 0.5 AND at the same time Jev Score Confidence >= 90%
-  if (r.score < cfg.bearishScore && conf >= cfg.bearishMinConf) {
+  // Bearish: Target Score < 0.5 AND at the same time Confidence >= 90%
+  if (targetScore < cfg.bearishScore && conf >= cfg.bearishMinConf) {
     return {
       type: "BEARISH",
-      label: "سیگنال نزول (تیک قرمز)",
-      rule: `اسکور < ${cfg.bearishScore} و اطمینان اسکور ≥ ${cfg.bearishMinConf}%`,
+      label: `سیگنال نزول (${modelName} - تیک قرمز)`,
+      rule: `اسکور ${modelName} < ${cfg.bearishScore} و اطمینان ≥ ${cfg.bearishMinConf}%`,
       color: cfg.bearishColor || "#ef4444",
       bgColor: "rgba(239, 68, 68, 0.15)",
       borderColor: cfg.bearishColor || "#ef4444",
-      score: r.score,
+      score: targetScore,
       confidence: conf,
+      sourceModel: modelName,
     };
   }
 
@@ -378,30 +402,85 @@ const ALL_COLUMNS: ColumnDef[] = [
   },
   {
     id: "span_direction",
-    label: "جهت Span-01 (Direction)",
-    shortLabel: "جهت Span",
+    label: "سیگنال Span-01",
+    shortLabel: "سیگنال Span",
     category: "models",
     render: (r) =>
       r.span_direction ? (
-        <div className="flex items-center gap-1.5">
-          <span
-            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold ${
-              r.span_direction === "UP"
-                ? "bg-[#c084fc]/20 text-[#c084fc] border border-[#c084fc]/30"
-                : "bg-[#fb7185]/20 text-[#fb7185] border border-[#fb7185]/30"
-            }`}
-          >
-            {r.span_direction === "UP" ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-            {r.span_direction}
-          </span>
-          {r.span_prob_up != null && (
-            <span className="font-mono text-[11px] text-[#c084fc] font-semibold">{r.span_prob_up}% UP</span>
-          )}
-        </div>
+        <span
+          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold ${
+            r.span_direction === "UP"
+              ? "bg-[#c084fc]/20 text-[#c084fc] border border-[#c084fc]/30"
+              : "bg-[#fb7185]/20 text-[#fb7185] border border-[#fb7185]/30"
+          }`}
+        >
+          {r.span_direction === "UP" ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+          {r.span_direction}
+        </span>
       ) : (
         <span className="text-[#5d628f]">—</span>
       ),
     exportVal: (r) => r.span_direction || "",
+  },
+  {
+    id: "span_score",
+    label: "اسکور Span-01 (0 - 4)",
+    shortLabel: "اسکور Span",
+    category: "models",
+    render: (r) =>
+      r.span_score != null ? (
+        <div className="flex items-center gap-1.5">
+          <span
+            className="font-mono text-xs font-bold tabular-nums"
+            style={{
+              color:
+                r.span_score >= 3.0
+                  ? "#2ce5a7"
+                  : r.span_score >= 2.2
+                  ? "#86efac"
+                  : r.span_score >= 1.8
+                  ? "#8b91c5"
+                  : r.span_score >= 1.0
+                  ? "#ffa8b8"
+                  : "#ff6b9d",
+            }}
+          >
+            {r.span_score.toFixed(2)}
+          </span>
+          {r.span_confidence != null && (
+            <span className="text-[10px] text-[#eab308]">({r.span_confidence}%)</span>
+          )}
+          <span className="text-[10px] text-[#5d628f] hidden sm:inline">
+            {r.span_score >= 3.0
+              ? "Strong Up"
+              : r.span_score >= 2.2
+              ? "Lean Up"
+              : r.span_score >= 1.8
+              ? "Neutral"
+              : r.span_score >= 1.0
+              ? "Lean Down"
+              : "Strong Down"}
+          </span>
+        </div>
+      ) : (
+        <span className="text-[#5d628f]">—</span>
+      ),
+    exportVal: (r) => r.span_score ?? "",
+  },
+  {
+    id: "span_confidence",
+    label: "اطمینان اسکور Span-01",
+    shortLabel: "اطمینان Span",
+    category: "models",
+    render: (r) =>
+      r.span_confidence != null ? (
+        <span className="font-mono text-xs text-[#eab308] font-semibold tabular-nums">
+          {r.span_confidence}%
+        </span>
+      ) : (
+        <span className="text-[#5d628f]">—</span>
+      ),
+    exportVal: (r) => (r.span_confidence != null ? `${r.span_confidence}%` : ""),
   },
   {
     id: "span_prob_up",
@@ -621,17 +700,17 @@ const PRESETS = [
   {
     id: "multi_models",
     title: "🤖 ۳ مدل هوش مصنوعی (Jev + Kev + Span)",
-    cols: ["coin", "consensus", "direction", "score", "kev_direction", "span_direction", "up_1h"],
+    cols: ["coin", "consensus", "direction", "score", "kev_direction", "kev_score", "span_direction", "span_score", "up_1h"],
   },
   {
     id: "top3",
     title: "🌟 شاخص‌های اصلی + ۳ مدل",
-    cols: ["coin", "consensus", "direction", "score", "kev_direction", "span_direction", "up_1h"],
+    cols: ["coin", "consensus", "direction", "score", "kev_direction", "kev_score", "span_direction", "span_score", "up_1h"],
   },
   {
     id: "ai",
-    title: "🧠 مقایسه تفصیلی اسکور و درصد مدل‌ها",
-    cols: ["coin", "direction", "score", "score_confidence", "kev_direction", "kev_score", "span_direction", "span_prob_up"],
+    title: "🧠 مقایسه تفصیلی اسکور و اطمینان ۳ مدل",
+    cols: ["coin", "direction", "score", "score_confidence", "kev_direction", "kev_score", "span_direction", "span_score", "span_confidence"],
   },
   {
     id: "markets",
@@ -651,7 +730,7 @@ const PRESETS = [
   {
     id: "full",
     title: "🔍 نمایش جامع (تمام شاخص‌های ۳ مدل + بازار)",
-    cols: ["coin", "consensus", "direction", "score", "kev_direction", "span_direction", "span_prob_up", "up_1h", "fair_15m"],
+    cols: ["coin", "consensus", "direction", "score", "kev_direction", "kev_score", "span_direction", "span_score", "span_prob_up", "up_1h", "fair_15m"],
   },
 ];
 
@@ -704,7 +783,9 @@ export default function JevAnalysisPage() {
     "direction",
     "score",
     "kev_direction",
+    "kev_score",
     "span_direction",
+    "span_score",
     "up_1h",
   ]);
 
@@ -717,6 +798,8 @@ export default function JevAnalysisPage() {
     fair15m: boolean;
     up5m: boolean;
     signals: boolean;
+    kevScore: boolean;
+    spanScore: boolean;
   }>({
     score: true,
     scoreConfidence: false,
@@ -725,6 +808,8 @@ export default function JevAnalysisPage() {
     fair15m: true,
     up5m: false,
     signals: true,
+    kevScore: false,
+    spanScore: false,
   });
 
   // Signal Markers Configuration (تیک‌های شرطی آبی و قرمز روی منحنی)
@@ -858,7 +943,7 @@ export default function JevAnalysisPage() {
         localStorage.removeItem(STORAGE_KEY);
       } catch {}
       setSelectedCoin("all");
-      setSelectedColIds(["coin", "consensus", "direction", "score", "kev_direction", "span_direction", "up_1h"]);
+      setSelectedColIds(["coin", "consensus", "direction", "score", "kev_direction", "kev_score", "span_direction", "span_score", "up_1h"]);
       setVisibleCurves({
         score: true,
         scoreConfidence: false,
@@ -867,6 +952,8 @@ export default function JevAnalysisPage() {
         fair15m: true,
         up5m: false,
         signals: true,
+        kevScore: false,
+        spanScore: false,
       });
       setSignals(DEFAULT_SIGNAL_CONFIG);
       setDateFilter("ALL");
@@ -1084,6 +1171,8 @@ export default function JevAnalysisPage() {
       padding.top + plotHeight - (Math.max(0, Math.min(4, sc)) / 4) * plotHeight;
 
     const scorePoints: { x: number; y: number }[] = [];
+    const kevScorePoints: { x: number; y: number }[] = [];
+    const spanScorePoints: { x: number; y: number }[] = [];
     const scoreConfidencePoints: { x: number; y: number }[] = [];
     const up1hPoints: { x: number; y: number }[] = [];
     const up15mPoints: { x: number; y: number }[] = [];
@@ -1101,19 +1190,26 @@ export default function JevAnalysisPage() {
     chartData.forEach((d, i) => {
       const x = getX(i);
       if (d.score != null) {
-        const scY = getYScore(d.score);
-        scorePoints.push({ x, y: scY });
-        const sig = evaluateSignal(d, signals);
-        if (sig) {
-          signalMarkers.push({
-            index: i,
-            x,
-            y: scY,
-            signal: sig,
-            item: d,
-          });
-        }
+        scorePoints.push({ x, y: getYScore(d.score) });
       }
+      if (d.kev_score != null) {
+        kevScorePoints.push({ x, y: getYScore(d.kev_score) });
+      }
+      if (d.span_score != null) {
+        spanScorePoints.push({ x, y: getYScore(d.span_score) });
+      }
+
+      const sig = evaluateSignal(d, signals);
+      if (sig) {
+        signalMarkers.push({
+          index: i,
+          x,
+          y: getYScore(sig.score),
+          signal: sig,
+          item: d,
+        });
+      }
+
       if (d.score_confidence != null) scoreConfidencePoints.push({ x, y: getYPct(d.score_confidence) });
       if (d.up_1h_num != null) up1hPoints.push({ x, y: getYPct(d.up_1h_num) });
       if (d.up_15m_num != null) up15mPoints.push({ x, y: getYPct(d.up_15m_num) });
@@ -1124,6 +1220,10 @@ export default function JevAnalysisPage() {
     return {
       scorePath: generateSmoothCurve(scorePoints),
       scorePoints,
+      kevScorePath: generateSmoothCurve(kevScorePoints),
+      kevScorePoints,
+      spanScorePath: generateSmoothCurve(spanScorePoints),
+      spanScorePoints,
       scoreConfidencePath: generateSmoothCurve(scoreConfidencePoints),
       scoreConfidencePoints,
       up1hPath: generateSmoothCurve(up1hPoints),
@@ -1461,6 +1561,32 @@ export default function JevAnalysisPage() {
             </button>
 
             <button
+              onClick={() => setVisibleCurves((p) => ({ ...p, kevScore: !p.kevScore }))}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs transition-all ${
+                visibleCurves.kevScore
+                  ? "bg-[#38bdf8]/20 border-[#38bdf8] text-[#38bdf8] font-bold"
+                  : "bg-white/[0.03] border-white/[0.1] text-[#5d628f] opacity-60"
+              }`}
+              title="نمایش منحنی اسکور مدل Kev-4b (۰ تا ۴)"
+            >
+              <span className="w-2.5 h-2.5 rounded-full bg-[#38bdf8]" />
+              اسکور Kev-4b (0-4)
+            </button>
+
+            <button
+              onClick={() => setVisibleCurves((p) => ({ ...p, spanScore: !p.spanScore }))}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs transition-all ${
+                visibleCurves.spanScore
+                  ? "bg-[#e879f9]/20 border-[#e879f9] text-[#e879f9] font-bold"
+                  : "bg-white/[0.03] border-white/[0.1] text-[#5d628f] opacity-60"
+              }`}
+              title="نمایش منحنی اسکور مدل Span-01 (۰ تا ۴)"
+            >
+              <span className="w-2.5 h-2.5 rounded-full bg-[#e879f9]" />
+              اسکور Span-01 (0-4)
+            </button>
+
+            <button
               onClick={() => setVisibleCurves((p) => ({ ...p, scoreConfidence: !p.scoreConfidence }))}
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs transition-all ${
                 visibleCurves.scoreConfidence
@@ -1656,23 +1782,43 @@ export default function JevAnalysisPage() {
                 </p>
               </div>
 
-              {/* Confidence Field Source & Info */}
+              {/* Model Source & Confidence Settings */}
               <div className="bg-[#090b1a] p-3 rounded-xl border border-white/[0.1] space-y-2 flex flex-col justify-between">
-                <div>
-                  <label className="text-[#8b91c5] block mb-1 font-medium">مبنای سنجش درصد اطمینان:</label>
-                  <select
-                    value={signals.confidenceType}
-                    onChange={(e) =>
-                      setSignals((p) => ({
-                        ...p,
-                        confidenceType: e.target.value as "score" | "direction" | "any",
-                      }))
-                    }
-                    className="w-full bg-[#05060d] text-white border border-white/[0.15] rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-[#38bdf8]"
-                  >
-                    <option value="score">فقط درصد اطمینان اسکور (Score Confidence - قانون اصلی)</option>
-                    <option value="direction">فقط درصد اطمینان جهت (Direction Confidence)</option>
-                  </select>
+                <div className="space-y-2">
+                  <div>
+                    <label className="text-[#8b91c5] block mb-1 font-medium">مدل هوش‌مصنوعی مبنای سیگنال:</label>
+                    <select
+                      value={signals.modelSource || "jev"}
+                      onChange={(e) =>
+                        setSignals((p) => ({
+                          ...p,
+                          modelSource: e.target.value as "jev" | "kev" | "span" | "consensus",
+                        }))
+                      }
+                      className="w-full bg-[#05060d] text-white border border-white/[0.15] rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-[#38bdf8]"
+                    >
+                      <option value="jev">مدل Jev (انحصاری Jev - پیش‌فرض)</option>
+                      <option value="kev">مدل Kev-4b (اسکور ۰ تا ۴)</option>
+                      <option value="span">مدل Span-01 (اسکور ۰ تا ۴)</option>
+                      <option value="consensus">اجماع هر ۳ مدل (میانگین اسکور)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[#8b91c5] block mb-1 font-medium">مبنای سنجش درصد اطمینان:</label>
+                    <select
+                      value={signals.confidenceType}
+                      onChange={(e) =>
+                        setSignals((p) => ({
+                          ...p,
+                          confidenceType: e.target.value as "score" | "direction" | "any",
+                        }))
+                      }
+                      className="w-full bg-[#05060d] text-white border border-white/[0.15] rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-[#38bdf8]"
+                    >
+                      <option value="score">فقط درصد اطمینان اسکور (Score Confidence - قانون اصلی)</option>
+                      <option value="direction">فقط درصد اطمینان جهت (Direction Confidence)</option>
+                    </select>
+                  </div>
                 </div>
                 <div className="text-[11px] text-[#8b91c5] bg-white/[0.03] p-2 rounded-lg border border-white/[0.05]">
                   💡 تیک‌ها به همراه خط چین راهنما مستقیماً در صورت برقراری همزمان هر دو شرط اسکور و اطمینان اسکور رسم می‌شوند.
@@ -1848,6 +1994,30 @@ export default function JevAnalysisPage() {
                 </g>
               )}
 
+              {/* CURVE: Kev-4b Score (0-4) */}
+              {visibleCurves.kevScore && curveCoordinates?.kevScorePath && (
+                <path
+                  d={curveCoordinates.kevScorePath}
+                  fill="none"
+                  stroke="#38bdf8"
+                  strokeWidth="2.5"
+                  strokeDasharray="4 2"
+                  className="transition-all duration-300"
+                />
+              )}
+
+              {/* CURVE: Span-01 Score (0-4) */}
+              {visibleCurves.spanScore && curveCoordinates?.spanScorePath && (
+                <path
+                  d={curveCoordinates.spanScorePath}
+                  fill="none"
+                  stroke="#e879f9"
+                  strokeWidth="2.5"
+                  strokeDasharray="2 2"
+                  className="transition-all duration-300"
+                />
+              )}
+
               {/* CONDITIONAL SIGNAL MARKER PINS ON THE CURVE */}
               {visibleCurves.signals &&
                 curveCoordinates?.signalMarkers.map((marker) => {
@@ -1950,6 +2120,26 @@ export default function JevAnalysisPage() {
                           cy={padding.top + plotHeight - (pt.score / 4) * plotHeight}
                           r={isHovered ? 5 : 2.5}
                           fill={isHovered ? "#fff" : "#c084fc"}
+                          stroke="#0B1120"
+                          strokeWidth="1.5"
+                        />
+                      )}
+                      {visibleCurves.kevScore && pt.kev_score != null && (
+                        <circle
+                          cx={x}
+                          cy={padding.top + plotHeight - (pt.kev_score / 4) * plotHeight}
+                          r={isHovered ? 5 : 2.5}
+                          fill={isHovered ? "#fff" : "#38bdf8"}
+                          stroke="#0B1120"
+                          strokeWidth="1.5"
+                        />
+                      )}
+                      {visibleCurves.spanScore && pt.span_score != null && (
+                        <circle
+                          cx={x}
+                          cy={padding.top + plotHeight - (pt.span_score / 4) * plotHeight}
+                          r={isHovered ? 5 : 2.5}
+                          fill={isHovered ? "#fff" : "#e879f9"}
                           stroke="#0B1120"
                           strokeWidth="1.5"
                         />
@@ -2084,6 +2274,24 @@ export default function JevAnalysisPage() {
                       <span className="text-[#8b91c5]">اطمینان اسکور:</span>
                       <span className="font-mono text-[#eab308] font-bold tabular-nums">
                         {hoveredItem.score_confidence}%
+                      </span>
+                    </div>
+                  )}
+
+                  {hoveredItem.kev_score != null && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-[#8b91c5]">اسکور Kev-4b:</span>
+                      <span className="font-mono text-[#38bdf8] font-bold tabular-nums">
+                        {hoveredItem.kev_score.toFixed(2)} / 4.0 {hoveredItem.kev_confidence != null ? `(${hoveredItem.kev_confidence}%)` : ""}
+                      </span>
+                    </div>
+                  )}
+
+                  {hoveredItem.span_score != null && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-[#8b91c5]">اسکور Span-01:</span>
+                      <span className="font-mono text-[#e879f9] font-bold tabular-nums">
+                        {hoveredItem.span_score.toFixed(2)} / 4.0 {hoveredItem.span_confidence != null ? `(${hoveredItem.span_confidence}%)` : ""}
                       </span>
                     </div>
                   )}

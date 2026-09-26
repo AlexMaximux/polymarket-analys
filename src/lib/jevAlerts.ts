@@ -291,8 +291,10 @@ export function formatTelegramSignalMessage(
       multiModelBlock += `• <b>Kev-4b:</b> جهت <b>${preds.kev.direction || '—'}</b> (${kScore})\n`;
     }
     if (preds.span) {
-      const sProb = preds.span.prob_up != null ? `احتمال صعود: ${preds.span.prob_up}%` : '';
-      multiModelBlock += `• <b>Span-01:</b> جهت <b>${preds.span.direction || '—'}</b> (${sProb})\n`;
+      const sScore = preds.span.score != null ? `اسکور: ${Number(preds.span.score).toFixed(2)}` : '';
+      const sProb = preds.span.prob_up != null ? `${preds.span.prob_up}% UP` : '';
+      const sDetails = [sScore, sProb].filter(Boolean).join(' | ');
+      multiModelBlock += `• <b>Span-01:</b> جهت <b>${preds.span.direction || '—'}</b> (${sDetails})\n`;
     }
     if (preds.consensus?.summary) {
       multiModelBlock += `• <b>اجماع مدل‌ها:</b> <code>${preds.consensus.summary}</code>\n`;

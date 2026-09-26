@@ -44,7 +44,7 @@ async function startLoop() {
       if (!skippedDuplicate) {
         const jevDir = multi.jev ? `${multi.jev.direction} (${multi.jev.score})` : 'N/A';
         const kevDir = multi.kev ? `${multi.kev.direction} (${multi.kev.score})` : 'N/A';
-        const spanDir = multi.span ? `${multi.span.direction} (${multi.span.prob_up}% UP)` : 'N/A';
+        const spanDir = multi.span ? `${multi.span.direction} (${multi.span.score != null ? multi.span.score.toFixed(2) : 'N/A'})` : 'N/A';
         console.log(
           `[${new Date().toISOString()}] 💾 SAVED 5-MIN MULTI-MODEL RECORD -> ${filename} | Consensus: ${multi.consensus?.summary || 'N/A'} | Jev: ${jevDir} | Kev: ${kevDir} | Span: ${spanDir}`
         );
