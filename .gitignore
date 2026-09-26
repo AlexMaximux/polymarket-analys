@@ -65,3 +65,7 @@ polymarket.db*
 /research/updown/*.log
 /research/updown/.venv/
 /research/updown/__pycache__/
+
+# supervisor (scripts/supervisor.ts)
+/logs/
+/.supervisor-token

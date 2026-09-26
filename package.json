@@ -6,6 +6,7 @@
     "dev": "next dev -H 127.0.0.1 -p 8000",
     "build": "next build",
     "start": "next start -H 127.0.0.1 -p 8000",
+    "supervisor": "tsx scripts/supervisor.ts",
     "lint": "eslint",
     "seed": "tsx scripts/seed.ts",
     "crawl": "tsx scripts/crawl.ts",
