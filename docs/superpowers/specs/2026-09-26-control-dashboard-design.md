@@ -39,7 +39,7 @@ A security review of the current code found problems that must be fixed first, b
 | S2 | `GET /api/alerts` returns `telegram_token` and `telegram_chat` for every alert rule. | `src/app/api/alerts/route.ts:8` |
 | S3 | No CSRF protection. Route handlers parse JSON regardless of `Content-Type` and do not check `Origin`, so any website can POST to `localhost:8000`. | all write routes |
 | S4 | `/api/jev/predict` triggers paid OpenRouter calls through a plain GET (`?force=true`), accepts `apiKey` in the query string, and puts an unvalidated `coin` into a file path. | `src/app/api/jev/predict/route.ts` |
-| S5 | `PUT /api/llm` accepts any base URL (SSRF); the stored URL is a raw IP over plain HTTP (`http://178.104.62.47:20128/v1`), so the key and wallet data travel unencrypted to an unidentified host. | `src/app/api/llm/route.ts` |
+| S5 | `PUT /api/llm` can be called by any website (see S3) to point the server at an arbitrary URL. The configured endpoint (`http://178.104.62.47:20128/v1`) is the owner's own, restricted to this computer, and is accepted as-is. | `src/app/api/llm/route.ts` |
 | S6 | `wallet` path parameter under `/api/users/[wallet]/*` is interpolated into upstream URLs without validation. | `src/app/api/users/[wallet]/*` |
 
 Positive findings: prepared statements everywhere, no `eval`/`exec`/`dangerouslySetInnerHTML`, `.env.local` and `polymarket.db` never committed, typecheck clean, 44/44 tests pass.
@@ -58,7 +58,7 @@ Positive findings: prepared statements everywhere, no `eval`/`exec`/`dangerously
    - `apiKey` is no longer accepted from query or body; the server key from settings is used.
    - `coin` must be in the supported-coin whitelist, else 400.
    - `/updown` page manual refresh switches to `POST { coin, force: true }`.
-5. `PUT /api/llm` (and the new settings API for the same fields): base URL must use `https://`, except `http://localhost` and `http://127.0.0.1`. The existing stored value is left alone but shown with a warning on `/control`.
+5. `PUT /api/llm` (and the new settings API for the same fields): base URL must parse as an `http://` or `https://` URL; other schemes are rejected. Plain HTTP stays allowed because the owner's endpoint uses it. Cross-site abuse is blocked by the proxy guard (fix 2).
 6. All `/api/users/[wallet]/*` routes validate `wallet` against `^0x[a-f0-9]{40}$` (after lowercasing) and return 400 otherwise.
 
 ## 3. Architecture
@@ -156,7 +156,7 @@ Resolution order for `getSetting(key)`: DB value → env variable (if the key de
 | `openrouter.apiKey` | string | env `OPENROUTER_API_KEY` | yes | non-empty | jev |
 | `jev.telegramToken` | string | env `JEV_TELEGRAM_BOT_TOKEN`, then `TELEGRAM_BOT_TOKEN` | yes | `^\d+:[A-Za-z0-9_-]{20,}$` | jev |
 | `jev.telegramChat` | string | env `JEV_TELEGRAM_CHAT_ID`, then `TELEGRAM_CHAT_ID` | no | non-empty | jev |
-| `llm.baseUrl` | string | `llm_settings.base_url` | no | https, or http on localhost/127.0.0.1 | none (web reads per request) |
+| `llm.baseUrl` | string | `llm_settings.base_url` | no | valid `http://` or `https://` URL | none (web reads per request) |
 | `llm.apiKey` | string | `llm_settings.api_key` | yes | non-empty | none |
 | `llm.model` | string | `llm_settings.model` | no | non-empty | none |
 | `jev.coins` | string[] | `btc eth sol xrp doge hype bnb` | no | non-empty subset of that list | jev |
@@ -215,8 +215,7 @@ Client component, same dark visual system as existing pages (existing CSS tokens
 - **Workers panel:** one row per worker: state pill, uptime, restart count, "last cycle Ns ago" (with staleness colour), last error line, Start / Stop / Restart buttons (none for `web`). Buttons are disabled while a request is pending.
 - **Logs panel:** worker selector, last 200 lines, refreshed every 3 s while the tab is visible (`document.visibilityState`), Pause, Clear view, Download (fetches 500 lines and saves as `.log`). stderr lines highlighted.
 - **Health strip:** `polymarket.db` + WAL size, `jev/` directory size, OpenRouter credit remaining (from cached test), supervisor uptime. Served by `GET /api/control/health`.
-- **Settings panel:** groups Keys, Jev, Crawl, Alerts, Supervisor. Secret inputs show `set …ab12 (db)` as placeholder; each key has a Test button. Each group has its own Save; response toast lists restarted workers or field errors. LLM base URL that fails the https rule shows an inline warning.
-
+- **Settings panel:** groups Keys, Jev, Crawl, Alerts, Supervisor. Secret inputs show `set …ab12 (db)` as placeholder; each key has a Test button. Each group has its own Save; response toast lists restarted workers or field errors.
 Polling: status every 3 s, health every 30 s. No websockets.
 
 ## 8. API routes (Next.js)
@@ -248,7 +247,7 @@ Vitest, written before the implementation of each unit:
 - `test/supervisorWorker.test.ts`: state transitions with a fake spawner (start, unexpected exit → restarting → running, stop does not restart, crash loop → crashed, restart resets backoff).
 - `test/supervisorLogs.test.ts`: in-memory ring keeps last 500; rotation at size limit keeps 2 old files (temp dir).
 - `test/proxy.test.ts`: foreign `Origin` on POST → 403; localhost `Origin` → pass; no `Origin` → pass; GET with foreign `Origin` → pass; foreign `Host` → 403.
-- `test/securityRegressions.test.ts`: alerts GET payload has no `telegram_token`; predict rejects unknown `coin` and ignores `apiKey`; LLM base URL rule.
+- `test/securityRegressions.test.ts`: alerts GET payload has no `telegram_token`; predict rejects unknown `coin` and ignores `apiKey`; LLM base URL rejects non-http(s) schemes.
 
 Manual verification: success criteria 1–6 in section 1.
 
