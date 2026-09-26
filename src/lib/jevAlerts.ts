@@ -2,17 +2,12 @@ import fs from 'fs';
 import path from 'path';
 import { loadEnvConfig } from '@next/env';
 import { sendTelegram } from './alerts';
+import { getSetting } from './settings';
 import { getDb } from './db';
 
 try {
   loadEnvConfig(process.cwd());
 } catch {}
-
-export const JEV_TELEGRAM_BOT_TOKEN =
-  process.env.JEV_TELEGRAM_BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN || '';
-
-export const JEV_TELEGRAM_CHAT_ID =
-  process.env.JEV_TELEGRAM_CHAT_ID || process.env.TELEGRAM_CHAT_ID || '';
 
 /**
  * Check if the UP/DOWN / JEV alert rule is enabled in the database.
@@ -394,8 +389,8 @@ export async function checkAndSendJevSignalAlert(
       openPrice
     );
 
-    const botToken = alertRow?.telegram_token || JEV_TELEGRAM_BOT_TOKEN;
-    const chatId = alertRow?.telegram_chat || JEV_TELEGRAM_CHAT_ID;
+    const botToken = alertRow?.telegram_token || getSetting('jev.telegramToken');
+    const chatId = alertRow?.telegram_chat || getSetting('jev.telegramChat');
 
     console.log(`[JEV TELEGRAM ALERT] Firing ${signal.type} alert for ${record.coin || 'BTC'} (${filename})...`);
     const ok = await sendTelegram(botToken, chatId, message);

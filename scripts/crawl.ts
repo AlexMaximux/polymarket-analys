@@ -1,4 +1,5 @@
 import { runCrawlPhase } from '../src/lib/crawler';
+import { getSetting } from '../src/lib/settings';
 
 async function crawl() {
   console.log('Starting crawler loop...');
@@ -9,8 +10,8 @@ async function crawl() {
     } catch (err) {
       console.error(`[${new Date().toISOString()}] Crawl error:`, err);
     }
-    // Poll every 30s
-    await new Promise(r => setTimeout(r, 30000));
+    // Poll interval from /control settings (default 30s)
+    await new Promise(r => setTimeout(r, getSetting('crawl.intervalSec') * 1000));
   }
 }
 

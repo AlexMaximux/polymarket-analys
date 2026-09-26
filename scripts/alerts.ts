@@ -1,6 +1,7 @@
 import { initializeDb } from '../src/lib/db';
 import { evaluateAllAlerts } from '../src/lib/alerts';
 import { recordUpdownTicks } from '../src/lib/updownRecorder';
+import { getSetting } from '../src/lib/settings';
 
 /**
  * Alert worker: evaluates all enabled alert rules every 60s and pushes
@@ -9,7 +10,8 @@ import { recordUpdownTicks } from '../src/lib/updownRecorder';
  */
 async function alertLoop() {
   initializeDb();
-  console.log('Starting alert evaluation loop (every 60s)...');
+  const intervalMs = getSetting('alerts.intervalSec') * 1000;
+  console.log(`Starting alert evaluation loop (every ${intervalMs / 1000}s)...`);
   while (true) {
     try {
       const r = await evaluateAllAlerts();
@@ -19,7 +21,7 @@ async function alertLoop() {
     } catch (err) {
       console.error(`[${new Date().toISOString()}] alert loop error:`, err);
     }
-    await new Promise(r => setTimeout(r, 60000));
+    await new Promise(r => setTimeout(r, intervalMs));
   }
 }
 

@@ -10,14 +10,15 @@ import {
 } from '../src/lib/jevSnapshot';
 import { initializeAlertTracker } from '../src/lib/jevAlerts';
 import { updateMarketResolutions } from '../src/lib/marketResolver';
+import { getSetting } from '../src/lib/settings';
 
-const SNAPSHOT_INTERVAL_MS = 30000; // 30s live cache refresh
-const JEV_RECORD_INTERVAL_MS = 300000; // 5 minutes (300 seconds)
+const SNAPSHOT_INTERVAL_MS = getSetting('jev.snapshotIntervalSec') * 1000; // live cache refresh (default 30s)
+const JEV_RECORD_INTERVAL_MS = getSetting('jev.recordIntervalSec') * 1000; // multi-model record (default 5 min)
 const RESOLUTION_CHECK_INTERVAL_MS = 90000; // 90s market resolution checker (handles 10-30m UMA lag)
 
 let lastResolutionCheckTime = 0;
 
-const SUPPORTED_COINS = ['btc', 'eth', 'sol', 'xrp', 'doge', 'hype', 'bnb'];
+const SUPPORTED_COINS: string[] = getSetting('jev.coins');
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -34,8 +35,8 @@ async function startLoop() {
       const latest = getLatestHistoricalFile(coin);
       if (latest) {
         const elapsed = Date.now() - latest.timestamp;
-        if (elapsed < 240000) {
-          // Less than 4 minutes since last file for this specific coin
+        if (elapsed < JEV_RECORD_INTERVAL_MS * 0.8) {
+          // Less than 80% of the record interval since last file for this coin
           return;
         }
       }

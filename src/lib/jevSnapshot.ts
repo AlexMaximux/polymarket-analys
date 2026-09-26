@@ -3,13 +3,16 @@ import path from 'path';
 import { loadEnvConfig } from '@next/env';
 import { fetchUpdownSnapshot } from './updownSnapshot';
 import { checkAndSendJevSignalAlert } from './jevAlerts';
+import { getSetting } from './settings';
 
 try {
   loadEnvConfig(process.cwd());
 } catch {}
 
-export const OPENROUTER_API_KEY =
-  process.env.OPENROUTER_API_KEY || '';
+/** OpenRouter key from /control settings (falls back to OPENROUTER_API_KEY in .env.local). */
+function openRouterKey(apiKey?: string): string {
+  return apiKey || getSetting('openrouter.apiKey');
+}
 
 function getCard(row: any) {
   if (!row) return null;
@@ -165,7 +168,7 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 2, de
 }
 
 export async function callJevDecision(snapshotData: any, apiKey?: string) {
-  const key = apiKey || OPENROUTER_API_KEY;
+  const key = openRouterKey(apiKey);
   const coinLabel = snapshotData.coin_label || snapshotData.coin || 'Crypto';
 
   const payload = {
@@ -249,7 +252,7 @@ export async function callJevDecision(snapshotData: any, apiKey?: string) {
 }
 
 export async function callKevDecision(snapshotData: any, apiKey?: string) {
-  const key = apiKey || OPENROUTER_API_KEY;
+  const key = openRouterKey(apiKey);
   const coinLabel = snapshotData.coin_label || snapshotData.coin || 'Crypto';
 
   const payload = {
@@ -336,7 +339,7 @@ export async function callKevDecision(snapshotData: any, apiKey?: string) {
 }
 
 export async function callSpanDecision(snapshotData: any, apiKey?: string) {
-  const key = apiKey || OPENROUTER_API_KEY;
+  const key = openRouterKey(apiKey);
   const coinLabel = snapshotData.coin_label || snapshotData.coin || 'Crypto';
   const coin = (snapshotData.coin || 'Crypto').toUpperCase();
 
@@ -461,10 +464,12 @@ export async function callSpanDecision(snapshotData: any, apiKey?: string) {
 }
 
 export async function callMultiModelDecisions(snapshotData: any, apiKey?: string) {
+  const enabled = getSetting('jev.models');
+  const off = Promise.resolve(null);
   const [jevRes, kevRes, spanRes] = await Promise.allSettled([
-    callJevDecision(snapshotData, apiKey),
-    callKevDecision(snapshotData, apiKey),
-    callSpanDecision(snapshotData, apiKey),
+    enabled.jev ? callJevDecision(snapshotData, apiKey) : off,
+    enabled.kev ? callKevDecision(snapshotData, apiKey) : off,
+    enabled.span ? callSpanDecision(snapshotData, apiKey) : off,
   ]);
 
   const jev = jevRes.status === 'fulfilled' ? jevRes.value : null;
