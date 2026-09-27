@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   DEFAULT_ANALYSIS_CONFIG,
   FROZEN_STRATEGY,
+  STRATEGY_HISTORY,
   buildTrades,
   computeMetrics,
   detectSignal,
@@ -105,7 +106,7 @@ describe('buildTrades counting', () => {
 });
 
 describe('frozen strategy', () => {
-  it('keeps the agreed rule: BTC, 3/3, strict first per hour, no minute or price filter', () => {
+  it('current rule (v2): BTC, 3/3, strict first per hour, only minute 32+', () => {
     const r = FROZEN_STRATEGY.rule;
     expect(r.coins).toEqual(['BTC']);
     expect(r.model).toBe('jev');
@@ -113,7 +114,34 @@ describe('frozen strategy', () => {
     expect(r.dedupe).toBe('firstPerHour');
     expect(r.pickOrder).toBe('afterFilters');
     expect([r.bullishScore, r.bearishScore, r.bullishMinConf, r.bearishMinConf]).toEqual([3.5, 0.5, 90, 90]);
-    expect([r.minMinute, r.maxMinute, r.minEntry, r.maxEntry]).toEqual([0, 59, 0, 100]);
+    expect([r.minMinute, r.maxMinute, r.minEntry, r.maxEntry]).toEqual([32, 59, 0, 100]);
+  });
+
+  it('every history entry has a non-decreasing, non-overlapping forward window and only one open entry', () => {
+    let prevEnd = -Infinity;
+    let openCount = 0;
+    for (const s of STRATEGY_HISTORY) {
+      const start = new Date(s.frozenAt).getTime();
+      expect(start).toBeGreaterThanOrEqual(prevEnd);
+      if (s.frozenUntil == null) {
+        openCount++;
+      } else {
+        const end = new Date(s.frozenUntil).getTime();
+        expect(end).toBeGreaterThan(start);
+        prevEnd = end;
+      }
+    }
+    expect(openCount).toBe(1);
+    expect(STRATEGY_HISTORY[STRATEGY_HISTORY.length - 1]).toBe(FROZEN_STRATEGY);
+  });
+
+  it('v1 excluded no minute; v2 requires minute 32+ (the only change between versions)', () => {
+    const [v1, v2] = STRATEGY_HISTORY;
+    expect(v1.rule.minMinute).toBe(0);
+    expect(v2.rule.minMinute).toBe(32);
+    const { minMinute: _m1, ...v1Rest } = v1.rule;
+    const { minMinute: _m2, ...v2Rest } = v2.rule;
+    expect(v1Rest).toEqual(v2Rest);
   });
 });
 

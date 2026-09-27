@@ -15,6 +15,7 @@ import {
 import {
   DEFAULT_ANALYSIS_CONFIG,
   FROZEN_STRATEGY,
+  STRATEGY_HISTORY,
   LATE_MINUTE,
   MINUTE_BUCKETS,
   MIN_RESOLVED_FOR_VERDICT,
@@ -455,8 +456,10 @@ function verdictDetail(v: Verdict, m: Metrics): string {
 }
 
 // ---------- frozen strategy forward test ----------
-function FrozenCard({ before, after, afterTrades, stake, slippage, budget, onBudget }: {
-  before: Metrics; after: Metrics; afterTrades: Trade[]; stake: number; slippage: number; budget: number; onBudget: (v: number) => void;
+function FrozenCard({ before, after, afterTrades, history, stake, slippage, budget, onBudget }: {
+  before: Metrics; after: Metrics; afterTrades: Trade[];
+  history: { strategy: typeof STRATEGY_HISTORY[number]; trades: Trade[]; metrics: Metrics }[];
+  stake: number; slippage: number; budget: number; onBudget: (v: number) => void;
 }) {
   const frozenEt = new Date(FROZEN_STRATEGY.frozenAt).toLocaleString("en-US", {
     timeZone: "America/New_York", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false,
@@ -510,6 +513,37 @@ function FrozenCard({ before, after, afterTrades, stake, slippage, budget, onBud
           </ul>
         </div>
       </div>
+
+      {history.length > 1 && (
+        <div className="mt-4">
+          <div className="text-[12px] font-medium text-[#e8e8e4] mb-1.5">Rule history</div>
+          <p className="text-[11px] text-[#73757c] mb-1.5">
+            Each version is scored only on its own forward window. A closed version&rsquo;s result is final &mdash; it does not get retested under the current rule, and the current rule gets no credit for a closed version&rsquo;s trades.
+          </p>
+          <div className="space-y-2">
+            {history.map((h, i) => {
+              const closed = h.strategy.frozenUntil != null;
+              const from = new Date(h.strategy.frozenAt).toLocaleString("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
+              const to = h.strategy.frozenUntil ? new Date(h.strategy.frozenUntil).toLocaleString("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }) : "now";
+              return (
+                <div key={h.strategy.id} className="rounded-lg border border-white/[0.08] p-2.5">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <span className="text-[12px] font-medium text-[#e8e8e4]">{i + 1}. {h.strategy.name}</span>
+                    <span className={`text-[11px] px-1.5 py-0.5 rounded border ${closed ? "border-white/[0.10] text-[#73757c]" : "border-[#5fbf9a]/40 text-[#5fbf9a]"}`}>
+                      {closed ? "closed" : "current"}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-[#73757c] mt-0.5">{from} ET → {to} ET</div>
+                  <div className="text-[11px] text-[#bdbdb8] mt-1">{h.strategy.note}</div>
+                  <div className="text-[12px] font-mono mt-1.5" style={{ color: signColor(h.metrics.pnl) }}>
+                    {h.metrics.trades} trades · {h.metrics.wins}W/{h.metrics.losses}L/{h.metrics.pending}P · {pct(h.metrics.winRate)} win rate · {money(h.metrics.pnl)}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="mt-4">
         <div className="text-[12px] font-medium text-[#e8e8e4] mb-1.5">Forward signals (newest first)</div>
@@ -615,7 +649,9 @@ export default function CloudAnalysisPage() {
   const metrics = useMemo(() => computeMetrics(trades, cfg.stake), [trades, cfg.stake]);
   const verdict = verdictOf(metrics);
 
-  // Forward test of the frozen rule. Independent of the left-panel filters; only stake and slippage are shared.
+  // Forward test of the currently-active frozen rule. Independent of the left-panel filters;
+  // only stake and slippage are shared. "before" = the backtest on data that existed at freeze
+  // time (optimistic, rule was tuned against it); "after" = real forward signals since then.
   const frozen = useMemo(() => {
     const c: AnalysisConfig = { ...FROZEN_STRATEGY.rule, stake: cfg.stake, slippageCents: cfg.slippageCents };
     const t0 = new Date(FROZEN_STRATEGY.frozenAt).getTime();
@@ -628,6 +664,24 @@ export default function CloudAnalysisPage() {
       before: computeMetrics(beforeTrades, c.stake),
       after: computeMetrics(afterTrades, c.stake),
     };
+  }, [rows, cfg.stake, cfg.slippageCents]);
+
+  // Each closed/current rule in STRATEGY_HISTORY, scored only on its own forward window
+  // [frozenAt, frozenUntil). A superseded rule's window is frozen in time, so its result never
+  // changes even after the rule is retired — that is the whole point of freezing it.
+  const strategyHistory = useMemo(() => {
+    return STRATEGY_HISTORY.map((s) => {
+      const c: AnalysisConfig = { ...s.rule, stake: cfg.stake, slippageCents: cfg.slippageCents };
+      const t0 = new Date(s.frozenAt).getTime();
+      const t1 = s.frozenUntil ? new Date(s.frozenUntil).getTime() : Infinity;
+      const base = filterBaseRows(rows, c);
+      const windowRows = base.filter((r) => {
+        const t = r.timestamp ? new Date(r.timestamp).getTime() : 0;
+        return t >= t0 && t < t1;
+      });
+      const trades = buildTrades(windowRows, c);
+      return { strategy: s, trades, metrics: computeMetrics(trades, c.stake) };
+    });
   }, [rows, cfg.stake, cfg.slippageCents]);
 
   const scenarioRows = useMemo(() => {
@@ -893,6 +947,7 @@ export default function CloudAnalysisPage() {
                 before={frozen.before}
                 after={frozen.after}
                 afterTrades={frozen.afterTrades}
+                history={strategyHistory}
                 stake={cfg.stake}
                 slippage={cfg.slippageCents}
                 budget={budget}

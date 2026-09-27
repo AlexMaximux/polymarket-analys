@@ -83,21 +83,52 @@ export const DEFAULT_ANALYSIS_CONFIG: AnalysisConfig = {
   slippageCents: 0,
 };
 
-// The strategy under forward test. Do not edit the rule fields: changing them after the freeze
-// time invalidates the test. Stake and slippage stay user settings (they are money, not the rule).
-export const FROZEN_STRATEGY = {
-  name: "BTC · Jev + Kev + Span all agree · first signal per hour",
-  frozenAt: "2026-09-26T18:43:16.000Z", // 14:43 ET; only signals from snapshots at or after this count as forward results
-  rule: {
-    ...DEFAULT_ANALYSIS_CONFIG,
-    coins: ["BTC"],
-    model: "jev" as ModelSource,
-    consensus: "3of3" as ConsensusRule,
-    dedupe: "firstPerHour" as DedupeMode,
-    pickOrder: "afterFilters" as PickOrder,
+// The strategy under forward test, and its history. Each entry's `rule` is locked once `frozenAt`
+// passes: do not edit a past entry's rule, since that would rewrite the forward test after the fact.
+// To change the rule, close the current entry with `frozenUntil` and append a new one (see below).
+// Stake and slippage stay user settings on the page (they are money, not the rule).
+export interface FrozenStrategy {
+  id: string;
+  name: string;
+  note: string; // why this version exists / what changed from the last one
+  frozenAt: string; // ISO; only signals from snapshots at or after this count as forward results
+  frozenUntil: string | null; // ISO; null = current. Forward window is [frozenAt, frozenUntil).
+  rule: AnalysisConfig;
+  checkpoints: number[];
+}
+
+const baseRule = (over: Partial<AnalysisConfig>): AnalysisConfig => ({
+  ...DEFAULT_ANALYSIS_CONFIG,
+  coins: ["BTC"],
+  model: "jev",
+  consensus: "3of3",
+  dedupe: "firstPerHour",
+  pickOrder: "afterFilters",
+  ...over,
+});
+
+export const STRATEGY_HISTORY: FrozenStrategy[] = [
+  {
+    id: "v1",
+    name: "BTC · Jev + Kev + Span all agree · first signal per hour",
+    note: "First freeze. Backtest was 22W/1L (95.7%). Forward result over 23 trades came in at 19W/3L/1P (86.4%), roughly break-even — the backtest's edge did not fully hold up.",
+    frozenAt: "2026-09-26T18:43:16.000Z", // 14:43 ET
+    frozenUntil: "2026-09-27T16:53:14.000Z", // 12:53 ET Sep 27 — closed when v2 was adopted
+    rule: baseRule({}),
+    checkpoints: [10, 20, 30, 50],
   },
-  checkpoints: [10, 20, 30, 50],
-};
+  {
+    id: "v2",
+    name: "BTC · Jev + Kev + Span all agree · first signal after minute 31 of the hour",
+    note: "Added a minute filter: a signal in the first half of the hour is ignored, only the first qualifying signal at minute 32+ counts. Chosen because, in v1's own forward data, all 3 losses came from signals before minute 31 — so this is a hindsight-informed change and needs its own clean forward test, not credit for v1's history.",
+    frozenAt: "2026-09-27T16:53:14.000Z", // 12:53 ET
+    frozenUntil: null,
+    rule: baseRule({ minMinute: 32 }),
+    checkpoints: [10, 20, 30, 50],
+  },
+];
+
+export const FROZEN_STRATEGY = STRATEGY_HISTORY[STRATEGY_HISTORY.length - 1];
 
 export interface Trade {
   row: SnapshotRow;

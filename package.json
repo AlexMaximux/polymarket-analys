@@ -13,15 +13,18 @@
     "backfill": "tsx scripts/backfill.ts",
     "alerts": "tsx scripts/alerts.ts",
     "jev": "tsx scripts/jev.ts",
-    "backfill:models": "tsx scripts/backfill_models.ts"
+    "backfill:models": "tsx scripts/backfill_models.ts",
+    "bot": "tsx scripts/bot.ts"
   },
   "dependencies": {
+    "@polymarket/clob-client": "^5.8.1",
     "better-sqlite3": "^13.0.3",
     "date-fns": "^4.4.0",
     "lucide-react": "^1.41.0",
     "next": "16.3.4",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "viem": "^2.56.9"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

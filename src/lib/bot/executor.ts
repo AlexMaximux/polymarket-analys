@@ -543,6 +543,7 @@ export async function getBotStatus(): Promise<BotStatus> {
   } catch {}
 
   return {
+    enabled: getSetting('bot.enabled'),
     walletAddress: walletConfig.address,
     walletType: walletConfig.walletType,
     isConfigured: walletConfig.isConfigured,

@@ -40,8 +40,8 @@ export interface SignalMarkerConfig {
   bearishScore: number;     // e.g. 0.5
   bearishMinConf: number;   // e.g. 90
   confidenceType: "score" | "direction" | "any";
-  bullishColor: string;     // default "#38bdf8"
-  bearishColor: string;     // default "#ef4444"
+  bullishColor: string;     // default "#6aa9d8"
+  bearishColor: string;     // default "#d8646a"
   modelSource?: "jev" | "kev" | "span" | "consensus"; // Default "jev"
 }
 
@@ -52,8 +52,8 @@ export const DEFAULT_SIGNAL_CONFIG: SignalMarkerConfig = {
   bearishScore: 0.5,
   bearishMinConf: 90,
   confidenceType: "score",
-  bullishColor: "#38bdf8",
-  bearishColor: "#ef4444",
+  bullishColor: "#6aa9d8",
+  bearishColor: "#d8646a",
   modelSource: "jev",
 };
 
@@ -115,9 +115,9 @@ export function evaluateSignal(r: JevFileRecord, cfg: SignalMarkerConfig): Signa
       direction: "UP",
       label: `سیگنال صعود (${modelName} - تیک آبی)`,
       rule: `اسکور ${modelName} > ${cfg.bullishScore} و اطمینان ≥ ${cfg.bullishMinConf}%`,
-      color: cfg.bullishColor || "#38bdf8",
-      bgColor: "rgba(56, 189, 248, 0.15)",
-      borderColor: cfg.bullishColor || "#38bdf8",
+      color: cfg.bullishColor || "#6aa9d8",
+      bgColor: "rgba(106,169,216, 0.15)",
+      borderColor: cfg.bullishColor || "#6aa9d8",
       score: targetScore,
       confidence: conf,
       sourceModel: modelName,
@@ -131,9 +131,9 @@ export function evaluateSignal(r: JevFileRecord, cfg: SignalMarkerConfig): Signa
       direction: "DOWN",
       label: `سیگنال نزول (${modelName} - تیک قرمز)`,
       rule: `اسکور ${modelName} < ${cfg.bearishScore} و اطمینان ≥ ${cfg.bearishMinConf}%`,
-      color: cfg.bearishColor || "#ef4444",
-      bgColor: "rgba(239, 68, 68, 0.15)",
-      borderColor: cfg.bearishColor || "#ef4444",
+      color: cfg.bearishColor || "#d8646a",
+      bgColor: "rgba(216,100,106, 0.15)",
+      borderColor: cfg.bearishColor || "#d8646a",
       score: targetScore,
       confidence: conf,
       sourceModel: modelName,
@@ -274,7 +274,7 @@ const ALL_COLUMNS: ColumnDef[] = [
     shortLabel: "ارز",
     category: "jev",
     render: (r) => (
-      <span className="font-bold text-xs px-2.5 py-0.5 rounded-full bg-white/[0.08] border border-white/[0.15] text-[#38bdf8]">
+      <span className="font-bold text-xs px-2.5 py-0.5 rounded-full bg-white/[0.08] border border-white/[0.15] text-[#6aa9d8]">
         {r.coin || "BTC"}
       </span>
     ),
@@ -288,42 +288,42 @@ const ALL_COLUMNS: ColumnDef[] = [
     category: "models",
     render: (r) => {
       const dirs = [r.direction, r.kev_direction, r.span_direction].filter(Boolean) as ("UP" | "DOWN")[];
-      if (dirs.length === 0) return <span className="text-[#5d628f]">—</span>;
+      if (dirs.length === 0) return <span className="text-[#73757c]">—</span>;
       const ups = dirs.filter((d) => d === "UP").length;
       const downs = dirs.filter((d) => d === "DOWN").length;
 
       if (ups === dirs.length) {
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#2ce5a7]/20 text-[#2ce5a7] border border-[#2ce5a7]/40">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#2ce5a7] animate-pulse" />
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#5fbf9a]/20 text-[#5fbf9a] border border-[#5fbf9a]/40">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#5fbf9a]" />
             {ups}/3 صعود کامل (UP)
           </span>
         );
       }
       if (downs === dirs.length) {
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#ff6b9d]/20 text-[#ff6b9d] border border-[#ff6b9d]/40">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#ff6b9d] animate-pulse" />
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#e5787f]/20 text-[#e5787f] border border-[#e5787f]/40">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#e5787f]" />
             {downs}/3 نزول کامل (DOWN)
           </span>
         );
       }
       if (ups > downs) {
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-[#2ce5a7]/10 text-[#86efac] border border-[#2ce5a7]/20">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-[#5fbf9a]/10 text-[#8fd0a8] border border-[#5fbf9a]/20">
             {ups}/3 تمایل صعود
           </span>
         );
       }
       if (downs > ups) {
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-[#ff6b9d]/10 text-[#ffa8b8] border border-[#ff6b9d]/20">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-[#e5787f]/10 text-[#eba0a5] border border-[#e5787f]/20">
             {downs}/3 تمایل نزول
           </span>
         );
       }
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs text-[#8b91c5] bg-white/[0.05] border border-white/[0.1]">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs text-[#9a9ca3] bg-white/[0.05] border border-white/[0.1]">
           اختلاف نظر (Split)
         </span>
       );
@@ -351,7 +351,7 @@ const ALL_COLUMNS: ColumnDef[] = [
     category: "jev",
     render: (r, cfg) => {
       const sig = evaluateSignal(r, cfg || DEFAULT_SIGNAL_CONFIG);
-      if (!sig) return <span className="text-[#5d628f]">—</span>;
+      if (!sig) return <span className="text-[#73757c]">—</span>;
       return (
         <div className="flex flex-col gap-0.5 items-start">
           <span
@@ -371,7 +371,7 @@ const ALL_COLUMNS: ColumnDef[] = [
               اولین سیگنال ساعت
             </span>
           ) : (
-            <span className="text-[10px] text-[#5d628f] pr-1" title="سیگنال تکراری با جهت یکسان در این ساعت">
+            <span className="text-[10px] text-[#73757c] pr-1" title="سیگنال تکراری با جهت یکسان در این ساعت">
               تکرار در ساعت
             </span>
           )}
@@ -396,10 +396,10 @@ const ALL_COLUMNS: ColumnDef[] = [
     category: "models",
     render: (r, cfg) => {
       const res = evaluateSignalOutcome(r, cfg || DEFAULT_SIGNAL_CONFIG);
-      if (!res.hasSignal) return <span className="text-[#5d628f]">—</span>;
+      if (!res.hasSignal) return <span className="text-[#73757c]">—</span>;
       if (res.status === "WIN") {
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-sm animate-pulse">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-sm">
             <span className="text-emerald-300 font-bold">✓</span>
             برد (WIN)
           </span>
@@ -418,7 +418,7 @@ const ALL_COLUMNS: ColumnDef[] = [
           className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-500/15 text-amber-300 border border-amber-500/30"
           title="سیگنال فعال است و در انتظار اتمام کندل یا تایید نهایی اوراکل UMA (بازه ۱۰-۳۰ دقیقه) می‌باشد"
         >
-          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
           ⏳ در انتظار نتیجه
         </span>
       );
@@ -461,7 +461,7 @@ const ALL_COLUMNS: ColumnDef[] = [
             className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium text-amber-300 bg-amber-500/15 border border-amber-500/30"
             title="کندل پایان یافته و طبق روند اوراکل Polymarket UMA تایید نهایی آن بین ۱۰ الی ۳۰ دقیقه زمان می‌برد"
           >
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
             ⏳ در انتظار تایید (۱۰-۳۰ دقیقه)
           </span>
         );
@@ -485,15 +485,15 @@ const ALL_COLUMNS: ColumnDef[] = [
         <span
           className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${
             r.direction === "UP"
-              ? "bg-[#2ce5a7]/20 text-[#2ce5a7] border border-[#2ce5a7]/30"
-              : "bg-[#ff6b9d]/20 text-[#ff6b9d] border border-[#ff6b9d]/30"
+              ? "bg-[#5fbf9a]/20 text-[#5fbf9a] border border-[#5fbf9a]/30"
+              : "bg-[#e5787f]/20 text-[#e5787f] border border-[#e5787f]/30"
           }`}
         >
           {r.direction === "UP" ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
           {r.direction}
         </span>
       ) : (
-        <span className="text-[#5d628f]">—</span>
+        <span className="text-[#73757c]">—</span>
       ),
     exportVal: (r) => r.direction || "",
   },
@@ -510,24 +510,24 @@ const ALL_COLUMNS: ColumnDef[] = [
             style={{
               color:
                 r.score >= 3.0
-                  ? "#2ce5a7"
+                  ? "#5fbf9a"
                   : r.score >= 2.2
-                  ? "#86efac"
+                  ? "#8fd0a8"
                   : r.score >= 1.8
-                  ? "#8b91c5"
+                  ? "#9a9ca3"
                   : r.score >= 1.0
-                  ? "#ffa8b8"
-                  : "#ff6b9d",
+                  ? "#eba0a5"
+                  : "#e5787f",
             }}
           >
             {r.score.toFixed(2)}
           </span>
-          <span className="text-[10px] text-[#8b91c5] hidden sm:inline">
+          <span className="text-[10px] text-[#9a9ca3] hidden sm:inline">
             {r.score >= 3 ? "صعودی قوی" : r.score <= 1 ? "نزولی قوی" : "خنثی"}
           </span>
         </div>
       ) : (
-        <span className="text-[#5d628f]">—</span>
+        <span className="text-[#73757c]">—</span>
       ),
     exportVal: (r) => r.score ?? "",
   },
@@ -542,19 +542,19 @@ const ALL_COLUMNS: ColumnDef[] = [
           <span
             className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold ${
               r.kev_direction === "UP"
-                ? "bg-[#38bdf8]/20 text-[#38bdf8] border border-[#38bdf8]/30"
-                : "bg-[#f43f5e]/20 text-[#f43f5e] border border-[#f43f5e]/30"
+                ? "bg-[#6aa9d8]/20 text-[#6aa9d8] border border-[#6aa9d8]/30"
+                : "bg-[#d8646a]/20 text-[#d8646a] border border-[#d8646a]/30"
             }`}
           >
             {r.kev_direction === "UP" ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
             {r.kev_direction}
           </span>
           {r.kev_score != null && (
-            <span className="font-mono text-[11px] text-[#8b91c5]">({r.kev_score.toFixed(2)})</span>
+            <span className="font-mono text-[11px] text-[#9a9ca3]">({r.kev_score.toFixed(2)})</span>
           )}
         </div>
       ) : (
-        <span className="text-[#5d628f]">—</span>
+        <span className="text-[#73757c]">—</span>
       ),
     exportVal: (r) => r.kev_direction || "",
   },
@@ -571,24 +571,24 @@ const ALL_COLUMNS: ColumnDef[] = [
             style={{
               color:
                 r.kev_score >= 3.0
-                  ? "#2ce5a7"
+                  ? "#5fbf9a"
                   : r.kev_score >= 2.2
-                  ? "#86efac"
+                  ? "#8fd0a8"
                   : r.kev_score >= 1.8
-                  ? "#8b91c5"
+                  ? "#9a9ca3"
                   : r.kev_score >= 1.0
-                  ? "#ffa8b8"
-                  : "#ff6b9d",
+                  ? "#eba0a5"
+                  : "#e5787f",
             }}
           >
             {r.kev_score.toFixed(2)}
           </span>
           {r.kev_confidence != null && (
-            <span className="text-[10px] text-[#eab308]">({r.kev_confidence}%)</span>
+            <span className="text-[10px] text-[#cfad4e]">({r.kev_confidence}%)</span>
           )}
         </div>
       ) : (
-        <span className="text-[#5d628f]">—</span>
+        <span className="text-[#73757c]">—</span>
       ),
     exportVal: (r) => r.kev_score ?? "",
   },
@@ -600,18 +600,18 @@ const ALL_COLUMNS: ColumnDef[] = [
     render: (r) =>
       r.kev_score_confidence != null ? (
         <div className="flex items-center gap-1.5">
-          <span className="font-mono text-xs text-[#eab308] font-bold tabular-nums">
+          <span className="font-mono text-xs text-[#cfad4e] font-bold tabular-nums">
             {r.kev_score_confidence}%
           </span>
           <div className="w-12 h-1.5 bg-white/[0.08] rounded-full overflow-hidden hidden sm:block">
             <div
-              className="h-full bg-gradient-to-r from-[#eab308] to-[#facc15] rounded-full"
+              className="h-full bg-[#cfad4e] rounded-full"
               style={{ width: `${Math.min(100, Math.max(0, r.kev_score_confidence))}%` }}
             />
           </div>
         </div>
       ) : (
-        <span className="text-[#5d628f]">—</span>
+        <span className="text-[#73757c]">—</span>
       ),
     exportVal: (r) => (r.kev_score_confidence != null ? `${r.kev_score_confidence}%` : ""),
   },
@@ -623,18 +623,18 @@ const ALL_COLUMNS: ColumnDef[] = [
     render: (r) =>
       r.kev_direction_confidence != null ? (
         <div className="flex items-center gap-1.5">
-          <span className="font-mono text-xs text-[#38bdf8] font-bold tabular-nums">
+          <span className="font-mono text-xs text-[#6aa9d8] font-bold tabular-nums">
             {r.kev_direction_confidence}%
           </span>
           <div className="w-12 h-1.5 bg-white/[0.08] rounded-full overflow-hidden hidden sm:block">
             <div
-              className="h-full bg-gradient-to-r from-[#0284c7] to-[#38bdf8] rounded-full"
+              className="h-full bg-[#5a94bd] rounded-full"
               style={{ width: `${Math.min(100, Math.max(0, r.kev_direction_confidence))}%` }}
             />
           </div>
         </div>
       ) : (
-        <span className="text-[#5d628f]">—</span>
+        <span className="text-[#73757c]">—</span>
       ),
     exportVal: (r) => (r.kev_direction_confidence != null ? `${r.kev_direction_confidence}%` : ""),
   },
@@ -645,11 +645,11 @@ const ALL_COLUMNS: ColumnDef[] = [
     category: "models",
     render: (r) =>
       r.kev_confidence != null ? (
-        <span className="font-mono text-xs text-[#eab308] font-semibold tabular-nums">
+        <span className="font-mono text-xs text-[#cfad4e] font-semibold tabular-nums">
           {r.kev_confidence}%
         </span>
       ) : (
-        <span className="text-[#5d628f]">—</span>
+        <span className="text-[#73757c]">—</span>
       ),
     exportVal: (r) => (r.kev_confidence != null ? `${r.kev_confidence}%` : ""),
   },
@@ -661,18 +661,18 @@ const ALL_COLUMNS: ColumnDef[] = [
     render: (r) =>
       r.kev_prob_up != null ? (
         <div className="flex items-center gap-1.5">
-          <span className="font-mono text-xs text-[#38bdf8] font-semibold tabular-nums">
+          <span className="font-mono text-xs text-[#6aa9d8] font-semibold tabular-nums">
             {r.kev_prob_up}%
           </span>
           <div className="w-10 h-1.5 bg-white/[0.08] rounded-full overflow-hidden hidden sm:block">
             <div
-              className="h-full bg-gradient-to-r from-[#0284c7] to-[#38bdf8] rounded-full"
+              className="h-full bg-[#5a94bd] rounded-full"
               style={{ width: `${Math.min(100, Math.max(0, r.kev_prob_up))}%` }}
             />
           </div>
         </div>
       ) : (
-        <span className="text-[#5d628f]">—</span>
+        <span className="text-[#73757c]">—</span>
       ),
     exportVal: (r) => (r.kev_prob_up != null ? `${r.kev_prob_up}%` : ""),
   },
@@ -686,15 +686,15 @@ const ALL_COLUMNS: ColumnDef[] = [
         <span
           className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold ${
             r.span_direction === "UP"
-              ? "bg-[#c084fc]/20 text-[#c084fc] border border-[#c084fc]/30"
-              : "bg-[#fb7185]/20 text-[#fb7185] border border-[#fb7185]/30"
+              ? "bg-[#a795d6]/20 text-[#a795d6] border border-[#a795d6]/30"
+              : "bg-[#e5787f]/20 text-[#e5787f] border border-[#e5787f]/30"
           }`}
         >
           {r.span_direction === "UP" ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
           {r.span_direction}
         </span>
       ) : (
-        <span className="text-[#5d628f]">—</span>
+        <span className="text-[#73757c]">—</span>
       ),
     exportVal: (r) => r.span_direction || "",
   },
@@ -711,22 +711,22 @@ const ALL_COLUMNS: ColumnDef[] = [
             style={{
               color:
                 r.span_score >= 3.0
-                  ? "#2ce5a7"
+                  ? "#5fbf9a"
                   : r.span_score >= 2.2
-                  ? "#86efac"
+                  ? "#8fd0a8"
                   : r.span_score >= 1.8
-                  ? "#8b91c5"
+                  ? "#9a9ca3"
                   : r.span_score >= 1.0
-                  ? "#ffa8b8"
-                  : "#ff6b9d",
+                  ? "#eba0a5"
+                  : "#e5787f",
             }}
           >
             {r.span_score.toFixed(2)}
           </span>
           {r.span_confidence != null && (
-            <span className="text-[10px] text-[#eab308]">({r.span_confidence}%)</span>
+            <span className="text-[10px] text-[#cfad4e]">({r.span_confidence}%)</span>
           )}
-          <span className="text-[10px] text-[#5d628f] hidden sm:inline">
+          <span className="text-[10px] text-[#73757c] hidden sm:inline">
             {r.span_score >= 3.0
               ? "Strong Up"
               : r.span_score >= 2.2
@@ -739,7 +739,7 @@ const ALL_COLUMNS: ColumnDef[] = [
           </span>
         </div>
       ) : (
-        <span className="text-[#5d628f]">—</span>
+        <span className="text-[#73757c]">—</span>
       ),
     exportVal: (r) => r.span_score ?? "",
   },
@@ -750,11 +750,11 @@ const ALL_COLUMNS: ColumnDef[] = [
     category: "models",
     render: (r) =>
       r.span_confidence != null ? (
-        <span className="font-mono text-xs text-[#eab308] font-semibold tabular-nums">
+        <span className="font-mono text-xs text-[#cfad4e] font-semibold tabular-nums">
           {r.span_confidence}%
         </span>
       ) : (
-        <span className="text-[#5d628f]">—</span>
+        <span className="text-[#73757c]">—</span>
       ),
     exportVal: (r) => (r.span_confidence != null ? `${r.span_confidence}%` : ""),
   },
@@ -766,18 +766,18 @@ const ALL_COLUMNS: ColumnDef[] = [
     render: (r) =>
       r.span_prob_up != null ? (
         <div className="flex items-center gap-1.5">
-          <span className="font-mono text-xs text-[#c084fc] font-semibold tabular-nums">
+          <span className="font-mono text-xs text-[#a795d6] font-semibold tabular-nums">
             {r.span_prob_up}%
           </span>
           <div className="w-10 h-1.5 bg-white/[0.08] rounded-full overflow-hidden hidden sm:block">
             <div
-              className="h-full bg-gradient-to-r from-[#a855f7] to-[#c084fc] rounded-full"
+              className="h-full bg-[#a795d6] rounded-full"
               style={{ width: `${Math.min(100, Math.max(0, r.span_prob_up))}%` }}
             />
           </div>
         </div>
       ) : (
-        <span className="text-[#5d628f]">—</span>
+        <span className="text-[#73757c]">—</span>
       ),
     exportVal: (r) => (r.span_prob_up != null ? `${r.span_prob_up}%` : ""),
   },
@@ -788,11 +788,11 @@ const ALL_COLUMNS: ColumnDef[] = [
     category: "jev",
     render: (r) =>
       r.prob_up != null ? (
-        <span className="font-mono text-xs text-[#2ce5a7] font-semibold tabular-nums">
+        <span className="font-mono text-xs text-[#5fbf9a] font-semibold tabular-nums">
           {r.prob_up}%
         </span>
       ) : (
-        <span className="text-[#5d628f]">—</span>
+        <span className="text-[#73757c]">—</span>
       ),
     exportVal: (r) => (r.prob_up != null ? `${r.prob_up}%` : ""),
   },
@@ -804,18 +804,18 @@ const ALL_COLUMNS: ColumnDef[] = [
     render: (r) =>
       r.score_confidence != null ? (
         <div className="flex items-center gap-1.5">
-          <span className="font-mono text-xs text-[#eab308] font-bold tabular-nums">
+          <span className="font-mono text-xs text-[#cfad4e] font-bold tabular-nums">
             {r.score_confidence}%
           </span>
           <div className="w-12 h-1.5 bg-white/[0.08] rounded-full overflow-hidden hidden sm:block">
             <div
-              className="h-full bg-gradient-to-r from-[#eab308] to-[#facc15] rounded-full"
+              className="h-full bg-[#cfad4e] rounded-full"
               style={{ width: `${Math.min(100, Math.max(0, r.score_confidence))}%` }}
             />
           </div>
         </div>
       ) : (
-        <span className="text-[#5d628f]">—</span>
+        <span className="text-[#73757c]">—</span>
       ),
     exportVal: (r) => (r.score_confidence != null ? `${r.score_confidence}%` : ""),
   },
@@ -826,11 +826,11 @@ const ALL_COLUMNS: ColumnDef[] = [
     category: "jev",
     render: (r) =>
       r.direction_confidence != null ? (
-        <span className="font-mono text-xs text-[#a5b4fc] font-semibold tabular-nums">
+        <span className="font-mono text-xs text-[#9fb4ee] font-semibold tabular-nums">
           {r.direction_confidence}%
         </span>
       ) : (
-        <span className="text-[#5d628f]">—</span>
+        <span className="text-[#73757c]">—</span>
       ),
     exportVal: (r) => (r.direction_confidence != null ? `${r.direction_confidence}%` : ""),
   },
@@ -841,11 +841,11 @@ const ALL_COLUMNS: ColumnDef[] = [
     category: "jev",
     render: (r) =>
       r.confidence != null ? (
-        <span className="font-mono text-xs text-[#c3c8ee] tabular-nums">
+        <span className="font-mono text-xs text-[#bdbdb8] tabular-nums">
           {r.confidence}%
         </span>
       ) : (
-        <span className="text-[#5d628f]">—</span>
+        <span className="text-[#73757c]">—</span>
       ),
     exportVal: (r) => (r.confidence != null ? `${r.confidence}%` : ""),
   },
@@ -857,11 +857,11 @@ const ALL_COLUMNS: ColumnDef[] = [
     render: (r) =>
       r.up_1h ? (
         <div className="flex items-center gap-1.5 font-mono text-xs">
-          <span className="text-[#38bdf8] font-semibold">{r.up_1h}</span>
-          <span className="text-[#5d628f] text-[10px]">({r.down_1h || "—"})</span>
+          <span className="text-[#6aa9d8] font-semibold">{r.up_1h}</span>
+          <span className="text-[#73757c] text-[10px]">({r.down_1h || "—"})</span>
         </div>
       ) : (
-        <span className="text-[#5d628f]">—</span>
+        <span className="text-[#73757c]">—</span>
       ),
     exportVal: (r) => r.up_1h || "",
   },
@@ -872,11 +872,11 @@ const ALL_COLUMNS: ColumnDef[] = [
     category: "market",
     render: (r) =>
       r.up_15m ? (
-        <span className="font-mono text-xs text-[#a5b4fc] tabular-nums font-medium">
+        <span className="font-mono text-xs text-[#9fb4ee] tabular-nums font-medium">
           {r.up_15m}
         </span>
       ) : (
-        <span className="text-[#5d628f]">—</span>
+        <span className="text-[#73757c]">—</span>
       ),
     exportVal: (r) => r.up_15m || "",
   },
@@ -887,11 +887,11 @@ const ALL_COLUMNS: ColumnDef[] = [
     category: "market",
     render: (r) =>
       r.up_5m ? (
-        <span className="font-mono text-xs text-[#f472b6] tabular-nums font-medium">
+        <span className="font-mono text-xs text-[#d68aa8] tabular-nums font-medium">
           {r.up_5m}
         </span>
       ) : (
-        <span className="text-[#5d628f]">—</span>
+        <span className="text-[#73757c]">—</span>
       ),
     exportVal: (r) => r.up_5m || "",
   },
@@ -902,11 +902,11 @@ const ALL_COLUMNS: ColumnDef[] = [
     category: "fair",
     render: (r) =>
       r.fair_15m != null ? (
-        <span className="font-mono text-xs text-[#38bdf8] tabular-nums">
+        <span className="font-mono text-xs text-[#6aa9d8] tabular-nums">
           {r.fair_15m.toFixed(1)}¢
         </span>
       ) : (
-        <span className="text-[#5d628f]">—</span>
+        <span className="text-[#73757c]">—</span>
       ),
     exportVal: (r) => (r.fair_15m != null ? `${r.fair_15m}c` : ""),
   },
@@ -917,11 +917,11 @@ const ALL_COLUMNS: ColumnDef[] = [
     category: "fair",
     render: (r) =>
       r.fair_5m != null ? (
-        <span className="font-mono text-xs text-[#a99cff] tabular-nums">
+        <span className="font-mono text-xs text-[#9fb4ee] tabular-nums">
           {r.fair_5m.toFixed(1)}¢
         </span>
       ) : (
-        <span className="text-[#5d628f]">—</span>
+        <span className="text-[#73757c]">—</span>
       ),
     exportVal: (r) => (r.fair_5m != null ? `${r.fair_5m}c` : ""),
   },
@@ -932,11 +932,11 @@ const ALL_COLUMNS: ColumnDef[] = [
     category: "fair",
     render: (r) =>
       r.fair_joint != null ? (
-        <span className="font-mono text-xs text-[#c084fc] tabular-nums">
+        <span className="font-mono text-xs text-[#a795d6] tabular-nums">
           {r.fair_joint.toFixed(1)}¢
         </span>
       ) : (
-        <span className="text-[#5d628f]">—</span>
+        <span className="text-[#73757c]">—</span>
       ),
     exportVal: (r) => (r.fair_joint != null ? `${r.fair_joint}c` : ""),
   },
@@ -947,11 +947,11 @@ const ALL_COLUMNS: ColumnDef[] = [
     category: "fair",
     render: (r) =>
       r.fair_base != null ? (
-        <span className="font-mono text-xs text-[#cbd5e1] tabular-nums">
+        <span className="font-mono text-xs text-[#bdbdb8] tabular-nums">
           {r.fair_base.toFixed(1)}¢
         </span>
       ) : (
-        <span className="text-[#5d628f]">—</span>
+        <span className="text-[#73757c]">—</span>
       ),
     exportVal: (r) => (r.fair_base != null ? `${r.fair_base}c` : ""),
   },
@@ -962,11 +962,11 @@ const ALL_COLUMNS: ColumnDef[] = [
     category: "jev",
     render: (r) =>
       r.tokens ? (
-        <span className="font-mono text-[11px] text-[#5d628f] tabular-nums">
+        <span className="font-mono text-[11px] text-[#73757c] tabular-nums">
           {r.tokens} tok (${r.cost ?? 0})
         </span>
       ) : (
-        <span className="text-[#5d628f]">—</span>
+        <span className="text-[#73757c]">—</span>
       ),
     exportVal: (r) => (r.tokens ? `${r.tokens} tokens ($${r.cost})` : ""),
   },
@@ -1035,7 +1035,7 @@ function generateSmoothCurve(points: { x: number; y: number }[]) {
 
 export const AVAILABLE_COINS = [
   { key: "all", label: "همه ارزها (All)" },
-  { key: "btc", label: "بیت‌کوین (BTC)", color: "#F7931A" },
+  { key: "btc", label: "بیت‌کوین (BTC)", color: "#d49a4a" },
   { key: "eth", label: "اتریوم (ETH)", color: "#627EEA" },
   { key: "sol", label: "سولانا (SOL)", color: "#14F195" },
   { key: "xrp", label: "ریپل (XRP)", color: "#7FA8C9" },
@@ -1780,7 +1780,7 @@ export default function JevAnalysisPage() {
     }
 
     .btn {
-      background: #0284c7;
+      background: #5a94bd;
       color: white;
       border: none;
       padding: 8px 18px;
@@ -1812,14 +1812,14 @@ export default function JevAnalysisPage() {
 
     .header .subtitle {
       font-size: 11px;
-      color: #64748b;
+      color: #73757c;
     }
 
     .stats-banner {
       display: flex;
       gap: 12px;
       margin-bottom: 14px;
-      background: #f8fafc;
+      background: #e8e8e4;
       border: 1px solid #e2e8f0;
       border-radius: 8px;
       padding: 10px 14px;
@@ -1835,7 +1835,7 @@ export default function JevAnalysisPage() {
     .pill-blue { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
     .pill-green { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
     .pill-red { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
-    .pill-gray { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
+    .pill-gray { background: #f1f5f9; color: #475569; border: 1px solid #bdbdb8; }
 
     table {
       width: 100%;
@@ -1846,10 +1846,10 @@ export default function JevAnalysisPage() {
 
     th {
       background: #f1f5f9;
-      color: #334155;
+      color: #3a3c42;
       font-weight: 700;
       padding: 6px 8px;
-      border: 1px solid #cbd5e1;
+      border: 1px solid #bdbdb8;
       white-space: nowrap;
     }
 
@@ -1859,7 +1859,7 @@ export default function JevAnalysisPage() {
       white-space: nowrap;
     }
 
-    tr:nth-child(even) { background-color: #f8fafc; }
+    tr:nth-child(even) { background-color: #e8e8e4; }
 
     .row-win { background-color: #ecfdf5 !important; }
     .row-loss { background-color: #fff1f2 !important; }
@@ -1871,7 +1871,7 @@ export default function JevAnalysisPage() {
       background: #dcfce7;
       color: #166534;
       font-weight: 700;
-      border: 1px solid #86efac;
+      border: 1px solid #8fd0a8;
     }
 
     .badge-loss {
@@ -1918,7 +1918,7 @@ export default function JevAnalysisPage() {
       dateFilter === "ALL" ? "تمام تاریخ‌ها" : dateFilter
     } · تعداد سطرها: ${printableRows.length}${sortLabel}</div>
     </div>
-    <div style="text-align: left; font-size: 10px; color: #64748b;">
+    <div style="text-align: left; font-size: 10px; color: #73757c;">
       Polymarket Pulse | Jev & Multi-Model
     </div>
   </div>
@@ -1950,7 +1950,7 @@ export default function JevAnalysisPage() {
           }
           return `
           <tr class="${rowClass}">
-            <td style="text-align: center; color: #64748b;">${idx + 1}</td>
+            <td style="text-align: center; color: #73757c;">${idx + 1}</td>
             <td style="font-family: monospace; font-weight: 600;">${
               row.current_time_et || row.et_time
             }</td>
@@ -2124,19 +2124,19 @@ export default function JevAnalysisPage() {
           <div className="flex items-center gap-2 mb-1">
             <Link
               href="/updown"
-              className="inline-flex items-center gap-1 text-xs text-[#8b91c5] hover:text-[#38bdf8] transition-colors"
+              className="inline-flex items-center gap-1 text-xs text-[#9a9ca3] hover:text-[#6aa9d8] transition-colors"
             >
               <ArrowRight className="w-3.5 h-3.5 rotate-180" />
               بازگشت به صفحه Up/Down
             </Link>
-            <span className="text-xs text-[#5d628f]">/</span>
-            <span className="text-xs text-[#38bdf8] font-medium">Jev JSON Analyzer</span>
+            <span className="text-xs text-[#73757c]">/</span>
+            <span className="text-xs text-[#6aa9d8] font-medium">Jev JSON Analyzer</span>
           </div>
           <h1 className="text-2xl font-bold text-white flex items-center gap-2.5">
-            <BarChart3 className="w-6 h-6 text-[#38bdf8]" />
+            <BarChart3 className="w-6 h-6 text-[#6aa9d8]" />
             داشبورد آنالیز، فیلتر بازه زمانی و رسم منحنی Jev
           </h1>
-          <p className="text-xs text-[#8b91c5] mt-1">
+          <p className="text-xs text-[#9a9ca3] mt-1">
             رسم منحنی‌های زمانی مقادیر در بازه‌های دلخواه (مثلاً ساعت ۱ تا ۲) و مقایسه داده‌ها
           </p>
         </div>
@@ -2145,7 +2145,7 @@ export default function JevAnalysisPage() {
           {/* Quick Save / Reset Buttons */}
           <button
             onClick={saveCurrentSettingsNow}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#38bdf8]/15 hover:bg-[#38bdf8]/25 text-xs text-[#38bdf8] border border-[#38bdf8]/30 transition-all font-medium"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#6aa9d8]/15 hover:bg-[#6aa9d8]/25 text-xs text-[#6aa9d8] border border-[#6aa9d8]/30 transition-all font-medium"
             title="ذخیره تنظیمات فعلی، ستون‌ها، بازه‌ها و شروط سیگنال در مرورگر"
           >
             <Save className="w-3.5 h-3.5" />
@@ -2154,7 +2154,7 @@ export default function JevAnalysisPage() {
 
           <button
             onClick={resetAllSettingsToDefault}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-xs text-[#8b91c5] hover:text-[#ff6b9d] border border-white/[0.08] transition-all"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-xs text-[#9a9ca3] hover:text-[#e5787f] border border-white/[0.08] transition-all"
             title="بازنشانی تمام فیلترها، ستون‌ها و شروط به حالت اولیه"
           >
             <RotateCcw className="w-3.5 h-3.5" />
@@ -2164,17 +2164,17 @@ export default function JevAnalysisPage() {
           <button
             onClick={exportCsv}
             disabled={sortedData.length === 0}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] text-xs text-[#c3c8ee] border border-white/[0.08] transition-all disabled:opacity-50 font-medium"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] text-xs text-[#bdbdb8] border border-white/[0.08] transition-all disabled:opacity-50 font-medium"
             title="دانلود خروجی CSV از جدول جاری (با اعمال سورت و فیلترهای فعال)"
           >
-            <Download className="w-3.5 h-3.5 text-[#38bdf8]" />
+            <Download className="w-3.5 h-3.5 text-[#6aa9d8]" />
             <span>خروجی CSV ({sortedData.length})</span>
           </button>
 
           <button
             onClick={exportPdf}
             disabled={sortedData.length === 0}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#38bdf8]/15 hover:bg-[#38bdf8]/25 text-xs text-[#38bdf8] border border-[#38bdf8]/30 transition-all disabled:opacity-50 font-medium"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#6aa9d8]/15 hover:bg-[#6aa9d8]/25 text-xs text-[#6aa9d8] border border-[#6aa9d8]/30 transition-all disabled:opacity-50 font-medium"
             title="چاپ و دانلود خروجی PDF جدول جاری با رنگ‌بندی کامل برد و باخت"
           >
             <Printer className="w-3.5 h-3.5" />
@@ -2187,13 +2187,13 @@ export default function JevAnalysisPage() {
             className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border transition-all ${
               autoRefresh
                 ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25"
-                : "bg-white/[0.04] text-[#8b91c5] border-white/[0.08] hover:bg-white/[0.08]"
+                : "bg-white/[0.04] text-[#9a9ca3] border-white/[0.08] hover:bg-white/[0.08]"
             }`}
             title="بروزرسانی خودکار جدول هر ۳۰ ثانیه (همگام با تاخیر ۱۰-۳۰ دقیقه‌ای تایید نهایی اوراکل Polymarket)"
           >
             <span
               className={`w-2 h-2 rounded-full ${
-                autoRefresh ? "bg-emerald-400 animate-pulse shadow-[0_0_8px_#2ce5a7]" : "bg-[#5d628f]"
+                autoRefresh ? "bg-emerald-400" : "bg-[#73757c]"
               }`}
             />
             <span className="hidden sm:inline">
@@ -2204,7 +2204,7 @@ export default function JevAnalysisPage() {
           </button>
 
           {lastRefreshedAt && (
-            <span className="text-[11px] text-[#5d628f] hidden xl:inline-block font-mono" title="زمان آخرین دریافت داده‌ها از سرور">
+            <span className="text-[11px] text-[#73757c] hidden xl:inline-block font-mono" title="زمان آخرین دریافت داده‌ها از سرور">
               آخرین دریافت: {lastRefreshedAt.toLocaleTimeString("fa-IR")}
             </span>
           )}
@@ -2212,7 +2212,7 @@ export default function JevAnalysisPage() {
           <button
             onClick={() => loadHistory(selectedCoin, false)}
             disabled={loading || isRefreshing}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gradient-to-r from-[#6366f1] to-[#38bdf8] text-white text-xs font-medium hover:opacity-90 transition-opacity shadow-md disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#6366f1] text-white text-xs font-medium hover:opacity-90 transition-opacity shadow-md disabled:opacity-50"
             title="تازه‌سازی دستی و استعلام آخرین نتایج تایید شده از Polymarket"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading || isRefreshing ? "animate-spin" : ""}`} />
@@ -2223,17 +2223,17 @@ export default function JevAnalysisPage() {
 
       {/* Floating Save Status Toast */}
       {saveStatus && (
-        <div className="fixed bottom-6 left-6 z-50 bg-[#0d0f22]/95 border border-[#2ce5a7]/50 text-[#2ce5a7] px-4 py-2.5 rounded-xl shadow-2xl backdrop-blur-md text-xs flex items-center gap-2.5 animate-in fade-in slide-in-from-bottom-2 duration-200">
-          <CheckCircle2 className="w-4 h-4 text-[#2ce5a7]" />
+        <div className="fixed bottom-6 left-6 z-50 bg-[#181a1e]/95 border border-[#5fbf9a]/50 text-[#5fbf9a] px-4 py-2.5 rounded-xl shadow-2xl backdrop-blur-md text-xs flex items-center gap-2.5 animate-in fade-in slide-in-from-bottom-2 duration-200">
+          <CheckCircle2 className="w-4 h-4 text-[#5fbf9a]" />
           <span className="font-medium">{saveStatus}</span>
         </div>
       )}
 
       {/* COIN SELECTOR BAR (انتخاب و فیلتر ارزها) */}
-      <div className="bg-[#0d0f22]/90 border border-[rgba(140,130,255,0.18)] p-3.5 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-md">
+      <div className="bg-[#181a1e]/90 border border-[rgba(190,190,200,0.18)] p-3.5 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-md">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-semibold text-[#8b91c5] px-2 flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-[#ffc94d]" />
+          <span className="text-xs font-semibold text-[#9a9ca3] px-2 flex items-center gap-1.5">
+            <Sparkles className="w-3.5 h-3.5 text-[#d4b063]" />
             انتخاب ارز:
           </span>
           <div className="flex flex-wrap items-center gap-1.5">
@@ -2245,8 +2245,8 @@ export default function JevAnalysisPage() {
                   onClick={() => setSelectedCoin(c.key)}
                   className={`text-xs px-3 py-1.5 rounded-xl font-medium transition-all flex items-center gap-1.5 border ${
                     isActive
-                      ? "bg-[#38bdf8]/20 border-[#38bdf8] text-white shadow-sm font-bold"
-                      : "bg-white/[0.04] border-white/[0.08] text-[#8b91c5] hover:text-white hover:bg-white/[0.08]"
+                      ? "bg-[#6aa9d8]/20 border-[#6aa9d8] text-white shadow-sm font-bold"
+                      : "bg-white/[0.04] border-white/[0.08] text-[#9a9ca3] hover:text-white hover:bg-white/[0.08]"
                   }`}
                 >
                   {c.color && (
@@ -2261,27 +2261,27 @@ export default function JevAnalysisPage() {
             })}
           </div>
         </div>
-        <div className="text-xs text-[#5d628f] mr-auto pl-2">
+        <div className="text-xs text-[#73757c] mr-auto pl-2">
           {selectedCoin === "all" ? "نمایش تمام پیش‌بینی‌های ثبت‌شده" : `نمایش تحلیل‌های اختصاصی ${selectedCoin.toUpperCase()}`}
         </div>
       </div>
 
       {/* TIME RANGE FILTER CONTROLS (ساعت ۱ تا ۲ و بازه‌های دلخواه) */}
-      <div className="bg-[#0d0f22]/90 border border-[#38bdf8]/30 rounded-2xl p-5 space-y-4 shadow-xl">
+      <div className="bg-[#181a1e]/90 border border-[#6aa9d8]/30 rounded-2xl p-5 space-y-4 shadow-xl">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.08] pb-3">
           <div className="flex items-center gap-2">
-            <Clock className="w-4 h-4 text-[#38bdf8]" />
+            <Clock className="w-4 h-4 text-[#6aa9d8]" />
             <span className="text-sm font-bold text-white">
               انتخاب بازه زمانی جهت رسم منحنی و فیلتر جدول (Time Window):
             </span>
-            <span className="text-xs px-2 py-0.5 rounded-full bg-[#38bdf8]/15 text-[#38bdf8] font-bold">
+            <span className="text-xs px-2 py-0.5 rounded-full bg-[#6aa9d8]/15 text-[#6aa9d8] font-bold">
               {filteredData.length} اسنپ‌شات در بازه انتخابی
             </span>
           </div>
 
           {/* Quick presets (ساعت ۱ تا ۲ و ...) */}
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-xs text-[#8b91c5] ml-1">بازه‌های سریع:</span>
+            <span className="text-xs text-[#9a9ca3] ml-1">بازه‌های سریع:</span>
             {[
               { id: "ALL", label: "کل داده‌ها" },
               { id: "13_14", label: "ساعت ۱ تا ۲ ظهر (13:00-14:00)" },
@@ -2295,8 +2295,8 @@ export default function JevAnalysisPage() {
                 onClick={() => applyIntervalPreset(preset.id)}
                 className={`text-xs px-2.5 py-1 rounded-lg border transition-all ${
                   activeIntervalPreset === preset.id
-                    ? "bg-[#38bdf8]/20 border-[#38bdf8] text-[#38bdf8] font-semibold"
-                    : "bg-white/[0.04] border-white/[0.08] text-[#8b91c5] hover:text-white hover:bg-white/[0.08]"
+                    ? "bg-[#6aa9d8]/20 border-[#6aa9d8] text-[#6aa9d8] font-semibold"
+                    : "bg-white/[0.04] border-white/[0.08] text-[#9a9ca3] hover:text-white hover:bg-white/[0.08]"
                 }`}
               >
                 {preset.label}
@@ -2309,12 +2309,12 @@ export default function JevAnalysisPage() {
         <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-4 gap-3 text-xs">
           {/* Date Selector */}
           <div className="flex items-center gap-2 bg-white/[0.03] p-2.5 rounded-xl border border-white/[0.07]">
-            <Calendar className="w-3.5 h-3.5 text-[#38bdf8]" />
-            <span className="text-[#8b91c5]">تاریخ:</span>
+            <Calendar className="w-3.5 h-3.5 text-[#6aa9d8]" />
+            <span className="text-[#9a9ca3]">تاریخ:</span>
             <select
               value={dateFilter}
               onChange={(e) => setDateFilter(e.target.value)}
-              className="bg-[#05060d] text-white border border-white/[0.15] rounded px-2 py-1 flex-1 focus:outline-none focus:border-[#38bdf8]"
+              className="bg-[#0f1013] text-white border border-white/[0.15] rounded px-2 py-1 flex-1 focus:outline-none focus:border-[#6aa9d8]"
             >
               <option value="ALL">تمام روزها ({availableDates.length} روز)</option>
               {availableDates.map((d) => (
@@ -2327,8 +2327,8 @@ export default function JevAnalysisPage() {
 
           {/* Start Hour */}
           <div className="flex items-center gap-2 bg-white/[0.03] p-2.5 rounded-xl border border-white/[0.07]">
-            <Clock className="w-3.5 h-3.5 text-[#2ce5a7]" />
-            <span className="text-[#8b91c5]">از ساعت:</span>
+            <Clock className="w-3.5 h-3.5 text-[#5fbf9a]" />
+            <span className="text-[#9a9ca3]">از ساعت:</span>
             <select
               value={startHour ?? ""}
               onChange={(e) => {
@@ -2336,7 +2336,7 @@ export default function JevAnalysisPage() {
                 setStartHour(val);
                 setActiveIntervalPreset("custom");
               }}
-              className="bg-[#05060d] text-white border border-white/[0.15] rounded px-2 py-1 flex-1 focus:outline-none focus:border-[#2ce5a7]"
+              className="bg-[#0f1013] text-white border border-white/[0.15] rounded px-2 py-1 flex-1 focus:outline-none focus:border-[#5fbf9a]"
             >
               <option value="">شروع (00:00)</option>
               {Array.from({ length: 24 }).map((_, i) => (
@@ -2349,8 +2349,8 @@ export default function JevAnalysisPage() {
 
           {/* End Hour */}
           <div className="flex items-center gap-2 bg-white/[0.03] p-2.5 rounded-xl border border-white/[0.07]">
-            <Clock className="w-3.5 h-3.5 text-[#ff6b9d]" />
-            <span className="text-[#8b91c5]">تا ساعت:</span>
+            <Clock className="w-3.5 h-3.5 text-[#e5787f]" />
+            <span className="text-[#9a9ca3]">تا ساعت:</span>
             <select
               value={endHour ?? ""}
               onChange={(e) => {
@@ -2358,7 +2358,7 @@ export default function JevAnalysisPage() {
                 setEndHour(val);
                 setActiveIntervalPreset("custom");
               }}
-              className="bg-[#05060d] text-white border border-white/[0.15] rounded px-2 py-1 flex-1 focus:outline-none focus:border-[#ff6b9d]"
+              className="bg-[#0f1013] text-white border border-white/[0.15] rounded px-2 py-1 flex-1 focus:outline-none focus:border-[#e5787f]"
             >
               <option value="">پایان (24:00)</option>
               {Array.from({ length: 24 }).map((_, i) => (
@@ -2376,7 +2376,7 @@ export default function JevAnalysisPage() {
                 setDateFilter("ALL");
                 applyIntervalPreset("ALL");
               }}
-              className="w-full text-center py-2 px-3 rounded-xl bg-white/[0.05] hover:bg-white/[0.09] text-[#8b91c5] hover:text-white border border-white/[0.08] transition-colors"
+              className="w-full text-center py-2 px-3 rounded-xl bg-white/[0.05] hover:bg-white/[0.09] text-[#9a9ca3] hover:text-white border border-white/[0.08] transition-colors"
             >
               بازنشانی بازه زمانی (کل داده‌ها)
             </button>
@@ -2385,35 +2385,35 @@ export default function JevAnalysisPage() {
       </div>
 
       {/* INTERACTIVE CURVE CHART COMPONENT (رسم منحنی مقادیر) */}
-      <div className="bg-[#090b1a] border border-[rgba(140,130,255,0.2)] rounded-2xl p-5 space-y-4 shadow-2xl relative">
+      <div className="bg-[#131418] border border-[rgba(190,190,200,0.2)] rounded-2xl p-5 space-y-4 shadow-2xl relative">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-white/[0.08] pb-3">
           <div>
             <h2 className="text-sm font-bold text-white flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-[#ffc94d]" />
+              <Sparkles className="w-4 h-4 text-[#d4b063]" />
               منحنی تغییرات مقادیر در بازه انتخابی (Interactive Value Curves)
             </h2>
-            <p className="text-[11px] text-[#8b91c5] mt-0.5">
+            <p className="text-[11px] text-[#9a9ca3] mt-0.5">
               نمایش همزمان و تطبیق منحنی اسکور Jev، درصدهای بازار و Fair Value با حرکت موس روی نمودار
             </p>
           </div>
 
           {/* Curve Toggles */}
           <div className="flex flex-wrap items-center gap-2 text-xs">
-            <span className="text-[#8b91c5] text-[11px]">منحنی‌های فعال:</span>
+            <span className="text-[#9a9ca3] text-[11px]">منحنی‌های فعال:</span>
 
             {/* Signal Ticks Toggle Button */}
             <button
               onClick={() => setVisibleCurves((p) => ({ ...p, signals: !p.signals }))}
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs transition-all ${
                 visibleCurves.signals
-                  ? "bg-gradient-to-r from-[#38bdf8]/20 via-[#2ce5a7]/15 to-[#ef4444]/20 border-[#38bdf8] text-white font-bold shadow-sm"
-                  : "bg-white/[0.03] border-white/[0.1] text-[#5d628f] opacity-60"
+                  ? "bg-gradient-to-r from-[#6aa9d8]/20 via-[#5fbf9a]/15 to-[#d8646a]/20 border-[#6aa9d8] text-white font-bold shadow-sm"
+                  : "bg-white/[0.03] border-white/[0.1] text-[#73757c] opacity-60"
               }`}
               title="نمایش تیک‌های شرطی آبی و قرمز روی نقاط منحنی"
             >
               <div className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-[#38bdf8] shadow-[0_0_6px_#38bdf8]" />
-                <span className="w-2 h-2 rounded-full bg-[#ef4444] shadow-[0_0_6px_#ef4444]" />
+                <span className="w-2 h-2 rounded-full bg-[#6aa9d8]" />
+                <span className="w-2 h-2 rounded-full bg-[#d8646a]" />
               </div>
               <span>تیک‌های سیگنال</span>
               <span className="text-[10px] font-mono opacity-85 px-1.5 py-0.2 rounded bg-black/40">
@@ -2426,8 +2426,8 @@ export default function JevAnalysisPage() {
               onClick={() => setShowSignalSettings((p) => !p)}
               className={`flex items-center gap-1 px-2.5 py-1 rounded-lg border text-xs transition-all ${
                 showSignalSettings
-                  ? "bg-[#38bdf8]/20 border-[#38bdf8] text-[#38bdf8] font-bold"
-                  : "bg-white/[0.04] border-white/[0.1] text-[#8b91c5] hover:text-white"
+                  ? "bg-[#6aa9d8]/20 border-[#6aa9d8] text-[#6aa9d8] font-bold"
+                  : "bg-white/[0.04] border-white/[0.1] text-[#9a9ca3] hover:text-white"
               }`}
               title="تنظیم شروط مقادیر اسکور و درصد اطمینان برای تیک‌های آبی و قرمز"
             >
@@ -2440,11 +2440,11 @@ export default function JevAnalysisPage() {
               onClick={() => setVisibleCurves((p) => ({ ...p, score: !p.score }))}
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs transition-all ${
                 visibleCurves.score
-                  ? "bg-[#c084fc]/20 border-[#c084fc] text-[#c084fc] font-bold"
-                  : "bg-white/[0.03] border-white/[0.1] text-[#5d628f] opacity-60"
+                  ? "bg-[#a795d6]/20 border-[#a795d6] text-[#a795d6] font-bold"
+                  : "bg-white/[0.03] border-white/[0.1] text-[#73757c] opacity-60"
               }`}
             >
-              <span className="w-2.5 h-2.5 rounded-full bg-[#c084fc]" />
+              <span className="w-2.5 h-2.5 rounded-full bg-[#a795d6]" />
               اسکور Jev (0-4)
             </button>
 
@@ -2452,12 +2452,12 @@ export default function JevAnalysisPage() {
               onClick={() => setVisibleCurves((p) => ({ ...p, kevScore: !p.kevScore }))}
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs transition-all ${
                 visibleCurves.kevScore
-                  ? "bg-[#38bdf8]/20 border-[#38bdf8] text-[#38bdf8] font-bold"
-                  : "bg-white/[0.03] border-white/[0.1] text-[#5d628f] opacity-60"
+                  ? "bg-[#6aa9d8]/20 border-[#6aa9d8] text-[#6aa9d8] font-bold"
+                  : "bg-white/[0.03] border-white/[0.1] text-[#73757c] opacity-60"
               }`}
               title="نمایش منحنی اسکور مدل Kev-4b (۰ تا ۴)"
             >
-              <span className="w-2.5 h-2.5 rounded-full bg-[#38bdf8]" />
+              <span className="w-2.5 h-2.5 rounded-full bg-[#6aa9d8]" />
               اسکور Kev-4b (0-4)
             </button>
 
@@ -2465,12 +2465,12 @@ export default function JevAnalysisPage() {
               onClick={() => setVisibleCurves((p) => ({ ...p, spanScore: !p.spanScore }))}
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs transition-all ${
                 visibleCurves.spanScore
-                  ? "bg-[#e879f9]/20 border-[#e879f9] text-[#e879f9] font-bold"
-                  : "bg-white/[0.03] border-white/[0.1] text-[#5d628f] opacity-60"
+                  ? "bg-[#b58ac9]/20 border-[#b58ac9] text-[#b58ac9] font-bold"
+                  : "bg-white/[0.03] border-white/[0.1] text-[#73757c] opacity-60"
               }`}
               title="نمایش منحنی اسکور مدل Span-01 (۰ تا ۴)"
             >
-              <span className="w-2.5 h-2.5 rounded-full bg-[#e879f9]" />
+              <span className="w-2.5 h-2.5 rounded-full bg-[#b58ac9]" />
               اسکور Span-01 (0-4)
             </button>
 
@@ -2478,11 +2478,11 @@ export default function JevAnalysisPage() {
               onClick={() => setVisibleCurves((p) => ({ ...p, scoreConfidence: !p.scoreConfidence }))}
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs transition-all ${
                 visibleCurves.scoreConfidence
-                  ? "bg-[#eab308]/20 border-[#eab308] text-[#eab308] font-bold"
-                  : "bg-white/[0.03] border-white/[0.1] text-[#5d628f] opacity-60"
+                  ? "bg-[#cfad4e]/20 border-[#cfad4e] text-[#cfad4e] font-bold"
+                  : "bg-white/[0.03] border-white/[0.1] text-[#73757c] opacity-60"
               }`}
             >
-              <span className="w-2.5 h-2.5 rounded-full bg-[#eab308]" />
+              <span className="w-2.5 h-2.5 rounded-full bg-[#cfad4e]" />
               اطمینان اسکور Jev (%)
             </button>
 
@@ -2490,11 +2490,11 @@ export default function JevAnalysisPage() {
               onClick={() => setVisibleCurves((p) => ({ ...p, up1h: !p.up1h }))}
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs transition-all ${
                 visibleCurves.up1h
-                  ? "bg-[#2ce5a7]/20 border-[#2ce5a7] text-[#2ce5a7] font-bold"
-                  : "bg-white/[0.03] border-white/[0.1] text-[#5d628f] opacity-60"
+                  ? "bg-[#5fbf9a]/20 border-[#5fbf9a] text-[#5fbf9a] font-bold"
+                  : "bg-white/[0.03] border-white/[0.1] text-[#73757c] opacity-60"
               }`}
             >
-              <span className="w-2.5 h-2.5 rounded-full bg-[#2ce5a7]" />
+              <span className="w-2.5 h-2.5 rounded-full bg-[#5fbf9a]" />
               1H Up % بازار
             </button>
 
@@ -2502,11 +2502,11 @@ export default function JevAnalysisPage() {
               onClick={() => setVisibleCurves((p) => ({ ...p, up15m: !p.up15m }))}
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs transition-all ${
                 visibleCurves.up15m
-                  ? "bg-[#38bdf8]/20 border-[#38bdf8] text-[#38bdf8] font-bold"
-                  : "bg-white/[0.03] border-white/[0.1] text-[#5d628f] opacity-60"
+                  ? "bg-[#6aa9d8]/20 border-[#6aa9d8] text-[#6aa9d8] font-bold"
+                  : "bg-white/[0.03] border-white/[0.1] text-[#73757c] opacity-60"
               }`}
             >
-              <span className="w-2.5 h-2.5 rounded-full bg-[#38bdf8]" />
+              <span className="w-2.5 h-2.5 rounded-full bg-[#6aa9d8]" />
               15M Up % بازار
             </button>
 
@@ -2514,11 +2514,11 @@ export default function JevAnalysisPage() {
               onClick={() => setVisibleCurves((p) => ({ ...p, fair15m: !p.fair15m }))}
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs transition-all ${
                 visibleCurves.fair15m
-                  ? "bg-[#f59e0b]/20 border-[#f59e0b] text-[#f59e0b] font-bold"
-                  : "bg-white/[0.03] border-white/[0.1] text-[#5d628f] opacity-60"
+                  ? "bg-[#d4a24f]/20 border-[#d4a24f] text-[#d4a24f] font-bold"
+                  : "bg-white/[0.03] border-white/[0.1] text-[#73757c] opacity-60"
               }`}
             >
-              <span className="w-2.5 h-2.5 rounded-full bg-[#f59e0b]" />
+              <span className="w-2.5 h-2.5 rounded-full bg-[#d4a24f]" />
               Fair Value 15m
             </button>
 
@@ -2526,11 +2526,11 @@ export default function JevAnalysisPage() {
               onClick={() => setVisibleCurves((p) => ({ ...p, up5m: !p.up5m }))}
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs transition-all ${
                 visibleCurves.up5m
-                  ? "bg-[#f472b6]/20 border-[#f472b6] text-[#f472b6] font-bold"
-                  : "bg-white/[0.03] border-white/[0.1] text-[#5d628f] opacity-60"
+                  ? "bg-[#d68aa8]/20 border-[#d68aa8] text-[#d68aa8] font-bold"
+                  : "bg-white/[0.03] border-white/[0.1] text-[#73757c] opacity-60"
               }`}
             >
-              <span className="w-2.5 h-2.5 rounded-full bg-[#f472b6]" />
+              <span className="w-2.5 h-2.5 rounded-full bg-[#d68aa8]" />
               5M Up % بازار
             </button>
           </div>
@@ -2538,27 +2538,27 @@ export default function JevAnalysisPage() {
 
         {/* CONDITIONAL SIGNAL MARKERS CONFIGURATION PANEL */}
         {showSignalSettings && (
-          <div className="bg-[#05060d]/90 border border-[#38bdf8]/30 rounded-xl p-4 space-y-3.5 text-xs animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="bg-[#0f1013]/90 border border-[#6aa9d8]/30 rounded-xl p-4 space-y-3.5 text-xs animate-in fade-in slide-in-from-top-2 duration-200">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/[0.08] pb-2.5">
               <div className="flex items-center gap-2">
-                <Sliders className="w-4 h-4 text-[#38bdf8]" />
+                <Sliders className="w-4 h-4 text-[#6aa9d8]" />
                 <span className="font-bold text-white text-sm">
                   تعریف شروط تیک‌های روی منحنی (Conditional Signal Markers):
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                <label className="flex items-center gap-1.5 text-[#c3c8ee] cursor-pointer">
+                <label className="flex items-center gap-1.5 text-[#bdbdb8] cursor-pointer">
                   <input
                     type="checkbox"
                     checked={signals.enabled}
                     onChange={(e) => setSignals((p) => ({ ...p, enabled: e.target.checked }))}
-                    className="accent-[#38bdf8] rounded"
+                    className="accent-[#6aa9d8] rounded"
                   />
                   <span>فعال‌سازی سیستم تیک‌های شرطی</span>
                 </label>
                 <button
                   onClick={() => setSignals(DEFAULT_SIGNAL_CONFIG)}
-                  className="text-[11px] px-2.5 py-1 rounded bg-white/[0.05] hover:bg-white/[0.1] text-[#8b91c5] hover:text-white transition-colors"
+                  className="text-[11px] px-2.5 py-1 rounded bg-white/[0.05] hover:bg-white/[0.1] text-[#9a9ca3] hover:text-white transition-colors"
                 >
                   بازنشانی شروط
                 </button>
@@ -2567,19 +2567,19 @@ export default function JevAnalysisPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {/* Bullish Condition (Blue Tick) */}
-              <div className="bg-[#090b1a] p-3 rounded-xl border border-[#38bdf8]/30 space-y-2">
+              <div className="bg-[#131418] p-3 rounded-xl border border-[#6aa9d8]/30 space-y-2">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 font-bold text-[#38bdf8]">
-                    <span className="w-3.5 h-3.5 rounded-full bg-[#38bdf8] flex items-center justify-center text-[10px] text-black font-black">✓</span>
+                  <div className="flex items-center gap-1.5 font-bold text-[#6aa9d8]">
+                    <span className="w-3.5 h-3.5 rounded-full bg-[#6aa9d8] flex items-center justify-center text-[10px] text-black font-black">✓</span>
                     <span>شرط تیک آبی (صعودی / Bullish):</span>
                   </div>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#38bdf8]/15 text-[#38bdf8] font-bold">
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#6aa9d8]/15 text-[#6aa9d8] font-bold">
                     {bullishMatches.length} مورد فعال
                   </span>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-[11px]">
                   <div>
-                    <label className="text-[#8b91c5] block mb-1">حداقل اسکور (0 - 4):</label>
+                    <label className="text-[#9a9ca3] block mb-1">حداقل اسکور (0 - 4):</label>
                     <input
                       type="number"
                       step="0.1"
@@ -2592,11 +2592,11 @@ export default function JevAnalysisPage() {
                           bullishScore: parseFloat(e.target.value) || 0,
                         }))
                       }
-                      className="w-full bg-[#05060d] text-white border border-[#38bdf8]/40 rounded-lg px-2.5 py-1 font-mono font-bold focus:outline-none focus:border-[#38bdf8]"
+                      className="w-full bg-[#0f1013] text-white border border-[#6aa9d8]/40 rounded-lg px-2.5 py-1 font-mono font-bold focus:outline-none focus:border-[#6aa9d8]"
                     />
                   </div>
                   <div>
-                    <label className="text-[#8b91c5] block mb-1">حداقل اطمینان (%):</label>
+                    <label className="text-[#9a9ca3] block mb-1">حداقل اطمینان (%):</label>
                     <input
                       type="number"
                       step="5"
@@ -2609,29 +2609,29 @@ export default function JevAnalysisPage() {
                           bullishMinConf: parseInt(e.target.value, 10) || 0,
                         }))
                       }
-                      className="w-full bg-[#05060d] text-white border border-[#38bdf8]/40 rounded-lg px-2.5 py-1 font-mono font-bold focus:outline-none focus:border-[#38bdf8]"
+                      className="w-full bg-[#0f1013] text-white border border-[#6aa9d8]/40 rounded-lg px-2.5 py-1 font-mono font-bold focus:outline-none focus:border-[#6aa9d8]"
                     />
                   </div>
                 </div>
-                <p className="text-[10px] text-[#38bdf8]">
+                <p className="text-[10px] text-[#6aa9d8]">
                   قانون تیک آبی: اسکور بالای {signals.bullishScore} و همزمان اطمینان اسکور حداقل {signals.bullishMinConf}%
                 </p>
               </div>
 
               {/* Bearish Condition (Red Tick) */}
-              <div className="bg-[#090b1a] p-3 rounded-xl border border-[#ef4444]/30 space-y-2">
+              <div className="bg-[#131418] p-3 rounded-xl border border-[#d8646a]/30 space-y-2">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 font-bold text-[#ef4444]">
-                    <span className="w-3.5 h-3.5 rounded-full bg-[#ef4444] flex items-center justify-center text-[10px] text-white font-black">✓</span>
+                  <div className="flex items-center gap-1.5 font-bold text-[#d8646a]">
+                    <span className="w-3.5 h-3.5 rounded-full bg-[#d8646a] flex items-center justify-center text-[10px] text-white font-black">✓</span>
                     <span>شرط تیک قرمز (نزولی / Bearish):</span>
                   </div>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#ef4444]/15 text-[#ef4444] font-bold">
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#d8646a]/15 text-[#d8646a] font-bold">
                     {bearishMatches.length} مورد فعال
                   </span>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-[11px]">
                   <div>
-                    <label className="text-[#8b91c5] block mb-1">حداکثر اسکور (0 - 4):</label>
+                    <label className="text-[#9a9ca3] block mb-1">حداکثر اسکور (0 - 4):</label>
                     <input
                       type="number"
                       step="0.1"
@@ -2644,11 +2644,11 @@ export default function JevAnalysisPage() {
                           bearishScore: parseFloat(e.target.value) || 0,
                         }))
                       }
-                      className="w-full bg-[#05060d] text-white border border-[#ef4444]/40 rounded-lg px-2.5 py-1 font-mono font-bold focus:outline-none focus:border-[#ef4444]"
+                      className="w-full bg-[#0f1013] text-white border border-[#d8646a]/40 rounded-lg px-2.5 py-1 font-mono font-bold focus:outline-none focus:border-[#d8646a]"
                     />
                   </div>
                   <div>
-                    <label className="text-[#8b91c5] block mb-1">حداقل اطمینان (%):</label>
+                    <label className="text-[#9a9ca3] block mb-1">حداقل اطمینان (%):</label>
                     <input
                       type="number"
                       step="5"
@@ -2661,20 +2661,20 @@ export default function JevAnalysisPage() {
                           bearishMinConf: parseInt(e.target.value, 10) || 0,
                         }))
                       }
-                      className="w-full bg-[#05060d] text-white border border-[#ef4444]/40 rounded-lg px-2.5 py-1 font-mono font-bold focus:outline-none focus:border-[#ef4444]"
+                      className="w-full bg-[#0f1013] text-white border border-[#d8646a]/40 rounded-lg px-2.5 py-1 font-mono font-bold focus:outline-none focus:border-[#d8646a]"
                     />
                   </div>
                 </div>
-                <p className="text-[10px] text-[#ef4444]">
+                <p className="text-[10px] text-[#d8646a]">
                   قانون تیک قرمز: اسکور کمتر از {signals.bearishScore} و همزمان اطمینان اسکور حداقل {signals.bearishMinConf}%
                 </p>
               </div>
 
               {/* Model Source & Confidence Settings */}
-              <div className="bg-[#090b1a] p-3 rounded-xl border border-white/[0.1] space-y-2 flex flex-col justify-between">
+              <div className="bg-[#131418] p-3 rounded-xl border border-white/[0.1] space-y-2 flex flex-col justify-between">
                 <div className="space-y-2">
                   <div>
-                    <label className="text-[#8b91c5] block mb-1 font-medium">مدل هوش‌مصنوعی مبنای سیگنال:</label>
+                    <label className="text-[#9a9ca3] block mb-1 font-medium">مدل هوش‌مصنوعی مبنای سیگنال:</label>
                     <select
                       value={signals.modelSource || "jev"}
                       onChange={(e) =>
@@ -2683,7 +2683,7 @@ export default function JevAnalysisPage() {
                           modelSource: e.target.value as "jev" | "kev" | "span" | "consensus",
                         }))
                       }
-                      className="w-full bg-[#05060d] text-white border border-white/[0.15] rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-[#38bdf8]"
+                      className="w-full bg-[#0f1013] text-white border border-white/[0.15] rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-[#6aa9d8]"
                     >
                       <option value="jev">مدل Jev (انحصاری Jev - پیش‌فرض)</option>
                       <option value="kev">مدل Kev-4b (اسکور ۰ تا ۴)</option>
@@ -2692,7 +2692,7 @@ export default function JevAnalysisPage() {
                     </select>
                   </div>
                   <div>
-                    <label className="text-[#8b91c5] block mb-1 font-medium">مبنای سنجش درصد اطمینان:</label>
+                    <label className="text-[#9a9ca3] block mb-1 font-medium">مبنای سنجش درصد اطمینان:</label>
                     <select
                       value={signals.confidenceType}
                       onChange={(e) =>
@@ -2701,14 +2701,14 @@ export default function JevAnalysisPage() {
                           confidenceType: e.target.value as "score" | "direction" | "any",
                         }))
                       }
-                      className="w-full bg-[#05060d] text-white border border-white/[0.15] rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-[#38bdf8]"
+                      className="w-full bg-[#0f1013] text-white border border-white/[0.15] rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-[#6aa9d8]"
                     >
                       <option value="score">فقط درصد اطمینان اسکور (Score Confidence - قانون اصلی)</option>
                       <option value="direction">فقط درصد اطمینان جهت (Direction Confidence)</option>
                     </select>
                   </div>
                 </div>
-                <div className="text-[11px] text-[#8b91c5] bg-white/[0.03] p-2 rounded-lg border border-white/[0.05]">
+                <div className="text-[11px] text-[#9a9ca3] bg-white/[0.03] p-2 rounded-lg border border-white/[0.05]">
                   💡 تیک‌ها به همراه خط چین راهنما مستقیماً در صورت برقراری همزمان هر دو شرط اسکور و اطمینان اسکور رسم می‌شوند.
                 </div>
               </div>
@@ -2718,10 +2718,10 @@ export default function JevAnalysisPage() {
 
         {/* The SVG Smooth Curve Canvas */}
         {chartData.length < 2 ? (
-          <div className="h-64 flex flex-col items-center justify-center text-center p-6 text-[#8b91c5] bg-white/[0.02] rounded-xl border border-dashed border-white/[0.08]">
-            <Clock className="w-8 h-8 text-[#5d628f] mb-2" />
+          <div className="h-64 flex flex-col items-center justify-center text-center p-6 text-[#9a9ca3] bg-white/[0.02] rounded-xl border border-dashed border-white/[0.08]">
+            <Clock className="w-8 h-8 text-[#73757c] mb-2" />
             <p className="text-xs font-semibold text-white">برای این بازه داده کافی برای رسم منحنی وجود ندارد</p>
-            <p className="text-[11px] text-[#5d628f] mt-1">
+            <p className="text-[11px] text-[#73757c] mt-1">
               لطفاً بازه زمانی را وسیع‌تر انتخاب کنید (مثلاً تمام ساعات یا ساعت‌های دیگر که داده ثبت شده است).
             </p>
           </div>
@@ -2737,16 +2737,16 @@ export default function JevAnalysisPage() {
               <defs>
                 {/* Gradients for Curve Glow & Area */}
                 <linearGradient id="scoreGlow" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#c084fc" stopOpacity="0.25" />
-                  <stop offset="100%" stopColor="#c084fc" stopOpacity="0.0" />
+                  <stop offset="0%" stopColor="#a795d6" stopOpacity="0.25" />
+                  <stop offset="100%" stopColor="#a795d6" stopOpacity="0.0" />
                 </linearGradient>
                 <linearGradient id="up1hGlow" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#2ce5a7" stopOpacity="0.25" />
-                  <stop offset="100%" stopColor="#2ce5a7" stopOpacity="0.0" />
+                  <stop offset="0%" stopColor="#5fbf9a" stopOpacity="0.25" />
+                  <stop offset="100%" stopColor="#5fbf9a" stopOpacity="0.0" />
                 </linearGradient>
                 <linearGradient id="fairGlow" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.2" />
-                  <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.0" />
+                  <stop offset="0%" stopColor="#d4a24f" stopOpacity="0.2" />
+                  <stop offset="100%" stopColor="#d4a24f" stopOpacity="0.0" />
                 </linearGradient>
               </defs>
 
@@ -2761,14 +2761,14 @@ export default function JevAnalysisPage() {
                       y1={y}
                       x2={padding.left + plotWidth}
                       y2={y}
-                      stroke="rgba(255, 255, 255, 0.07)"
+                      stroke="rgba(255,255,255, 0.07)"
                       strokeDasharray="4 4"
                     />
                     {/* Left Axis: Jev Score */}
                     <text
                       x={padding.left - 8}
                       y={y + 3}
-                      fill="#a5b4fc"
+                      fill="#9fb4ee"
                       fontSize="9"
                       textAnchor="end"
                       fontFamily="monospace"
@@ -2779,7 +2779,7 @@ export default function JevAnalysisPage() {
                     <text
                       x={padding.left + plotWidth + 8}
                       y={y + 3}
-                      fill="#8b91c5"
+                      fill="#9a9ca3"
                       fontSize="9"
                       textAnchor="start"
                       fontFamily="monospace"
@@ -2796,7 +2796,7 @@ export default function JevAnalysisPage() {
                 y1={padding.top + plotHeight / 2}
                 x2={padding.left + plotWidth}
                 y2={padding.top + plotHeight / 2}
-                stroke="rgba(140, 130, 255, 0.25)"
+                stroke="rgba(190,190,200, 0.25)"
                 strokeWidth="1.2"
               />
 
@@ -2805,7 +2805,7 @@ export default function JevAnalysisPage() {
                 <path
                   d={curveCoordinates.fair15mPath}
                   fill="none"
-                  stroke="#f59e0b"
+                  stroke="#d4a24f"
                   strokeWidth="2"
                   strokeDasharray="3 3"
                   className="transition-all duration-300"
@@ -2817,7 +2817,7 @@ export default function JevAnalysisPage() {
                 <path
                   d={curveCoordinates.up15mPath}
                   fill="none"
-                  stroke="#38bdf8"
+                  stroke="#6aa9d8"
                   strokeWidth="1.8"
                   className="transition-all duration-300"
                 />
@@ -2828,7 +2828,7 @@ export default function JevAnalysisPage() {
                 <path
                   d={curveCoordinates.up5mPath}
                   fill="none"
-                  stroke="#f472b6"
+                  stroke="#d68aa8"
                   strokeWidth="1.5"
                   className="transition-all duration-300"
                 />
@@ -2845,7 +2845,7 @@ export default function JevAnalysisPage() {
                   <path
                     d={curveCoordinates.up1hPath}
                     fill="none"
-                    stroke="#2ce5a7"
+                    stroke="#5fbf9a"
                     strokeWidth="2.5"
                     className="transition-all duration-300"
                   />
@@ -2857,7 +2857,7 @@ export default function JevAnalysisPage() {
                 <path
                   d={curveCoordinates.scoreConfidencePath}
                   fill="none"
-                  stroke="#eab308"
+                  stroke="#cfad4e"
                   strokeWidth="2.2"
                   strokeDasharray="4 2"
                   className="transition-all duration-300"
@@ -2875,7 +2875,7 @@ export default function JevAnalysisPage() {
                   <path
                     d={curveCoordinates.scorePath}
                     fill="none"
-                    stroke="#c084fc"
+                    stroke="#a795d6"
                     strokeWidth="3"
                     className="transition-all duration-300"
                   />
@@ -2887,7 +2887,7 @@ export default function JevAnalysisPage() {
                 <path
                   d={curveCoordinates.kevScorePath}
                   fill="none"
-                  stroke="#38bdf8"
+                  stroke="#6aa9d8"
                   strokeWidth="2.5"
                   strokeDasharray="4 2"
                   className="transition-all duration-300"
@@ -2899,7 +2899,7 @@ export default function JevAnalysisPage() {
                 <path
                   d={curveCoordinates.spanScorePath}
                   fill="none"
-                  stroke="#e879f9"
+                  stroke="#b58ac9"
                   strokeWidth="2.5"
                   strokeDasharray="2 2"
                   className="transition-all duration-300"
@@ -2940,7 +2940,7 @@ export default function JevAnalysisPage() {
                         r={isHovered ? 13 : 9.5}
                         fill={marker.signal.color}
                         opacity={isHovered ? "0.35" : "0.2"}
-                        className="animate-pulse"
+                        className=""
                       />
 
                       {/* Pin background circle */}
@@ -2948,7 +2948,7 @@ export default function JevAnalysisPage() {
                         cx={marker.x}
                         cy={pinY}
                         r={isHovered ? 9.5 : 8}
-                        fill="#05060d"
+                        fill="#0f1013"
                         stroke={marker.signal.color}
                         strokeWidth={isHovered ? "2.5" : "1.8"}
                       />
@@ -3007,8 +3007,8 @@ export default function JevAnalysisPage() {
                           cx={x}
                           cy={padding.top + plotHeight - (pt.score / 4) * plotHeight}
                           r={isHovered ? 5 : 2.5}
-                          fill={isHovered ? "#fff" : "#c084fc"}
-                          stroke="#0B1120"
+                          fill={isHovered ? "#fff" : "#a795d6"}
+                          stroke="#131418"
                           strokeWidth="1.5"
                         />
                       )}
@@ -3017,8 +3017,8 @@ export default function JevAnalysisPage() {
                           cx={x}
                           cy={padding.top + plotHeight - (pt.kev_score / 4) * plotHeight}
                           r={isHovered ? 5 : 2.5}
-                          fill={isHovered ? "#fff" : "#38bdf8"}
-                          stroke="#0B1120"
+                          fill={isHovered ? "#fff" : "#6aa9d8"}
+                          stroke="#131418"
                           strokeWidth="1.5"
                         />
                       )}
@@ -3027,8 +3027,8 @@ export default function JevAnalysisPage() {
                           cx={x}
                           cy={padding.top + plotHeight - (pt.span_score / 4) * plotHeight}
                           r={isHovered ? 5 : 2.5}
-                          fill={isHovered ? "#fff" : "#e879f9"}
-                          stroke="#0B1120"
+                          fill={isHovered ? "#fff" : "#b58ac9"}
+                          stroke="#131418"
                           strokeWidth="1.5"
                         />
                       )}
@@ -3037,8 +3037,8 @@ export default function JevAnalysisPage() {
                           cx={x}
                           cy={padding.top + plotHeight - (pt.score_confidence / 100) * plotHeight}
                           r={isHovered ? 5 : 2.5}
-                          fill={isHovered ? "#fff" : "#eab308"}
-                          stroke="#0B1120"
+                          fill={isHovered ? "#fff" : "#cfad4e"}
+                          stroke="#131418"
                           strokeWidth="1.5"
                         />
                       )}
@@ -3047,8 +3047,8 @@ export default function JevAnalysisPage() {
                           cx={x}
                           cy={padding.top + plotHeight - (pt.up_1h_num / 100) * plotHeight}
                           r={isHovered ? 5 : 2.5}
-                          fill={isHovered ? "#fff" : "#2ce5a7"}
-                          stroke="#0B1120"
+                          fill={isHovered ? "#fff" : "#5fbf9a"}
+                          stroke="#131418"
                           strokeWidth="1.5"
                         />
                       )}
@@ -3063,7 +3063,7 @@ export default function JevAnalysisPage() {
                   y1={padding.top}
                   x2={curveCoordinates.getX(hoverIndex)}
                   y2={padding.top + plotHeight}
-                  stroke="#38bdf8"
+                  stroke="#6aa9d8"
                   strokeWidth="1.5"
                   strokeDasharray="4 3"
                 />
@@ -3082,7 +3082,7 @@ export default function JevAnalysisPage() {
                         key={idx}
                         x={x}
                         y={padding.top + plotHeight + 20}
-                        fill="#8b91c5"
+                        fill="#9a9ca3"
                         fontSize="10"
                         textAnchor="middle"
                         fontFamily="monospace"
@@ -3102,15 +3102,15 @@ export default function JevAnalysisPage() {
                   left: `min(${Math.max(10, (curveCoordinates.getX(hoverIndex) / chartWidth) * 100)}%, calc(100% - 240px))`,
                 }}
               >
-                <div className="bg-[#05060d]/95 border border-[#38bdf8]/40 rounded-xl p-3 shadow-2xl backdrop-blur-md text-xs space-y-1.5 min-w-[210px]">
+                <div className="bg-[#0f1013]/95 border border-[#6aa9d8]/40 rounded-xl p-3 shadow-2xl backdrop-blur-md text-xs space-y-1.5 min-w-[210px]">
                   <div className="flex items-center justify-between border-b border-white/[0.08] pb-1">
-                    <span className="font-mono text-[#38bdf8] font-bold">
+                    <span className="font-mono text-[#6aa9d8] font-bold">
                       {hoveredItem.current_time_et || hoveredItem.et_time}
                     </span>
                     {hoveredItem.direction && (
                       <span
                         className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${
-                          hoveredItem.direction === "UP" ? "bg-[#2ce5a7]/20 text-[#2ce5a7]" : "bg-[#ff6b9d]/20 text-[#ff6b9d]"
+                          hoveredItem.direction === "UP" ? "bg-[#5fbf9a]/20 text-[#5fbf9a]" : "bg-[#e5787f]/20 text-[#e5787f]"
                         }`}
                       >
                         {hoveredItem.direction}
@@ -3141,7 +3141,7 @@ export default function JevAnalysisPage() {
                             {sig.label}
                           </span>
                         </div>
-                        <span className="text-[10px] opacity-85 font-mono text-[#c3c8ee]">
+                        <span className="text-[10px] opacity-85 font-mono text-[#bdbdb8]">
                           {sig.rule}
                         </span>
                       </div>
@@ -3150,8 +3150,8 @@ export default function JevAnalysisPage() {
 
                   {hoveredItem.score != null && (
                     <div className="flex items-center justify-between">
-                      <span className="text-[#8b91c5]">اسکور Jev:</span>
-                      <span className="font-mono text-[#c084fc] font-bold tabular-nums">
+                      <span className="text-[#9a9ca3]">اسکور Jev:</span>
+                      <span className="font-mono text-[#a795d6] font-bold tabular-nums">
                         {hoveredItem.score.toFixed(2)} / 4.0
                       </span>
                     </div>
@@ -3159,8 +3159,8 @@ export default function JevAnalysisPage() {
 
                   {hoveredItem.score_confidence != null && (
                     <div className="flex items-center justify-between">
-                      <span className="text-[#8b91c5]">اطمینان اسکور:</span>
-                      <span className="font-mono text-[#eab308] font-bold tabular-nums">
+                      <span className="text-[#9a9ca3]">اطمینان اسکور:</span>
+                      <span className="font-mono text-[#cfad4e] font-bold tabular-nums">
                         {hoveredItem.score_confidence}%
                       </span>
                     </div>
@@ -3168,8 +3168,8 @@ export default function JevAnalysisPage() {
 
                   {hoveredItem.kev_score != null && (
                     <div className="flex items-center justify-between">
-                      <span className="text-[#8b91c5]">اسکور Kev-4b:</span>
-                      <span className="font-mono text-[#38bdf8] font-bold tabular-nums">
+                      <span className="text-[#9a9ca3]">اسکور Kev-4b:</span>
+                      <span className="font-mono text-[#6aa9d8] font-bold tabular-nums">
                         {hoveredItem.kev_score.toFixed(2)} / 4.0 {hoveredItem.kev_confidence != null ? `(${hoveredItem.kev_confidence}%)` : ""}
                       </span>
                     </div>
@@ -3177,8 +3177,8 @@ export default function JevAnalysisPage() {
 
                   {hoveredItem.span_score != null && (
                     <div className="flex items-center justify-between">
-                      <span className="text-[#8b91c5]">اسکور Span-01:</span>
-                      <span className="font-mono text-[#e879f9] font-bold tabular-nums">
+                      <span className="text-[#9a9ca3]">اسکور Span-01:</span>
+                      <span className="font-mono text-[#b58ac9] font-bold tabular-nums">
                         {hoveredItem.span_score.toFixed(2)} / 4.0 {hoveredItem.span_confidence != null ? `(${hoveredItem.span_confidence}%)` : ""}
                       </span>
                     </div>
@@ -3186,8 +3186,8 @@ export default function JevAnalysisPage() {
 
                   {hoveredItem.up_1h_num != null && (
                     <div className="flex items-center justify-between">
-                      <span className="text-[#8b91c5]">1H Up بازار:</span>
-                      <span className="font-mono text-[#2ce5a7] font-bold tabular-nums">
+                      <span className="text-[#9a9ca3]">1H Up بازار:</span>
+                      <span className="font-mono text-[#5fbf9a] font-bold tabular-nums">
                         {hoveredItem.up_1h_num}%
                       </span>
                     </div>
@@ -3195,8 +3195,8 @@ export default function JevAnalysisPage() {
 
                   {hoveredItem.up_15m_num != null && (
                     <div className="flex items-center justify-between">
-                      <span className="text-[#8b91c5]">15M Up بازار:</span>
-                      <span className="font-mono text-[#38bdf8] font-medium tabular-nums">
+                      <span className="text-[#9a9ca3]">15M Up بازار:</span>
+                      <span className="font-mono text-[#6aa9d8] font-medium tabular-nums">
                         {hoveredItem.up_15m_num}%
                       </span>
                     </div>
@@ -3204,8 +3204,8 @@ export default function JevAnalysisPage() {
 
                   {hoveredItem.fair_15m != null && (
                     <div className="flex items-center justify-between">
-                      <span className="text-[#8b91c5]">Fair Value 15m:</span>
-                      <span className="font-mono text-[#f59e0b] font-medium tabular-nums">
+                      <span className="text-[#9a9ca3]">Fair Value 15m:</span>
+                      <span className="font-mono text-[#d4a24f] font-medium tabular-nums">
                         {hoveredItem.fair_15m.toFixed(1)}¢
                       </span>
                     </div>
@@ -3216,28 +3216,28 @@ export default function JevAnalysisPage() {
           </div>
         )}
 
-        <div className="flex flex-wrap items-center justify-between text-[11px] text-[#5d628f] pt-2 border-t border-white/[0.06]">
+        <div className="flex flex-wrap items-center justify-between text-[11px] text-[#73757c] pt-2 border-t border-white/[0.06]">
           <span>محور عمودی چپ: اسکور هوش‌مصنوعی (۰ تا ۴) · محور عمودی راست: درصد بازار (۰٪ تا ۱۰۰٪)</span>
           <span>تعداد نقاط متصل روی منحنی: {chartData.length} مقطع ۵ دقیقه‌ای</span>
         </div>
       </div>
 
       {/* Column & Metric Selector (User customizable view) */}
-      <div className="bg-[#0d0f22]/90 border border-[rgba(140,130,255,0.18)] rounded-2xl p-5 space-y-4">
+      <div className="bg-[#181a1e]/90 border border-[rgba(190,190,200,0.18)] rounded-2xl p-5 space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-white/[0.08] pb-3">
           <div className="flex items-center gap-2">
-            <SlidersHorizontal className="w-4 h-4 text-[#38bdf8]" />
+            <SlidersHorizontal className="w-4 h-4 text-[#6aa9d8]" />
             <span className="text-sm font-semibold text-white">
               انتخاب شاخص‌های جدول (مشخص کنید چه مواردی را فقط نشان دهد):
             </span>
-            <span className="text-xs px-2 py-0.5 rounded-full bg-[#38bdf8]/15 text-[#38bdf8] font-bold">
+            <span className="text-xs px-2 py-0.5 rounded-full bg-[#6aa9d8]/15 text-[#6aa9d8] font-bold">
               {selectedColIds.length} ستون فعال
             </span>
           </div>
 
           {/* Quick Presets */}
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-xs text-[#8b91c5] ml-1">پیش‌فرض‌ها:</span>
+            <span className="text-xs text-[#9a9ca3] ml-1">پیش‌فرض‌ها:</span>
             {PRESETS.map((p) => {
               const isActive =
                 selectedColIds.length === p.cols.length &&
@@ -3248,8 +3248,8 @@ export default function JevAnalysisPage() {
                   onClick={() => setSelectedColIds(p.cols)}
                   className={`text-xs px-2.5 py-1 rounded-lg border transition-all ${
                     isActive
-                      ? "bg-[#38bdf8]/20 border-[#38bdf8] text-[#38bdf8] font-semibold"
-                      : "bg-white/[0.04] border-white/[0.08] text-[#8b91c5] hover:text-white hover:bg-white/[0.08]"
+                      ? "bg-[#6aa9d8]/20 border-[#6aa9d8] text-[#6aa9d8] font-semibold"
+                      : "bg-white/[0.04] border-white/[0.08] text-[#9a9ca3] hover:text-white hover:bg-white/[0.08]"
                   }`}
                 >
                   {p.title}
@@ -3269,13 +3269,13 @@ export default function JevAnalysisPage() {
                 onClick={() => toggleColumn(col.id)}
                 className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-all ${
                   isSelected
-                    ? "bg-[#6c5ce7]/25 border-[#8b7cff] text-white shadow-sm"
-                    : "bg-white/[0.03] border-white/[0.07] text-[#8b91c5] hover:text-[#c3c8ee] hover:bg-white/[0.06]"
+                    ? "bg-[#6b86d6]/25 border-[#8ea4e8] text-white shadow-sm"
+                    : "bg-white/[0.03] border-white/[0.07] text-[#9a9ca3] hover:text-[#bdbdb8] hover:bg-white/[0.06]"
                 }`}
               >
                 <div
                   className={`w-3.5 h-3.5 rounded flex items-center justify-center text-[10px] ${
-                    isSelected ? "bg-[#38bdf8] text-black font-bold" : "border border-white/20"
+                    isSelected ? "bg-[#6aa9d8] text-black font-bold" : "border border-white/20"
                   }`}
                 >
                   {isSelected && <Check className="w-2.5 h-2.5 stroke-[3]" />}
@@ -3288,10 +3288,10 @@ export default function JevAnalysisPage() {
       </div>
 
       {/* Filter & Search Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-[#0d0f22]/70 p-3 rounded-xl border border-[rgba(140,130,255,0.12)]">
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-[#181a1e]/70 p-3 rounded-xl border border-[rgba(190,190,200,0.12)]">
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-1.5 text-xs text-[#8b91c5]">
-            <Filter className="w-3.5 h-3.5 text-[#38bdf8]" />
+          <div className="flex items-center gap-1.5 text-xs text-[#9a9ca3]">
+            <Filter className="w-3.5 h-3.5 text-[#6aa9d8]" />
             <span>فیلتر جهت:</span>
           </div>
           <button
@@ -3299,7 +3299,7 @@ export default function JevAnalysisPage() {
             className={`text-xs px-2.5 py-1 rounded-md transition-all ${
               dirFilter === "ALL"
                 ? "bg-white/[0.15] text-white font-medium"
-                : "text-[#8b91c5] hover:text-white"
+                : "text-[#9a9ca3] hover:text-white"
             }`}
           >
             همه ({data.length})
@@ -3308,8 +3308,8 @@ export default function JevAnalysisPage() {
             onClick={() => setDirFilter("UP")}
             className={`text-xs px-2.5 py-1 rounded-md transition-all ${
               dirFilter === "UP"
-                ? "bg-[#2ce5a7]/20 text-[#2ce5a7] font-semibold"
-                : "text-[#8b91c5] hover:text-[#2ce5a7]"
+                ? "bg-[#5fbf9a]/20 text-[#5fbf9a] font-semibold"
+                : "text-[#9a9ca3] hover:text-[#5fbf9a]"
             }`}
           >
             فقط صعودی UP ({stats.upCount})
@@ -3318,8 +3318,8 @@ export default function JevAnalysisPage() {
             onClick={() => setDirFilter("DOWN")}
             className={`text-xs px-2.5 py-1 rounded-md transition-all ${
               dirFilter === "DOWN"
-                ? "bg-[#ff6b9d]/20 text-[#ff6b9d] font-semibold"
-                : "text-[#8b91c5] hover:text-[#ff6b9d]"
+                ? "bg-[#e5787f]/20 text-[#e5787f] font-semibold"
+                : "text-[#9a9ca3] hover:text-[#e5787f]"
             }`}
           >
             فقط نزولی DOWN ({stats.downCount})
@@ -3331,12 +3331,12 @@ export default function JevAnalysisPage() {
             onClick={() => setDirFilter("CONSENSUS_3_UP")}
             className={`text-xs px-2.5 py-1 rounded-md transition-all flex items-center gap-1.5 ${
               dirFilter === "CONSENSUS_3_UP"
-                ? "bg-[#2ce5a7]/25 text-[#2ce5a7] font-semibold border border-[#2ce5a7]/50 shadow-sm"
-                : "text-[#8b91c5] hover:text-[#2ce5a7]"
+                ? "bg-[#5fbf9a]/25 text-[#5fbf9a] font-semibold border border-[#5fbf9a]/50 shadow-sm"
+                : "text-[#9a9ca3] hover:text-[#5fbf9a]"
             }`}
             title="فقط اسنپ‌شات‌هایی که هر ۳ مدل (Jev + Kev + Span) صعود کامل ۳/۳ داده‌اند"
           >
-            <span className="w-1.5 h-1.5 rounded-full bg-[#2ce5a7] animate-pulse" />
+            <span className="w-1.5 h-1.5 rounded-full bg-[#5fbf9a]" />
             <span>۳/۳ صعود ({stats.consensusUp3Count})</span>
           </button>
 
@@ -3344,12 +3344,12 @@ export default function JevAnalysisPage() {
             onClick={() => setDirFilter("CONSENSUS_3_DOWN")}
             className={`text-xs px-2.5 py-1 rounded-md transition-all flex items-center gap-1.5 ${
               dirFilter === "CONSENSUS_3_DOWN"
-                ? "bg-[#ff6b9d]/25 text-[#ff6b9d] font-semibold border border-[#ff6b9d]/50 shadow-sm"
-                : "text-[#8b91c5] hover:text-[#ff6b9d]"
+                ? "bg-[#e5787f]/25 text-[#e5787f] font-semibold border border-[#e5787f]/50 shadow-sm"
+                : "text-[#9a9ca3] hover:text-[#e5787f]"
             }`}
             title="فقط اسنپ‌شات‌هایی که هر ۳ مدل (Jev + Kev + Span) نزول کامل ۳/۳ داده‌اند"
           >
-            <span className="w-1.5 h-1.5 rounded-full bg-[#ff6b9d] animate-pulse" />
+            <span className="w-1.5 h-1.5 rounded-full bg-[#e5787f]" />
             <span>۳/۳ نزول ({stats.consensusDown3Count})</span>
           </button>
 
@@ -3357,8 +3357,8 @@ export default function JevAnalysisPage() {
             onClick={() => setDirFilter("CONSENSUS_3_3")}
             className={`text-xs px-2.5 py-1 rounded-md transition-all flex items-center gap-1.5 ${
               dirFilter === "CONSENSUS_3_3"
-                ? "bg-[#a855f7]/25 text-[#c084fc] font-semibold border border-[#a855f7]/50 shadow-sm"
-                : "text-[#8b91c5] hover:text-[#c084fc]"
+                ? "bg-[#a795d6]/25 text-[#a795d6] font-semibold border border-[#a795d6]/50 shadow-sm"
+                : "text-[#9a9ca3] hover:text-[#a795d6]"
             }`}
             title="هر نوع اجماع قاطع ۳ از ۳ (چه صعود و چه نزول)"
           >
@@ -3371,8 +3371,8 @@ export default function JevAnalysisPage() {
             title={`نمایش تمام اسنپ‌شات‌های دارای سیگنال (${stats.rawSignalSnapshots} اسنپ‌شات ۵ دقیقه‌ای)`}
             className={`text-xs px-2.5 py-1 rounded-md transition-all ${
               dirFilter === "SIGNALS"
-                ? "bg-[#38bdf8]/20 text-[#38bdf8] font-semibold border border-[#38bdf8]/40"
-                : "text-[#8b91c5] hover:text-[#38bdf8]"
+                ? "bg-[#6aa9d8]/20 text-[#6aa9d8] font-semibold border border-[#6aa9d8]/40"
+                : "text-[#9a9ca3] hover:text-[#6aa9d8]"
             }`}
           >
             🎯 تمام سیگنال‌ها ({stats.rawSignalSnapshots})
@@ -3383,7 +3383,7 @@ export default function JevAnalysisPage() {
             className={`text-xs px-2.5 py-1 rounded-md transition-all flex items-center gap-1.5 ${
               dirFilter === "FIRST_HOURLY_SIGNAL"
                 ? "bg-amber-500/25 text-amber-300 font-semibold border border-amber-500/50 shadow-sm"
-                : "text-[#8b91c5] hover:text-amber-300"
+                : "text-[#9a9ca3] hover:text-amber-300"
             }`}
           >
             <Zap className="w-3 h-3 text-amber-400" />
@@ -3395,7 +3395,7 @@ export default function JevAnalysisPage() {
             className={`text-xs px-2.5 py-1 rounded-md transition-all ${
               dirFilter === "WINS"
                 ? "bg-emerald-500/25 text-emerald-300 font-semibold border border-emerald-500/40"
-                : "text-[#8b91c5] hover:text-emerald-400"
+                : "text-[#9a9ca3] hover:text-emerald-400"
             }`}
           >
             🏆 برد ({stats.winCount})
@@ -3406,7 +3406,7 @@ export default function JevAnalysisPage() {
             className={`text-xs px-2.5 py-1 rounded-md transition-all ${
               dirFilter === "LOSSES"
                 ? "bg-rose-500/25 text-rose-300 font-semibold border border-rose-500/40"
-                : "text-[#8b91c5] hover:text-rose-400"
+                : "text-[#9a9ca3] hover:text-rose-400"
             }`}
           >
             ❌ باخت ({stats.lossCount})
@@ -3433,7 +3433,7 @@ export default function JevAnalysisPage() {
             className={`flex items-center gap-1.5 text-xs cursor-pointer select-none px-2.5 py-1 rounded-lg border transition-all ${
               onlyFirstHourlySignal
                 ? "bg-amber-500/15 text-amber-300 border-amber-500/40 font-medium"
-                : "bg-white/[0.04] text-[#8b91c5] border-white/[0.08] hover:bg-white/[0.08] hover:text-white"
+                : "bg-white/[0.04] text-[#9a9ca3] border-white/[0.08] hover:bg-white/[0.08] hover:text-white"
             }`}
             title="عدم نمایش سیگنال‌های تکراری با جهت یکسان در طول همان ساعت (فقط اولین اسنپ‌شات سیگنال‌دار در هر ساعت نمایش داده می‌شود)"
           >
@@ -3441,7 +3441,7 @@ export default function JevAnalysisPage() {
               type="checkbox"
               checked={onlyFirstHourlySignal}
               onChange={(e) => setOnlyFirstHourlySignal(e.target.checked)}
-              className="rounded border-white/20 bg-[#0d0f22] text-[#38bdf8] focus:ring-0 focus:ring-offset-0 cursor-pointer w-3.5 h-3.5"
+              className="rounded border-white/20 bg-[#181a1e] text-[#6aa9d8] focus:ring-0 focus:ring-offset-0 cursor-pointer w-3.5 h-3.5"
             />
             <span className="flex items-center gap-1">
               <Zap className="w-3 h-3 text-amber-400" />
@@ -3449,7 +3449,7 @@ export default function JevAnalysisPage() {
             </span>
           </label>
           {sortConfig && (
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#38bdf8]/15 border border-[#38bdf8]/30 text-[#38bdf8] text-xs font-medium animate-in fade-in">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#6aa9d8]/15 border border-[#6aa9d8]/30 text-[#6aa9d8] text-xs font-medium animate-in fade-in">
               <span>
                 مرتب‌سازی:{" "}
                 {sortConfig.key === "time"
@@ -3468,30 +3468,30 @@ export default function JevAnalysisPage() {
           )}
 
           <div className="relative">
-            <Search className="w-3.5 h-3.5 text-[#5d628f] absolute right-2.5 top-1/2 -translate-y-1/2" />
+            <Search className="w-3.5 h-3.5 text-[#73757c] absolute right-2.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               placeholder="جستجو در زمان، ساعت یا اسکور..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="bg-white/[0.05] border border-white/[0.1] rounded-lg pr-8 pl-3 py-1 text-xs text-white placeholder-[#5d628f] focus:outline-none focus:border-[#38bdf8] w-52"
+              className="bg-white/[0.05] border border-white/[0.1] rounded-lg pr-8 pl-3 py-1 text-xs text-white placeholder-[#73757c] focus:outline-none focus:border-[#6aa9d8] w-52"
             />
           </div>
 
           <button
             onClick={exportCsv}
             disabled={sortedData.length === 0}
-            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] text-xs text-[#c3c8ee] border border-white/[0.08] transition-all disabled:opacity-50"
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] text-xs text-[#bdbdb8] border border-white/[0.08] transition-all disabled:opacity-50"
             title="دانلود خروجی CSV"
           >
-            <Download className="w-3 h-3 text-[#38bdf8]" />
+            <Download className="w-3 h-3 text-[#6aa9d8]" />
             <span className="hidden sm:inline">CSV</span>
           </button>
 
           <button
             onClick={exportPdf}
             disabled={sortedData.length === 0}
-            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#38bdf8]/15 hover:bg-[#38bdf8]/25 text-xs text-[#38bdf8] border border-[#38bdf8]/30 transition-all disabled:opacity-50 font-medium"
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#6aa9d8]/15 hover:bg-[#6aa9d8]/25 text-xs text-[#6aa9d8] border border-[#6aa9d8]/30 transition-all disabled:opacity-50 font-medium"
             title="چاپ و دانلود خروجی PDF"
           >
             <Printer className="w-3 h-3" />
@@ -3501,22 +3501,22 @@ export default function JevAnalysisPage() {
       </div>
 
       {/* Main Table */}
-      <div className="bg-[#090b1a] border border-[rgba(140,130,255,0.15)] rounded-2xl overflow-hidden shadow-lg">
+      <div className="bg-[#131418] border border-[rgba(190,190,200,0.15)] rounded-2xl overflow-hidden shadow-lg">
         {loading ? (
-          <div className="p-12 text-center text-xs text-[#8b91c5] flex flex-col items-center justify-center gap-3">
-            <RefreshCw className="w-6 h-6 animate-spin text-[#38bdf8]" />
+          <div className="p-12 text-center text-xs text-[#9a9ca3] flex flex-col items-center justify-center gap-3">
+            <RefreshCw className="w-6 h-6 animate-spin text-[#6aa9d8]" />
             <span>در حال بارگذاری فایل‌های تاریخی Jev...</span>
           </div>
         ) : error ? (
-          <div className="p-8 text-center text-xs text-[#ff6b9d]">{error}</div>
+          <div className="p-8 text-center text-xs text-[#e5787f]">{error}</div>
         ) : sortedData.length === 0 ? (
-          <div className="p-12 text-center text-xs text-[#8b91c5]">
+          <div className="p-12 text-center text-xs text-[#9a9ca3]">
             هیچ داده‌ای مطابق با بازه زمانی یا فیلترهای انتخابی یافت نشد.
           </div>
         ) : (
           <div className="overflow-x-auto max-h-[650px] overflow-y-auto">
             <table className="w-full text-right text-xs border-collapse">
-              <thead className="sticky top-0 z-10 bg-[#0d0f22] text-[#8b91c5] border-b border-white/[0.1] uppercase text-[11px] tracking-wider">
+              <thead className="sticky top-0 z-10 bg-[#181a1e] text-[#9a9ca3] border-b border-white/[0.1] text-[11px] tracking-wider">
                 <tr>
                   <th className="py-3.5 px-4 font-semibold text-center w-14">ردیف</th>
                   <th
@@ -3528,12 +3528,12 @@ export default function JevAnalysisPage() {
                       <span>زمان و ساعت (ET)</span>
                       {sortConfig?.key === "time" ? (
                         sortConfig.dir === "desc" ? (
-                          <ArrowDown className="w-3.5 h-3.5 text-[#38bdf8]" />
+                          <ArrowDown className="w-3.5 h-3.5 text-[#6aa9d8]" />
                         ) : (
-                          <ArrowUp className="w-3.5 h-3.5 text-[#38bdf8]" />
+                          <ArrowUp className="w-3.5 h-3.5 text-[#6aa9d8]" />
                         )
                       ) : (
-                        <ArrowUpDown className="w-3 h-3 text-[#5d628f] opacity-40 group-hover:opacity-100" />
+                        <ArrowUpDown className="w-3 h-3 text-[#73757c] opacity-40 group-hover:opacity-100" />
                       )}
                     </div>
                   </th>
@@ -3550,12 +3550,12 @@ export default function JevAnalysisPage() {
                           <span>{col.label}</span>
                           {isSorted ? (
                             sortConfig.dir === "desc" ? (
-                              <ArrowDown className="w-3.5 h-3.5 text-[#38bdf8]" />
+                              <ArrowDown className="w-3.5 h-3.5 text-[#6aa9d8]" />
                             ) : (
-                              <ArrowUp className="w-3.5 h-3.5 text-[#38bdf8]" />
+                              <ArrowUp className="w-3.5 h-3.5 text-[#6aa9d8]" />
                             )
                           ) : (
-                            <ArrowUpDown className="w-3 h-3 text-[#5d628f] opacity-40 group-hover:opacity-100" />
+                            <ArrowUpDown className="w-3 h-3 text-[#73757c] opacity-40 group-hover:opacity-100" />
                           )}
                         </div>
                       </th>
@@ -3577,17 +3577,17 @@ export default function JevAnalysisPage() {
                       }`}
                       onClick={() => viewFile(row.filename)}
                     >
-                      <td className="py-3 px-4 text-[#5d628f] font-mono tabular-nums text-center">
+                      <td className="py-3 px-4 text-[#73757c] font-mono tabular-nums text-center">
                         {sortConfig && sortConfig.dir === "asc"
                           ? index + 1
                           : sortedData.length - index}
                       </td>
 
-                      <td className="py-3 px-4 font-mono text-[#eef0ff] whitespace-nowrap">
+                      <td className="py-3 px-4 font-mono text-[#e8e8e4] whitespace-nowrap">
                         <div className="font-semibold text-white">
                           {row.current_time_et || row.et_time}
                         </div>
-                        <div className="text-[10px] text-[#5d628f] truncate max-w-[170px]" title={row.filename}>
+                        <div className="text-[10px] text-[#73757c] truncate max-w-[170px]" title={row.filename}>
                           {row.filename}
                         </div>
                       </td>
@@ -3606,7 +3606,7 @@ export default function JevAnalysisPage() {
                         <button
                           type="button"
                           onClick={() => viewFile(row.filename)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-[#38bdf8]/15 hover:bg-[#38bdf8]/25 text-[#38bdf8] text-[11px] transition-colors"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-[#6aa9d8]/15 hover:bg-[#6aa9d8]/25 text-[#6aa9d8] text-[11px] transition-colors"
                         >
                           <Eye className="w-3 h-3" />
                           مشاهده
@@ -3615,7 +3615,7 @@ export default function JevAnalysisPage() {
                           href={`/api/jev/history?file=${row.filename}`}
                           target="_blank"
                           rel="noreferrer"
-                          className="p-1 rounded bg-white/[0.06] hover:bg-white/[0.12] text-[#8b91c5] hover:text-white transition-colors"
+                          className="p-1 rounded bg-white/[0.06] hover:bg-white/[0.12] text-[#9a9ca3] hover:text-white transition-colors"
                           title="دانلود فایل JSON"
                         >
                           <Download className="w-3 h-3" />
@@ -3630,21 +3630,21 @@ export default function JevAnalysisPage() {
           </div>
         )}
 
-        <div className="bg-[#0d0f22]/90 border-t border-white/[0.08] px-4 py-2.5 flex items-center justify-between text-[11px] text-[#8b91c5]">
+        <div className="bg-[#181a1e]/90 border-t border-white/[0.08] px-4 py-2.5 flex items-center justify-between text-[11px] text-[#9a9ca3]">
           <span>نمایش {filteredData.length} از {data.length} فایل اسنپ‌شات (در بازه انتخابی)</span>
-          <span>مسیر فایل‌ها در سرور: <code className="text-[#38bdf8]">/jev/history/</code></span>
+          <span>مسیر فایل‌ها در سرور: <code className="text-[#6aa9d8]">/jev/history/</code></span>
         </div>
       </div>
 
       {/* JSON Viewer Modal */}
       {selectedFileForModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#090b1a] border border-[#38bdf8]/40 rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.08] bg-[#0d0f22]">
+          <div className="bg-[#131418] border border-[#6aa9d8]/40 rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.08] bg-[#181a1e]">
               <div className="flex items-center gap-2">
-                <FileJson className="w-4 h-4 text-[#38bdf8]" />
+                <FileJson className="w-4 h-4 text-[#6aa9d8]" />
                 <span className="text-xs font-semibold text-white">
-                  محتوای کامل فایل: <b className="font-mono text-[#38bdf8]">{selectedFileForModal}</b>
+                  محتوای کامل فایل: <b className="font-mono text-[#6aa9d8]">{selectedFileForModal}</b>
                 </span>
               </div>
               <div className="flex items-center gap-2">
@@ -3652,27 +3652,27 @@ export default function JevAnalysisPage() {
                   href={`/api/jev/history?file=${selectedFileForModal}`}
                   target="_blank"
                   rel="noreferrer"
-                  className="px-2.5 py-1 rounded bg-white/[0.08] hover:bg-white/[0.15] text-[11px] text-[#c3c8ee] transition-colors"
+                  className="px-2.5 py-1 rounded bg-white/[0.08] hover:bg-white/[0.15] text-[11px] text-[#bdbdb8] transition-colors"
                 >
                   دانلود مستقیم
                 </a>
                 <button
                   type="button"
                   onClick={() => setSelectedFileForModal(null)}
-                  className="text-[#8b91c5] hover:text-white text-base px-2"
+                  className="text-[#9a9ca3] hover:text-white text-base px-2"
                 >
                   ✕
                 </button>
               </div>
             </div>
 
-            <div className="flex-1 overflow-auto p-4 bg-[#05060d]">
+            <div className="flex-1 overflow-auto p-4 bg-[#0f1013]">
               {fileLoading ? (
-                <div className="p-12 text-center text-xs text-[#8b91c5]">
+                <div className="p-12 text-center text-xs text-[#9a9ca3]">
                   در حال بازخوانی فایل JSON...
                 </div>
               ) : (
-                <pre className="font-mono text-[11px] leading-relaxed text-[#c3c8ee] whitespace-pre selection:bg-[#38bdf8]/30">
+                <pre className="font-mono text-[11px] leading-relaxed text-[#bdbdb8] whitespace-pre selection:bg-[#6aa9d8]/30">
                   {fileContent}
                 </pre>
               )}
