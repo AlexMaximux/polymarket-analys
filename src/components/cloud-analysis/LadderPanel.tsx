@@ -10,7 +10,7 @@ import {
   type LadderRung,
   type OptimizerResult,
 } from "@/lib/ladderBacktest";
-import type { SnapshotRow, Trade } from "@/lib/signalAnalysis";
+import { MIN_RESOLVED_FOR_VERDICT, type SnapshotRow, type Trade } from "@/lib/signalAnalysis";
 
 const pct = (x: number | null | undefined, d = 1) => (x == null || isNaN(x) ? "—" : `${(x * 100).toFixed(d)}%`);
 const money = (x: number | null | undefined) =>
@@ -62,6 +62,9 @@ export function LadderPanel({
     result.trainMetrics.roi != null &&
     result.holdoutMetrics.roi != null &&
     result.holdoutMetrics.roi < result.trainMetrics.roi - 0.1;
+  // train resolved below the optimizer's own minimum means no candidate could ever have won, so
+  // whatever config comes back was never actually compared against anything
+  const notEnoughTrainData = result && result.trainMetrics.resolved < MIN_RESOLVED_FOR_VERDICT;
 
   return (
     <section className={cardCls}>
@@ -139,7 +142,13 @@ export function LadderPanel({
         {!effectiveSplit && <span className="text-[11px] text-[#73757c]">Pick a walk-forward split date above first.</span>}
       </div>
 
-      {result && (
+      {result && notEnoughTrainData && (
+        <div className="mt-3 pt-3 border-t border-white/[0.06] text-[11px] text-[#d4b063]">
+          Not enough train trades ({result.trainMetrics.resolved} &lt; {MIN_RESOLVED_FOR_VERDICT}) — kept your current settings, nothing was actually
+          compared. Pick an earlier split date or widen the filters above.
+        </div>
+      )}
+      {result && !notEnoughTrainData && (
         <div className="mt-3 pt-3 border-t border-white/[0.06] space-y-2">
           <div className="text-[11px] text-[#9a9ca3]">
             Best of {result.triedCount} tried{result.cancelled ? " (cancelled early)" : ""}: train ROI {pct(result.trainMetrics.roi)}, holdout ROI{" "}
