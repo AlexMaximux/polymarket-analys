@@ -17,7 +17,7 @@ export function getJevAlertRule(): { enabled: boolean; alertRow?: any } {
   try {
     const db = getDb();
     const row = db
-      .prepare("SELECT * FROM alerts WHERE alert_type IN ('updown', 'jev') ORDER BY id ASC LIMIT 1")
+      .prepare("SELECT * FROM alerts WHERE alert_type IN ('jev', 'updown') ORDER BY CASE WHEN alert_type = 'jev' THEN 0 ELSE 1 END, id ASC LIMIT 1")
       .get() as any;
     if (!row) {
       return { enabled: true };
@@ -87,16 +87,53 @@ export interface JevSignalResult {
   type?: 'BULLISH' | 'BEARISH';
   score?: number;
   confidence?: number;
-  direction?: string;
+  direction?: 'UP' | 'DOWN';
   rule?: string;
+  hourKey?: string;
+  minute?: number;
+  hour?: number;
+  date?: string;
 }
 
 /**
- * Evaluate if a Jev record matches the exact conditional rules:
- * - BULLISH (تیک آبی): Jev Score > 3.5 AND Score Confidence >= 90% (0.90)
- * - BEARISH (تیک قرمز): Jev Score < 0.5 AND Score Confidence >= 90% (0.90)
+ * Evaluate if a record matches the Frozen Strategy v2 conditional rule:
+ * 1. Coin: BTC only
+ * 2. Minute filter: Strictly after minute 31 of the hour (minute >= 32, i.e. 32-59)
+ * 3. Jev signal:
+ *    - BULLISH (تیک آبی): Jev Score > 3.5 AND Score Confidence >= 90% (0.90) -> UP
+ *    - BEARISH (تیک قرمز): Jev Score < 0.5 AND Score Confidence >= 90% (0.90) -> DOWN
+ * 4. 3 of 3 consensus: Kev-4b AND Span-01 directions must strictly match Jev's direction
+ * 5. Deduplication key: Hour market key (first signal per hour)
  */
 export function evaluateJevRecordSignal(record: any): JevSignalResult {
+  // 1. Coin check: strictly BTC
+  const coin = (record?.coin || (record?.filename ? String(record.filename).split('_')[0] : '')).toUpperCase();
+  if (coin !== 'BTC') {
+    return { isSignal: false };
+  }
+
+  // 2. Parse time and minute
+  const et = record?.et_time || '';
+  const m = et.match(/^(\d{4}-\d{2}-\d{2})[ _T](\d{2})[:-](\d{2})/);
+  let hour = m ? parseInt(m[2], 10) : null;
+  let minute = m ? parseInt(m[3], 10) : null;
+  let date = m ? m[1] : '';
+
+  if (minute == null && record?.timestamp) {
+    const d = new Date(record.timestamp);
+    if (!isNaN(d.getTime())) {
+      minute = d.getUTCMinutes();
+      hour = d.getUTCHours();
+      date = d.toISOString().slice(0, 10);
+    }
+  }
+
+  // 3. Minute filter: only signals after minute 31 of the hour (minute >= 32)
+  if (minute == null || minute <= 31) {
+    return { isSignal: false };
+  }
+
+  // 4. Jev model evaluation
   const p = record?.prediction || record?.predictions?.jev;
   if (!p || p.score == null) {
     return { isSignal: false };
@@ -116,31 +153,49 @@ export function evaluateJevRecordSignal(record: any): JevSignalResult {
 
   const confPercent = Number(rawConf) <= 1 ? Number(rawConf) * 100 : Number(rawConf);
 
-  // Strict Bullish check: Score > 3.5 AND Confidence >= 90%
+  let dir: 'UP' | 'DOWN' | null = null;
+  let type: 'BULLISH' | 'BEARISH' | null = null;
+
   if (score > 3.5 && confPercent >= 90) {
-    return {
-      isSignal: true,
-      type: 'BULLISH',
-      score,
-      confidence: Math.round(confPercent),
-      direction: p.direction || 'UP',
-      rule: 'Jev Score > 3.5 && Score Confidence ≥ 90%',
-    };
+    dir = 'UP';
+    type = 'BULLISH';
+  } else if (score < 0.5 && confPercent >= 90) {
+    dir = 'DOWN';
+    type = 'BEARISH';
+  } else {
+    return { isSignal: false };
   }
 
-  // Strict Bearish check: Score < 0.5 AND Confidence >= 90%
-  if (score < 0.5 && confPercent >= 90) {
-    return {
-      isSignal: true,
-      type: 'BEARISH',
-      score,
-      confidence: Math.round(confPercent),
-      direction: p.direction || 'DOWN',
-      rule: 'Jev Score < 0.5 && Score Confidence ≥ 90%',
-    };
+  // 5. 3 of 3 consensus: Kev-4b and Span-01 must BOTH agree with Jev's direction
+  const pKev = record?.predictions?.kev;
+  const pSpan = record?.predictions?.span;
+
+  if (!pKev || !pSpan) {
+    return { isSignal: false };
   }
 
-  return { isSignal: false };
+  const kevDir = (pKev.direction || '').toUpperCase();
+  const spanDir = (pSpan.direction || '').toUpperCase();
+
+  if (kevDir !== dir || spanDir !== dir) {
+    return { isSignal: false };
+  }
+
+  const marketSlug = record?.cards?.['1h']?.slug || '';
+  const hourKey = marketSlug ? `btc_hour_${marketSlug}` : `btc_hour_${date}_${hour}`;
+
+  return {
+    isSignal: true,
+    type,
+    score,
+    confidence: Math.round(confPercent),
+    direction: dir,
+    rule: 'BTC · Jev + Kev + Span all agree · first signal after minute 31 of the hour',
+    hourKey,
+    minute,
+    hour: hour ?? undefined,
+    date,
+  };
 }
 
 /**
@@ -223,19 +278,20 @@ export async function fetchOpenPriceFallback(coin: string): Promise<number | nul
 export function formatTelegramSignalMessage(
   record: any,
   filename: string,
-  signal: { type: 'BULLISH' | 'BEARISH'; score: number; confidence: number },
+  signal: { type: 'BULLISH' | 'BEARISH'; score: number; confidence: number; direction?: string; minute?: number; hour?: number },
   spotPriceOverride?: number | null,
   openPriceOverride?: number | null
 ): string {
   const isBullish = signal.type === 'BULLISH';
   const headerIcon = isBullish ? '🔵' : '🔴';
+  const actionWord = isBullish ? 'خرید UP (صعودی)' : 'خرید DOWN (نزولی)';
   const signalTitle = isBullish
-    ? 'تیک آبی (سیگنال صعودی / Bullish)'
-    : 'تیک قرمز (سیگنال نزولی / Bearish)';
+    ? 'تیک آبی (سیگنال صعودی / BUY UP)'
+    : 'تیک قرمز (سیگنال نزولی / BUY DOWN)';
 
-  const coin = (record.coin || 'BTC').toUpperCase();
-  const coinLabel = record.coin_label || coin;
-  const p = record.prediction || {};
+  const coin = 'BTC';
+  const coinLabel = 'Bitcoin';
+  const p = record.prediction || record.predictions?.jev || {};
   const cards = record.cards || {};
   const fv = record.fair_values || {};
 
@@ -266,22 +322,22 @@ export function formatTelegramSignalMessage(
       : null;
 
   // Build price comparison block
-  let priceBlock = `💵 <b>قیمت لحظه‌ای (Spot Price):</b> <code>$${formatCoinPrice(spotPrice)}</code>\n`;
+  let priceBlock = `💵 <b>قیمت لحظه‌ای بیت‌کوین:</b> <code>$${formatCoinPrice(spotPrice)}</code>\n`;
   if (openPrice != null && openPrice > 0) {
     priceBlock += `🎯 <b>قیمت مبنا (Price To Beat / Open):</b> <code>$${formatCoinPrice(openPrice)}</code>\n`;
     if (spotPrice != null && spotPrice > 0) {
       const diff = spotPrice - openPrice;
-      const pct = ((diff / openPrice) * 100).toFixed(2);
+      const pctVal = ((diff / openPrice) * 100).toFixed(2);
       const sign = diff >= 0 ? '+' : '';
       const statusIcon = diff >= 0 ? '🟢' : '🔴';
       const statusText = diff >= 0 ? 'بالاتر از مبنا (Up)' : 'پایین‌تر از مبنا (Down)';
-      priceBlock += `📊 <b>فاصله تا مبنا:</b> <code>${sign}$${formatCoinPrice(Math.abs(diff))} (${sign}${pct}%)</code> ${statusIcon} <i>${statusText}</i>\n`;
+      priceBlock += `📊 <b>فاصله تا مبنا:</b> <code>${sign}$${formatCoinPrice(Math.abs(diff))} (${sign}${pctVal}%)</code> ${statusIcon} <i>${statusText}</i>\n`;
     }
   }
 
   const scoreText = Number(signal.score).toFixed(2);
+  const direction = signal.direction || p.direction || (isBullish ? 'UP' : 'DOWN');
   const interpretation = p.score_interpretation || (isBullish ? 'Strong Up' : 'Strong Down');
-  const direction = p.direction || (isBullish ? 'UP' : 'DOWN');
 
   const probUp =
     p.direction_probabilities?.UP != null
@@ -298,41 +354,38 @@ export function formatTelegramSignalMessage(
   const fair15m = fv.model_15m != null ? (fv.model_15m * 100).toFixed(1) + '%' : '—';
 
   const preds = record.predictions || {};
-  let multiModelBlock = '';
-  if (preds.kev || preds.span) {
-    multiModelBlock = `🤖 <b>دیدگاه سایر مدل‌های هوش‌مصنوعی:</b>\n`;
-    if (preds.kev) {
-      const kScore = preds.kev.score != null ? `امتیاز: ${preds.kev.score.toFixed(2)}` : '';
-      multiModelBlock += `• <b>Kev-4b:</b> جهت <b>${preds.kev.direction || '—'}</b> (${kScore})\n`;
-    }
-    if (preds.span) {
-      const sScore = preds.span.score != null ? `اسکور: ${Number(preds.span.score).toFixed(2)}` : '';
-      const sProb = preds.span.prob_up != null ? `${preds.span.prob_up}% UP` : '';
-      const sDetails = [sScore, sProb].filter(Boolean).join(' | ');
-      multiModelBlock += `• <b>Span-01:</b> جهت <b>${preds.span.direction || '—'}</b> (${sDetails})\n`;
-    }
-    if (preds.consensus?.summary) {
-      multiModelBlock += `• <b>اجماع مدل‌ها:</b> <code>${preds.consensus.summary}</code>\n`;
-    }
-    multiModelBlock += '\n';
+  let multiModelBlock = `🤖 <b>اجماع کامل مدل‌های هوش مصنوعی (3/3 Consensus):</b>\n`;
+  multiModelBlock += `• <b>Jev (1.13):</b> امتیاز <code>${scoreText} / 4.0</code> (اطمینان <b>${signal.confidence}%</b>) ➔ جهت <b>${direction}</b>\n`;
+  if (preds.kev) {
+    const kScore = preds.kev.score != null ? `اسکور: ${preds.kev.score.toFixed(2)}` : '';
+    multiModelBlock += `• <b>Kev-4b:</b> جهت <b>${preds.kev.direction || '—'}</b> (${kScore})\n`;
   }
+  if (preds.span) {
+    const sScore = preds.span.score != null ? `اسکور: ${Number(preds.span.score).toFixed(2)}` : '';
+    const sProb = preds.span.prob_up != null ? `${preds.span.prob_up}% UP` : '';
+    const sDetails = [sScore, sProb].filter(Boolean).join(' | ');
+    multiModelBlock += `• <b>Span-01:</b> جهت <b>${preds.span.direction || '—'}</b> (${sDetails})\n`;
+  }
+  multiModelBlock += `• <b>نتیجه اجماع:</b> <code>${preds.consensus?.summary || '3/3 Agreement (تمام مدل‌ها موافق)'}</code> ✅\n\n`;
+
+  const minuteStr = signal.minute != null ? `دقیقه ${signal.minute}` : 'بعد از دقیقه ۳۱';
+  const hourStr = signal.hour != null ? `ساعت ${signal.hour}:00` : '';
 
   return (
-    `${headerIcon} <b>هشدار سیگنال Jev — ${signalTitle}</b>\n\n` +
+    `${headerIcon} <b>هشدار سیگنال معاملاتی — ${signalTitle}</b>\n\n` +
+    `🎯 <b>استراتژی:</b> <code>BTC · اجماع ۳ مدل (Jev+Kev+Span) · اولین سیگنال بعد از ۳۱</code>\n` +
+    `⚡ <b>اقدام پیشنهادی:</b> <b>${actionWord}</b>\n` +
+    `⏱️ <b>زمان سیگنال:</b> <b>${minuteStr}</b> ${hourStr ? `از ${hourStr}` : ''} (ET)\n\n` +
     `🪙 <b>ارز:</b> <b>${coinLabel} (${coin})</b>\n` +
     `${priceBlock}\n` +
-    `📊 <b>امتیاز هوش مصنوعی (Score):</b> <code>${scoreText} / 4.0</code>\n` +
-    `🎯 <b>درصد اطمینان اسکور:</b> <code>${signal.confidence}%</code> (قانون: بالای ۹۰٪)\n` +
-    `🧭 <b>جهت و احتمالات:</b> <b>${direction}</b> (صعود: ${probUp} | نزول: ${probDown})\n` +
-    `⚡ <b>تفسیر وضعیت:</b> ${interpretation}\n\n` +
     `${multiModelBlock}` +
-    `📈 <b>داده‌های لحظه‌ای بازار Polymarket:</b>\n` +
+    `📈 <b>داده‌های بازار یک‌ساعته Polymarket:</b>\n` +
     `• قیمت ۱ ساعته: UP: <b>${up1h}</b> | DOWN: <b>${down1h}</b>\n` +
     `• بازار ۱۵ دقیقه‌ای: UP: <b>${up15m}</b>\n` +
     `• ارزش منصفانه (Fair Value 15m): <b>${fair15m}</b>\n\n` +
     `⏰ <b>زمان اسنپ‌شات (ET):</b> <code>${record.et_time || record.current_time_et || 'Now'}</code>\n` +
     `📁 <b>فایل:</b> <code>${filename}</code>\n` +
-    `🔍 <b>مشاهده در داشبورد:</b> <a href="http://localhost:8000/jev-analysis?coin=${coin.toLowerCase()}">ورود به منحنی تحلیل Jev</a>`
+    `🔍 <b>مشاهده در داشبورد:</b> <a href="http://localhost:8000/cloud-analysis">پنل تحلیل و بک‌تست ابر (Cloud Analysis)</a>`
   );
 }
 
@@ -346,12 +399,12 @@ export async function checkAndSendJevSignalAlert(
   try {
     const signal = evaluateJevRecordSignal(record);
     if (!signal.isSignal || !signal.type || signal.score == null || signal.confidence == null) {
-      return { sent: false, reason: 'Does not match signal criteria' };
+      return { sent: false, reason: 'Does not match strategy criteria' };
     }
 
     const { enabled, alertRow } = getJevAlertRule();
     if (!enabled) {
-      console.log(`[JEV TELEGRAM ALERT] ⏸️ Skipped sending (${filename}) — UP/DOWN alert is PAUSED in /alerts dashboard.`);
+      console.log(`[JEV TELEGRAM ALERT] ⏸️ Skipped sending (${filename}) — Alert is PAUSED in /alerts dashboard.`);
       return { sent: false, reason: 'Alert is paused in dashboard' };
     }
 
@@ -360,10 +413,27 @@ export async function checkAndSendJevSignalAlert(
       return { sent: false, reason: 'Already alerted for this file' };
     }
 
+    // Deduplication per hour: only the FIRST signal after minute 31 is alerted
+    if (signal.hourKey && sentSet.has(signal.hourKey)) {
+      console.log(`[JEV TELEGRAM ALERT] ℹ️ Skipped (${filename}) — Hour ${signal.hourKey} already alerted.`);
+      return { sent: false, reason: 'Already alerted for this hour' };
+    }
+
+    if (signal.hourKey && alertRow?.id) {
+      try {
+        const db = getDb();
+        const seenHour = db.prepare('SELECT 1 FROM alert_seen WHERE alert_id = ? AND wallet = ?').get(alertRow.id, signal.hourKey);
+        if (seenHour) {
+          saveSentAlert(signal.hourKey);
+          return { sent: false, reason: 'Already alerted for this hour in database' };
+        }
+      } catch {}
+    }
+
     // Resolve spot price
     let spotPrice = record.spot_price != null ? Number(record.spot_price) : null;
     if (spotPrice == null || isNaN(spotPrice) || spotPrice <= 0) {
-      spotPrice = await fetchSpotPriceFallback(record.coin || 'BTC');
+      spotPrice = await fetchSpotPriceFallback('BTC');
     }
 
     // Resolve open price / price to beat
@@ -374,7 +444,7 @@ export async function checkAndSendJevSignalAlert(
         ? Number(record.open_price)
         : null;
     if (openPrice == null || isNaN(openPrice) || openPrice <= 0) {
-      openPrice = await fetchOpenPriceFallback(record.coin || 'BTC');
+      openPrice = await fetchOpenPriceFallback('BTC');
     }
 
     const message = formatTelegramSignalMessage(
@@ -384,6 +454,9 @@ export async function checkAndSendJevSignalAlert(
         type: signal.type,
         score: signal.score,
         confidence: signal.confidence,
+        direction: signal.direction,
+        minute: signal.minute,
+        hour: signal.hour,
       },
       spotPrice,
       openPrice
@@ -392,19 +465,25 @@ export async function checkAndSendJevSignalAlert(
     const botToken = alertRow?.telegram_token || getSetting('jev.telegramToken');
     const chatId = alertRow?.telegram_chat || getSetting('jev.telegramChat');
 
-    console.log(`[JEV TELEGRAM ALERT] Firing ${signal.type} alert for ${record.coin || 'BTC'} (${filename})...`);
+    console.log(`[JEV TELEGRAM ALERT] Firing ${signal.type} alert for BTC (${filename}, minute ${signal.minute})...`);
     const ok = await sendTelegram(botToken, chatId, message);
 
     if (ok) {
       saveSentAlert(filename);
+      if (signal.hourKey) {
+        saveSentAlert(signal.hourKey);
+      }
       console.log(`[JEV TELEGRAM ALERT] ✅ Alert successfully delivered to Telegram chat ${chatId}!`);
       if (alertRow?.id) {
         try {
           const db = getDb();
           const now = Math.floor(Date.now() / 1000);
           db.prepare(`UPDATE alerts SET last_fired_at = ?, last_evaluated_at = ? WHERE id = ?`).run(now, now, alertRow.id);
-          const alertSeenKey = `${record.coin || 'BTC'}_${filename}`;
+          const alertSeenKey = `BTC_${filename}`;
           db.prepare(`INSERT OR IGNORE INTO alert_seen (alert_id, wallet, fired_at) VALUES (?, ?, ?)`).run(alertRow.id, alertSeenKey, now);
+          if (signal.hourKey) {
+            db.prepare(`INSERT OR IGNORE INTO alert_seen (alert_id, wallet, fired_at) VALUES (?, ?, ?)`).run(alertRow.id, signal.hourKey, now);
+          }
         } catch (dbErr) {
           console.error('[JEV TELEGRAM ALERT] Error updating alerts stats in DB:', dbErr);
         }

@@ -188,13 +188,13 @@ export default function AlertsPage() {
                     ? <>Fires when a <b className="text-[#d4b063]">🥇 Gold</b> starred wallet <b className="text-[#e8e8e4]">opens a new position</b> <span className="text-[#73757c]">(Gold category only)</span></>
                     : a.alert_type === "starred_open"
                     ? <>Fires when a watchlisted/starred wallet <b className="text-[#e8e8e4]">opens a new position</b> <span className="text-[#73757c]">(watching {a.wallet_count} wallet{a.wallet_count !== 1 ? "s" : ""} + starred)</span></>
-                    : a.alert_type === "updown"
-                    ? <>کنترل سیگنال‌های <b className="text-[#e8e8e4]">UP/DOWN و مدل‌های سه‌گانه هوش مصنوعی (Jev + Kev + Span)</b> · ارسال خودکار به تلگرام در اسکور &gt; ۳.۵ یا &lt; ۰.۵ با اطمینان ≥ ۹۰٪</>
+                    : a.alert_type === "updown" || a.alert_type === "jev"
+                    ? <>کنترل سیگنال‌های <b className="text-[#e8e8e4]">BTC · اجماع ۳ مدل (Jev + Kev + Span)</b> · اولین سیگنال بعد از دقیقه ۳۱ ساعت</>
                     : <>First-ever trade within <b className="text-[#e8e8e4]">{a.hours}h</b> &amp; max single bet ≥ <b className="text-[#e8e8e4]">${Number(a.min_bet).toLocaleString()}</b></>}
                   {" · "}→ chat <span className="font-mono">{a.telegram_chat}</span>
                 </p>
                 <p className="text-[11px] text-[#73757c] mt-1">
-                  {a.alert_type === "updown" ? `ارسال ${a.fired_count} سیگنال تلگرام تا این لحظه` : `Fired ${a.fired_count} whale(s) so far`}
+                  {a.alert_type === "updown" || a.alert_type === "jev" ? `ارسال ${a.fired_count} سیگنال تلگرام تا این لحظه` : `Fired ${a.fired_count} whale(s) so far`}
                   {a.last_fired_at && <> · آخرین ارسال {formatDistanceToNow(new Date(a.last_fired_at * 1000), { addSuffix: true })}</>}
                   {a.last_evaluated_at && <> · آخرین ارزیابی {formatDistanceToNow(new Date(a.last_evaluated_at * 1000), { addSuffix: true })}</>}
                 </p>

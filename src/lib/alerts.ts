@@ -352,6 +352,7 @@ export function markAlertSeen(alert: AlertRow, matches: any[]): void {
 export async function evaluateAlert(alert: AlertRow): Promise<any[]> {
   if (alert.alert_type === 'starred_open' || alert.alert_type === 'starred_gold') return evaluateStarredAlert(alert);
   if (alert.alert_type === 'updown') return evaluateUpdownAlert(alert);
+  if (alert.alert_type === 'jev') return []; // Evaluated immediately by Jev worker on snapshot generation
   return evaluateWhaleAlert(alert);
 }
 
