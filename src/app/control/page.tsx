@@ -5,6 +5,7 @@ import { AlertTriangle } from "lucide-react";
 import { WorkersPanel } from "@/components/control/WorkersPanel";
 import { LogsPanel } from "@/components/control/LogsPanel";
 import { HealthStrip } from "@/components/control/HealthStrip";
+import { BotStatusStrip } from "@/components/control/BotStatusStrip";
 import { SettingsPanel } from "@/components/control/SettingsPanel";
 import type { StatusPayload } from "@/components/control/types";
 
@@ -79,6 +80,7 @@ export default function ControlPage() {
       )}
 
       <HealthStrip />
+      <BotStatusStrip />
       <WorkersPanel status={status} busy={busy} onAction={onAction} />
       <LogsPanel supervisorUp={supervisorUp} />
       <SettingsPanel notify={notify} />

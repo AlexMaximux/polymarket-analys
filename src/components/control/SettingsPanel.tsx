@@ -5,12 +5,15 @@ import { FlaskConical, Save } from "lucide-react";
 import type { PublicSetting, SettingKey } from "@/lib/settings";
 import { btn, card, input } from "./format";
 
-type Kind = "secret" | "text" | "int" | "coins" | "flags";
+type Kind = "secret" | "text" | "int" | "num" | "coins" | "flags" | "bool" | "select";
 interface Field {
   label: string;
   kind: Kind;
   hint?: string;
   flags?: Record<string, string>;
+  options?: string[];
+  /** Only shown when this returns true, given a getter for other fields' current values. */
+  showIf?: (current: (key: SettingKey) => unknown) => boolean;
 }
 
 const FIELDS: Record<SettingKey, Field> = {
@@ -34,18 +37,40 @@ const FIELDS: Record<SettingKey, Field> = {
   "supervisor.autostart": {
     label: "Start with supervisor",
     kind: "flags",
-    flags: { crawl: "crawl", backfill: "backfill", alerts: "alerts", jev: "jev" },
+    flags: { crawl: "crawl", backfill: "backfill", alerts: "alerts", jev: "jev", bot: "bot (never autostarts by default)" },
     hint: "Applies next time the supervisor starts",
   },
+  "bot.enabled": { label: "Enabled (kill switch)", kind: "bool", hint: "Off by default. While off, every buy signal — Telegram or API — is refused before any market is even looked up." },
+  "bot.simulationMode": { label: "Simulation mode", kind: "bool", hint: "On = paper trading, no funds move. Turning this off enables real orders with real money on the next trade." },
+  "bot.walletType": { label: "Wallet type", kind: "select", options: ["EOA", "POLY_PROXY", "POLY_GNOSIS_SAFE"] },
+  "bot.proxyAddress": {
+    label: "Proxy address",
+    kind: "text",
+    hint: "Required when wallet type is POLY_PROXY",
+    showIf: current => current("bot.walletType") === "POLY_PROXY",
+  },
+  "bot.privateKey": { label: "Wallet private key", kind: "secret", hint: "Used to sign orders locally — never sent anywhere except Polymarket's CLOB API." },
+  "bot.rpcUrl": { label: "Polygon RPC URL", kind: "text", hint: "Optional — defaults to a public Polygon RPC" },
+  "bot.maxBudget": { label: "Total budget cap ($)", kind: "num" },
+  "bot.perTradeAmount": { label: "Per-trade amount ($)", kind: "num", hint: "Never exceeded in a single trade, even if a caller asks for more" },
+  "bot.telegramToken": { label: "Bot token", kind: "secret", hint: "Separate bot from the Jev alert bot above — e.g. @tornbalancebot" },
+  "bot.telegramChatId": { label: "Chat ID", kind: "text" },
 };
 
-const GROUPS: Array<{ title: string; keys: SettingKey[]; test?: "openrouter" | "telegram" | "llm" }> = [
+const GROUPS: Array<{ title: string; keys: SettingKey[]; test?: string; danger?: (current: (key: SettingKey) => unknown) => boolean }> = [
   { title: "OpenRouter", keys: ["openrouter.apiKey"], test: "openrouter" },
   { title: "Jev Telegram", keys: ["jev.telegramToken", "jev.telegramChat"], test: "telegram" },
   { title: "Wallet-analysis LLM", keys: ["llm.baseUrl", "llm.apiKey", "llm.model"], test: "llm" },
   { title: "Jev collector", keys: ["jev.coins", "jev.models", "jev.recordIntervalSec", "jev.snapshotIntervalSec"] },
   { title: "Intervals", keys: ["crawl.intervalSec", "alerts.intervalSec"] },
   { title: "Supervisor", keys: ["supervisor.autostart"] },
+  {
+    title: "Trading Bot — Wallet & Risk",
+    keys: ["bot.enabled", "bot.simulationMode", "bot.walletType", "bot.proxyAddress", "bot.privateKey", "bot.rpcUrl", "bot.maxBudget", "bot.perTradeAmount"],
+    test: "bot",
+    danger: current => current("bot.enabled") === true && current("bot.simulationMode") === false,
+  },
+  { title: "Trading Bot — Telegram", keys: ["bot.telegramToken", "bot.telegramChatId"], test: "bot-telegram" },
 ];
 
 export function SettingsPanel({ notify }: { notify: (ok: boolean, msg: string) => void }) {
@@ -125,6 +150,7 @@ export function SettingsPanel({ notify }: { notify: (ok: boolean, msg: string) =
 
   const renderField = (key: SettingKey) => {
     const f = FIELDS[key];
+    if (f.showIf && !f.showIf(current)) return null;
     const s = settings[key];
     const value = current(key);
     const err = errors[key];
@@ -142,9 +168,27 @@ export function SettingsPanel({ notify }: { notify: (ok: boolean, msg: string) =
       );
     } else if (f.kind === "text") {
       control = <input className={input} value={String(value ?? "")} onChange={e => setDraft(key, e.target.value)} />;
-    } else if (f.kind === "int") {
+    } else if (f.kind === "int" || f.kind === "num") {
       control = (
-        <input className={`${input} max-w-[8rem] tabular-nums`} inputMode="numeric" value={String(value ?? "")} onChange={e => setDraft(key, e.target.value)} />
+        <input className={`${input} max-w-[8rem] tabular-nums`} inputMode="decimal" value={String(value ?? "")} onChange={e => setDraft(key, e.target.value)} />
+      );
+    } else if (f.kind === "select") {
+      control = (
+        <select className={input} value={String(value ?? f.options?.[0] ?? "")} onChange={e => setDraft(key, e.target.value)}>
+          {(f.options ?? []).map(o => (
+            <option key={o} value={o}>
+              {o}
+            </option>
+          ))}
+        </select>
+      );
+    } else if (f.kind === "bool") {
+      const on = !!value;
+      control = (
+        <label className="flex items-center gap-2 text-xs text-[#bdbdb8] cursor-pointer">
+          <input type="checkbox" className="accent-[#6aa9d8] w-4 h-4" checked={on} onChange={e => setDraft(key, e.target.checked)} />
+          <span className={on ? "text-[#5fbf9a]" : "text-[#9a9ca3]"}>{on ? "On" : "Off"}</span>
+        </label>
       );
     } else if (f.kind === "coins") {
       const picked = new Set((value as string[]) ?? []);
@@ -195,7 +239,16 @@ export function SettingsPanel({ notify }: { notify: (ok: boolean, msg: string) =
           )}
         </label>
         {control}
-        {err ? <p className="text-[11px] text-[#e5787f] mt-1">{err}</p> : f.hint ? <p className="text-[11px] text-[#73757c] mt-1">{f.hint}</p> : null}
+        {err ? (
+          <p className="text-[11px] text-[#e5787f] mt-1">{err}</p>
+        ) : (
+          f.hint && <p className="text-[11px] text-[#73757c] mt-1">{f.hint}</p>
+        )}
+        {key === "bot.simulationMode" && value === false && (
+          <p className="text-[11px] text-[#e5787f] mt-1.5 font-medium">
+            ⚠️ Live mode: the next buy signal spends real money from the configured wallet.
+          </p>
+        )}
       </div>
     );
   };
@@ -204,24 +257,37 @@ export function SettingsPanel({ notify }: { notify: (ok: boolean, msg: string) =
     <section className="space-y-3">
       <h2 className="text-sm font-medium text-[#e8e8e4]">Settings</h2>
       <div className="grid md:grid-cols-2 gap-3">
-        {GROUPS.map(g => (
-          <div key={g.title} className={`${card} p-5`}>
-            <div className="flex items-center justify-between mb-4 gap-2">
-              <h3 className="text-sm text-[#e8e8e4]">{g.title}</h3>
-              <div className="flex gap-2">
-                {g.test && (
-                  <button className={btn} disabled={busy === `test:${g.test}`} onClick={() => test(g.test!)} title="Uses the saved values">
-                    <FlaskConical className="w-3.5 h-3.5" /> Test saved
+        {GROUPS.map(g => {
+          const isDanger = g.danger?.(current);
+          return (
+            <div
+              key={g.title}
+              className={`${card} p-5 ${isDanger ? "border-[#e5787f]/40 bg-[#e5787f]/[0.03]" : ""}`}
+            >
+              <div className="flex items-center justify-between mb-4 gap-2">
+                <h3 className="text-sm text-[#e8e8e4] flex items-center gap-2">
+                  {g.title}
+                  {isDanger && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full border border-[#e5787f]/40 bg-[#e5787f]/10 text-[#e5787f]">
+                      LIVE — real money
+                    </span>
+                  )}
+                </h3>
+                <div className="flex gap-2">
+                  {g.test && (
+                    <button className={btn} disabled={busy === `test:${g.test}`} onClick={() => test(g.test!)} title="Uses the saved values">
+                      <FlaskConical className="w-3.5 h-3.5" /> Test saved
+                    </button>
+                  )}
+                  <button className={btn} disabled={busy === `save:${g.title}`} onClick={() => save(g.title, g.keys)}>
+                    <Save className="w-3.5 h-3.5" /> Save
                   </button>
-                )}
-                <button className={btn} disabled={busy === `save:${g.title}`} onClick={() => save(g.title, g.keys)}>
-                  <Save className="w-3.5 h-3.5" /> Save
-                </button>
+                </div>
               </div>
+              <div className="space-y-4">{g.keys.map(renderField)}</div>
             </div>
-            <div className="space-y-4">{g.keys.map(renderField)}</div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </section>
   );

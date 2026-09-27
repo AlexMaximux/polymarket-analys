@@ -23,6 +23,7 @@ const DESCRIPTIONS: Record<string, string> = {
   backfill: "Resolves each wallet's true first trade",
   alerts: "Evaluates alert rules, sends Telegram",
   jev: "Snapshots + Jev/Kev/Span model calls",
+  bot: "Telegram trade listener + order execution",
 };
 
 export function WorkersPanel({
