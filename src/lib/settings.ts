@@ -1,7 +1,7 @@
 import type Database from 'better-sqlite3';
 import { getDb } from './db';
 import { JEV_COINS, isJevCoin, type JevCoin } from './coins';
-import { isHttpUrl } from './validate';
+import { isHttpUrl, isPrivateKeyFormat, normalizePrivateKey, isEthAddress } from './validate';
 import { maskSecret } from './secrets';
 
 /**
@@ -10,8 +10,11 @@ import { maskSecret } from './secrets';
  * Workers read settings once at startup; saving a setting restarts the workers listed in `restarts`.
  */
 
-export type WorkerName = 'crawl' | 'backfill' | 'alerts' | 'jev';
-export const WORKER_NAMES: WorkerName[] = ['crawl', 'backfill', 'alerts', 'jev'];
+export type WorkerName = 'crawl' | 'backfill' | 'alerts' | 'jev' | 'bot';
+export const WORKER_NAMES: WorkerName[] = ['crawl', 'backfill', 'alerts', 'jev', 'bot'];
+
+export type BotWalletType = 'EOA' | 'POLY_PROXY' | 'POLY_GNOSIS_SAFE';
+const WALLET_TYPES: BotWalletType[] = ['EOA', 'POLY_PROXY', 'POLY_GNOSIS_SAFE'];
 
 export interface Settings {
   'openrouter.apiKey': string;
@@ -27,6 +30,16 @@ export interface Settings {
   'crawl.intervalSec': number;
   'alerts.intervalSec': number;
   'supervisor.autostart': Record<WorkerName, boolean>;
+  'bot.enabled': boolean;
+  'bot.simulationMode': boolean;
+  'bot.walletType': BotWalletType;
+  'bot.privateKey': string;
+  'bot.proxyAddress': string;
+  'bot.rpcUrl': string;
+  'bot.maxBudget': number;
+  'bot.perTradeAmount': number;
+  'bot.telegramToken': string;
+  'bot.telegramChatId': string;
 }
 export type SettingKey = keyof Settings;
 export type SettingSource = 'db' | 'env' | 'default';
@@ -55,6 +68,19 @@ const intRange = (min: number, max: number) => (v: unknown): number => {
   const n = typeof v === 'number' ? v : typeof v === 'string' && v.trim() ? Number(v) : NaN;
   if (!Number.isInteger(n) || n < min || n > max) throw new SettingError(`must be a whole number from ${min} to ${max}`);
   return n;
+};
+
+const numRange = (min: number, max: number) => (v: unknown): number => {
+  const n = typeof v === 'number' ? v : typeof v === 'string' && v.trim() ? Number(v) : NaN;
+  if (!Number.isFinite(n) || n < min || n > max) throw new SettingError(`must be a number from ${min} to ${max}`);
+  return Number(n.toFixed(2));
+};
+
+const bool = (v: unknown): boolean => {
+  if (typeof v === 'boolean') return v;
+  if (v === 'true') return true;
+  if (v === 'false') return false;
+  throw new SettingError('must be true or false');
 };
 
 const flags = <K extends string>(keys: readonly K[], atLeastOne: boolean) => (v: unknown): Record<K, boolean> => {
@@ -111,9 +137,68 @@ export const SETTINGS: { [K in SettingKey]: SettingDef<Settings[K]> } = {
   'crawl.intervalSec': { default: 30, parse: intRange(10, 600), restarts: ['crawl'] },
   'alerts.intervalSec': { default: 60, parse: intRange(30, 3600), restarts: ['alerts'] },
   'supervisor.autostart': {
-    default: { crawl: true, backfill: true, alerts: true, jev: true },
+    // the trading bot never autostarts — it must be turned on deliberately, every time
+    default: { crawl: true, backfill: true, alerts: true, jev: true, bot: false },
     parse: flags(WORKER_NAMES, false),
     restarts: [],
+  },
+  'bot.enabled': { default: false, parse: bool, restarts: [] },
+  'bot.simulationMode': { default: true, parse: bool, restarts: [] },
+  'bot.walletType': {
+    default: 'EOA',
+    parse: v => {
+      const s = String(v).toUpperCase();
+      if (!WALLET_TYPES.includes(s as BotWalletType)) throw new SettingError(`must be one of ${WALLET_TYPES.join(', ')}`);
+      return s as BotWalletType;
+    },
+    restarts: [],
+  },
+  'bot.privateKey': {
+    secret: true,
+    default: '',
+    parse: v => {
+      const s = requiredString('Private key')(v);
+      if (!isPrivateKeyFormat(s)) throw new SettingError('must be 64 hex characters, with or without 0x');
+      return normalizePrivateKey(s);
+    },
+    restarts: [],
+  },
+  'bot.proxyAddress': {
+    default: '',
+    parse: v => {
+      const s = String(v ?? '').trim();
+      if (s && !isEthAddress(s)) throw new SettingError('must be a valid 0x address');
+      return s;
+    },
+    restarts: [],
+  },
+  'bot.rpcUrl': {
+    default: '',
+    parse: v => {
+      const s = String(v ?? '').trim();
+      if (s && !isHttpUrl(s)) throw new SettingError('must be an http:// or https:// URL');
+      return s;
+    },
+    restarts: [],
+  },
+  'bot.maxBudget': { default: 100, parse: numRange(1, 100_000), restarts: [] },
+  'bot.perTradeAmount': { default: 10, parse: numRange(1, 100_000), restarts: [] },
+  'bot.telegramToken': {
+    secret: true,
+    env: ['TRADER_TELEGRAM_BOT_TOKEN', 'POLYMARKET_BOT_TELEGRAM_TOKEN', 'JEV_TELEGRAM_BOT_TOKEN', 'TELEGRAM_BOT_TOKEN'],
+    default: '',
+    parse: v => {
+      const s = requiredString('Bot token')(v);
+      if (!TELEGRAM_TOKEN_RE.test(s)) throw new SettingError('bot token looks invalid (expected 123456:ABC…)');
+      return s;
+    },
+    restarts: ['bot'],
+  },
+  'bot.telegramChatId': {
+    env: ['TRADER_TELEGRAM_CHAT_ID', 'JEV_TELEGRAM_CHAT_ID', 'TELEGRAM_CHAT_ID'],
+    default: '',
+    parse: requiredString('Chat ID'),
+    restarts: ['bot'],
   },
 };
 
@@ -217,6 +302,25 @@ export function applySettingChanges(changes: Record<string, unknown>, db: Databa
     }
   }
   if (Object.keys(errors).length) return { ok: false, errors };
+
+  const botKeys = parsed.filter(([k]) => k.startsWith('bot.'));
+  if (botKeys.length) {
+    const merged = <K extends SettingKey>(key: K): Settings[K] => {
+      const found = botKeys.find(([k]) => k === key) as [K, Settings[K]] | undefined;
+      return found ? found[1] : getSetting(key, db);
+    };
+    const maxBudget = merged('bot.maxBudget');
+    const perTrade = merged('bot.perTradeAmount');
+    if (perTrade > maxBudget) {
+      return { ok: false, errors: { 'bot.perTradeAmount': 'per-trade amount cannot exceed the total budget' } };
+    }
+    if (merged('bot.simulationMode') === false && !merged('bot.privateKey')) {
+      return { ok: false, errors: { 'bot.simulationMode': 'save a wallet private key before turning off simulation mode' } };
+    }
+    if (merged('bot.walletType') === 'POLY_PROXY' && !merged('bot.proxyAddress')) {
+      return { ok: false, errors: { 'bot.proxyAddress': 'wallet type POLY_PROXY requires a proxy address' } };
+    }
+  }
 
   const llmChanges = parsed.filter(([k]) => SETTINGS[k].llmColumn);
   let llmRow: LlmRow | null = null;

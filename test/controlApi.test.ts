@@ -62,7 +62,7 @@ describe('control + settings API', () => {
     sup.mockResolvedValue(null);
     const body = await (await getStatus()).json();
     expect(body.supervisor).toBeNull();
-    expect(body.workers.map((w: any) => w.name)).toEqual(['web', 'crawl', 'backfill', 'alerts', 'jev']);
+    expect(body.workers.map((w: any) => w.name)).toEqual(['web', 'crawl', 'backfill', 'alerts', 'jev', 'bot']);
     expect(body.workers[1]).toMatchObject({ state: 'unknown', intervalSec: 30, controllable: true });
   });
 

@@ -10,6 +10,7 @@ function intervalSec(name: string): number | null {
   if (name === 'alerts') return getSetting('alerts.intervalSec');
   if (name === 'jev') return getSetting('jev.snapshotIntervalSec');
   if (name === 'backfill') return 60;
+  if (name === 'bot') return 35; // Telegram long-poll timeout (30s) + a little slack
   return null;
 }
 

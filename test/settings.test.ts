@@ -76,7 +76,7 @@ describe('settings', () => {
 
   it('reports which workers must restart', () => {
     const r = applySettingChanges(
-      { 'crawl.intervalSec': 20, 'jev.coins': ['btc'], 'supervisor.autostart': { crawl: true, backfill: false, alerts: true, jev: true } },
+      { 'crawl.intervalSec': 20, 'jev.coins': ['btc'], 'supervisor.autostart': { crawl: true, backfill: false, alerts: true, jev: true, bot: false } },
       db
     );
     expect(r).toEqual({ ok: true, restarts: ['crawl', 'jev'] });
