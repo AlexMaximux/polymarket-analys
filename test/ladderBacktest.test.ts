@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildTrades, DEFAULT_ANALYSIS_CONFIG, type AnalysisConfig, type SnapshotRow } from '@/lib/signalAnalysis';
-import { buildLadderTrades, computeLadderMetrics, optimizeLadder, DEFAULT_LADDER_CONFIG, type LadderConfig, type LadderTrade } from '@/lib/ladderBacktest';
+import { buildLadderTrades, computeLadderMetrics, optimizeLadder, randomConfig, DEFAULT_LADDER_CONFIG, type LadderConfig, type LadderTrade } from '@/lib/ladderBacktest';
 
 let seq = 0;
 function row(p: Partial<SnapshotRow> & { hm: string; slug?: string }): SnapshotRow {
@@ -101,7 +101,7 @@ describe('buildLadderTrades — edge cases', () => {
     expect(buildLadderTrades([], [], DEFAULT_LADDER_CONFIG, 10)).toEqual([]);
   });
 
-  it('skips a trade with no quoted price without throwing', () => {
+  it('skips a trade with no quoted price without throwing, and puts no stake at risk', () => {
     const rows = [row({ hm: '04:10', up_1h_num: null })];
     const base = buildTrades(rows, cfg());
     expect(() => buildLadderTrades(base, rows, DEFAULT_LADDER_CONFIG, 10)).not.toThrow();
@@ -109,7 +109,26 @@ describe('buildLadderTrades — edge cases', () => {
     expect(t.totalShares).toBe(0);
     expect(t.blendedEntry).toBeNull();
     expect(t.pnl).toBe(0);
+    expect(t.totalStake).toBe(0); // no price was ever quoted, so nothing was actually risked
     expect(t.rungs.every((r) => !r.filled)).toBe(true);
+  });
+
+  it('never fills a rung whose limit price would be zero or negative, and stays finite', () => {
+    // quote 0.80: an 80c rung has threshold exactly 0, a 90c rung would be negative.
+    // Crash the price all the way to 0 (real data does hit 0/100 at the edges) -- naive
+    // "price <= threshold" logic treats price 0 <= threshold 0 as a fill at a $0 price,
+    // which divides stake by a zero fillPrice into Infinity shares.
+    const rows = [row({ hm: '04:10' }), row({ hm: '04:20', up_1h_num: 0 })];
+    const base = buildTrades(rows, cfg());
+    const cfgLadder = ladderCfg([
+      { distanceCents: 80, sizeMultiplier: 0.5 },
+      { distanceCents: 90, sizeMultiplier: 0.5 },
+    ]);
+    const [t] = buildLadderTrades(base, rows, cfgLadder, 10);
+    expect(t.rungs[0].filled).toBe(false);
+    expect(t.rungs[1].filled).toBe(false);
+    expect(Number.isFinite(t.totalShares)).toBe(true);
+    expect(Number.isFinite(t.pnl)).toBe(true);
   });
 });
 
@@ -227,5 +246,15 @@ describe('optimizeLadder', () => {
     const result = await optimizeLadder(base, rows, 10, '2026-09-27', DEFAULT_LADDER_CONFIG, { iterations: 500 }, () => true);
     expect(result.cancelled).toBe(true);
     expect(result.triedCount).toBeLessThan(500);
+  });
+});
+
+describe('randomConfig', () => {
+  it('always returns rungs with strictly increasing, distinct distances (a real ladder, not stacked duplicate price levels)', () => {
+    // a constant rng would draw the exact same raw distance for every rung without the fix.
+    const config = randomConfig(3, [5, 80], [0.05, 1], fixedRng(0.5, 0.5));
+    const distances = config.rungs.map((r) => r.distanceCents);
+    expect(new Set(distances).size).toBe(3);
+    expect([...distances].sort((a, b) => a - b)).toEqual(distances);
   });
 });

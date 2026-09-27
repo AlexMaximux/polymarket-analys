@@ -72,13 +72,19 @@ export function buildLadderTrades(
 
     if (base.entry == null || base.quote == null) {
       const rungs: RungFill[] = ladderCfg.rungs.map((r) => ({ ...r, filled: false, fillPrice: null, fillTime: null }));
-      return { base, rungs, totalStake: baseStake, totalShares: 0, blendedEntry: null, status: base.status, pnl: 0 };
+      // no price was ever quoted for this signal, so no money was ever actually risked
+      return { base, rungs, totalStake: 0, totalShares: 0, blendedEntry: null, status: base.status, pnl: 0 };
     }
 
     let totalStake = baseStake;
     let totalShares = baseStake / base.entry;
     const rungs: RungFill[] = ladderCfg.rungs.map((rung) => {
-      const threshold = base.quote! - rung.distanceCents / 100;
+      // round to the tenth-of-a-cent the data is recorded at, so float division noise (e.g.
+      // 1 - 0.41 = 0.5900000000000001) never lands a threshold a hair above or below its true value
+      const threshold = Math.round((base.quote! - rung.distanceCents / 100) * 1000) / 1000;
+      // a limit price at or below zero is not a real order (can't buy a share for $0 or less) — skip it,
+      // otherwise a rung that happens to land exactly at the base price minus itself divides by zero
+      if (threshold <= 0) return { ...rung, filled: false, fillPrice: null, fillTime: null };
       const fillTime = findFill(forward, base.dir, threshold);
       if (fillTime == null) return { ...rung, filled: false, fillPrice: null, fillTime: null };
       const fillPrice = threshold;
@@ -203,7 +209,12 @@ function snap(value: number, step: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, Number(snapped.toFixed(2))));
 }
 
-function randomConfig(
+// A real ladder needs each rung strictly further down than the last -- three rungs that land on
+// the same distance are really one bigger order wearing a ladder's clothes. Distances are drawn
+// independently and then sorted and nudged apart, rather than sampled without replacement, so the
+// rng call count/order per rung stays fixed (2 calls: distance, then multiplier) regardless of how
+// many rungs collide.
+export function randomConfig(
   rungCount: number,
   rangeCents: [number, number],
   rangeMultiplier: [number, number],
@@ -214,6 +225,12 @@ function randomConfig(
     const distanceCents = snap(rangeCents[0] + rng() * (rangeCents[1] - rangeCents[0]), STEP_CENTS, rangeCents[0], rangeCents[1]);
     const sizeMultiplier = snap(rangeMultiplier[0] + rng() * (rangeMultiplier[1] - rangeMultiplier[0]), STEP_MULT, rangeMultiplier[0], rangeMultiplier[1]);
     rungs.push({ distanceCents, sizeMultiplier });
+  }
+  rungs.sort((a, b) => a.distanceCents - b.distanceCents);
+  for (let i = 1; i < rungs.length; i++) {
+    if (rungs[i].distanceCents <= rungs[i - 1].distanceCents) {
+      rungs[i].distanceCents = Math.min(rangeCents[1], rungs[i - 1].distanceCents + STEP_CENTS);
+    }
   }
   return { rungs };
 }
