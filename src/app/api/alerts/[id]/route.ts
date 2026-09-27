@@ -5,13 +5,16 @@ import { markAlertSeen } from '@/lib/alerts';
 
 export const dynamic = 'force-dynamic';
 
-type Action = 'enable' | 'disable' | 'delete' | 'test' | 'run';
+type Action = 'enable' | 'disable' | 'delete' | 'test' | 'run' | 'update';
 
-/** POST /api/alerts/[id]  body: { action } */
+const TELEGRAM_TOKEN_RE = /^\d+:[A-Za-z0-9_-]{20,}$/;
+
+/** POST /api/alerts/[id]  body: { action, telegramToken?, telegramChat? } */
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id: idStr } = await params;
   const id = parseInt(idStr);
-  const { action } = await request.json().catch(() => ({ action: undefined }));
+  const body = await request.json().catch(() => ({ action: undefined }));
+  const { action } = body;
   if (!id || !action) return NextResponse.json({ error: 'id and action required' }, { status: 400 });
 
   const db = getDb();
@@ -60,6 +63,34 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         }
       }
       return NextResponse.json({ ok: true, matched: matches.length, sent });
+    }
+
+    case 'update': {
+      // Each alert rule owns its own Telegram bot token/chat (see /control — Alert Rules Telegram).
+      // An empty token means "keep the current one", matching the masked-secret convention elsewhere.
+      const rawToken = typeof body.telegramToken === 'string' ? body.telegramToken.trim() : '';
+      const rawChat = typeof body.telegramChat === 'string' ? body.telegramChat.trim() : undefined;
+      if (rawToken && !TELEGRAM_TOKEN_RE.test(rawToken)) {
+        return NextResponse.json({ error: 'telegramToken looks invalid' }, { status: 400 });
+      }
+      if (rawChat !== undefined && !rawChat) {
+        return NextResponse.json({ error: 'telegramChat cannot be empty' }, { status: 400 });
+      }
+      const sets: string[] = [];
+      const vals: unknown[] = [];
+      if (rawToken) {
+        sets.push('telegram_token = ?');
+        vals.push(rawToken);
+      }
+      if (rawChat) {
+        sets.push('telegram_chat = ?');
+        vals.push(rawChat);
+      }
+      if (sets.length) {
+        vals.push(id);
+        db.prepare(`UPDATE alerts SET ${sets.join(', ')} WHERE id = ?`).run(...vals);
+      }
+      return NextResponse.json({ ok: true });
     }
 
     default:
