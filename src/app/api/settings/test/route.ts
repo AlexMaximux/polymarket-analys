@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server';
+import { privateKeyToAccount } from 'viem/accounts';
 import { getSetting } from '@/lib/settings';
 import { sendTelegram } from '@/lib/alerts';
 import { pingLlm } from '@/lib/llmPing';
 import { getOpenRouterCredit } from '@/lib/openrouterCredit';
+import { resolveActiveMarket } from '@/lib/bot/executor';
+import { normalizePrivateKey } from '@/lib/validate';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,6 +33,35 @@ export async function POST(request: Request) {
       if (!baseUrl || !apiKey || !model) return NextResponse.json({ ok: false, message: 'Save base URL, API key and model first' });
       const r = await pingLlm(baseUrl, apiKey, model);
       return NextResponse.json({ ok: r.ok, message: r.ok ? 'LLM endpoint answered' : r.error || 'failed' });
+    }
+    if (target === 'bot') {
+      const pk = getSetting('bot.privateKey');
+      if (!pk) return NextResponse.json({ ok: false, message: 'save a wallet private key first' });
+      let address: string;
+      try {
+        address = privateKeyToAccount(normalizePrivateKey(pk) as `0x${string}`).address;
+      } catch {
+        return NextResponse.json({ ok: false, message: 'private key is not a valid format' });
+      }
+      const walletType = getSetting('bot.walletType');
+      const proxyAddress = getSetting('bot.proxyAddress');
+      const effectiveAddress = walletType === 'POLY_PROXY' && proxyAddress ? proxyAddress : address;
+      // Best-effort connectivity check — never blocks the wallet-format result above, and never places an order.
+      let marketNote = 'market check skipped';
+      try {
+        const market = await resolveActiveMarket('btc', '1H', 'UP');
+        marketNote = market ? `active 1H BTC market found: ${market.title}` : 'no active 1H market found right now';
+      } catch {
+        marketNote = 'market check failed (network)';
+      }
+      return NextResponse.json({ ok: true, message: `Wallet ok: ${effectiveAddress}. ${marketNote}. No order was placed.` });
+    }
+    if (target === 'bot-telegram') {
+      const token = getSetting('bot.telegramToken');
+      const chat = getSetting('bot.telegramChatId');
+      if (!token || !chat) return NextResponse.json({ ok: false, message: 'Save a bot token and chat ID first' });
+      const ok = await sendTelegram(token, chat, '✅ Polymarket Pulse: trading bot Telegram settings work.');
+      return NextResponse.json({ ok, message: ok ? 'Test message sent' : 'Telegram rejected the message — check token and chat ID' });
     }
     return NextResponse.json({ ok: false, message: 'unknown test target' }, { status: 400 });
   } catch (e) {

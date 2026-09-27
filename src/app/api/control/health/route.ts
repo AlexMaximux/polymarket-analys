@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 import { getOpenRouterCredit, type OpenRouterCredit } from '@/lib/openrouterCredit';
+import { getLlmHealth } from '@/lib/llmHealth';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,11 +38,13 @@ export async function GET() {
   } catch (e) {
     openrouterError = (e as Error).message;
   }
+  const llm = await getLlmHealth();
   return NextResponse.json({
     dbBytes: fileSize(path.join(root, 'polymarket.db')),
     walBytes: fileSize(path.join(root, 'polymarket.db-wal')),
     jevBytes: dirSize(path.join(root, 'jev')),
     openrouter,
     openrouterError,
+    llm,
   });
 }
