@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
+  ChevronRight,
   Download,
   HelpCircle,
   RefreshCw,
@@ -79,21 +80,57 @@ function withScenario(base: AnalysisConfig, over: Partial<AnalysisConfig>): Anal
 }
 
 // ---------- small UI pieces ----------
-function Card({ title, subtitle, right, children, className = "" }: {
-  title?: string; subtitle?: string; right?: React.ReactNode; children: React.ReactNode; className?: string;
+const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+
+// Collapse state persists per-card (keyed by title) across reloads, same convention as the
+// page's own settings storage. A title is required to collapse: an untitled card (e.g. the
+// bare loading placeholder) has no header to click and always renders open.
+function Card({ title, subtitle, right, children, className = "", defaultOpen = true }: {
+  title?: string; subtitle?: string; right?: React.ReactNode; children: React.ReactNode; className?: string; defaultOpen?: boolean;
 }) {
+  const storageKey = title ? `cloud_analysis_card_open_${slugify(title)}` : null;
+  const [open, setOpen] = useState(defaultOpen);
+
+  useEffect(() => {
+    if (!storageKey) return;
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved != null) setOpen(saved === "1");
+    } catch {}
+  }, [storageKey]);
+
+  const collapsible = !!title;
+  const toggle = () => {
+    if (!storageKey) return;
+    setOpen((o) => {
+      const next = !o;
+      try {
+        localStorage.setItem(storageKey, next ? "1" : "0");
+      } catch {}
+      return next;
+    });
+  };
+
   return (
     <section className={`rounded-2xl border border-white/[0.08] bg-[#181a1e]/80 p-4 ${className}`}>
       {(title || right) && (
-        <div className="flex items-start justify-between gap-3 mb-3">
-          <div>
-            {title && <h2 className="text-[14px] font-semibold text-[#e8e8e4]">{title}</h2>}
-            {subtitle && <p className="text-[12px] text-[#9a9ca3] mt-0.5">{subtitle}</p>}
+        <div
+          className={`flex items-start justify-between gap-3 ${open ? "mb-3" : ""} ${collapsible ? "cursor-pointer select-none" : ""}`}
+          onClick={collapsible ? toggle : undefined}
+        >
+          <div className="flex items-start gap-1.5 min-w-0">
+            {collapsible && (
+              <ChevronRight className={`w-3.5 h-3.5 mt-1 shrink-0 text-[#73757c] transition-transform ${open ? "rotate-90" : ""}`} />
+            )}
+            <div className="min-w-0">
+              {title && <h2 className="text-[14px] font-semibold text-[#e8e8e4]">{title}</h2>}
+              {subtitle && open && <p className="text-[12px] text-[#9a9ca3] mt-0.5">{subtitle}</p>}
+            </div>
           </div>
-          {right}
+          {open && right}
         </div>
       )}
-      {children}
+      {open && children}
     </section>
   );
 }
@@ -434,6 +471,7 @@ function FrozenCard({ before, after, afterTrades, stake, slippage, budget, onBud
       title="Frozen strategy: forward test"
       subtitle={`${FROZEN_STRATEGY.name}. Rule locked ${frozenEt} ET. Only signals after that time count here.`}
       right={<span className="text-[11px] px-2 py-0.5 rounded-md border border-white/[0.12] text-[#9a9ca3]">locked</span>}
+      defaultOpen={false}
     >
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         <Kpi label="Forward trades" value={String(after.trades)} sub={`${after.wins} W · ${after.losses} L · ${after.pending} P`} />
