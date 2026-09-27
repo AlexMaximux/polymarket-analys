@@ -93,10 +93,14 @@ function Card({ title, subtitle, right, children, className = "", defaultOpen = 
 
   useEffect(() => {
     if (!storageKey) return;
-    try {
-      const saved = localStorage.getItem(storageKey);
-      if (saved != null) setOpen(saved === "1");
-    } catch {}
+    // deferred to a microtask, not called synchronously in the effect body, so the server
+    // render and first client render still match before this restores the saved state
+    Promise.resolve().then(() => {
+      try {
+        const saved = localStorage.getItem(storageKey);
+        if (saved != null) setOpen(saved === "1");
+      } catch {}
+    });
   }, [storageKey]);
 
   const collapsible = !!title;

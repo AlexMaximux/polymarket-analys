@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { FlaskConical, Save } from "lucide-react";
 import { btn, card, input } from "./format";
+import { CollapsibleSection } from "./CollapsibleSection";
 
 interface AlertRow {
   id: number;
@@ -91,15 +92,16 @@ export function AlertBotsPanel({ notify }: { notify: (ok: boolean, msg: string) 
   }
 
   return (
-    <section className="space-y-3">
-      <div>
-        <h2 className="text-sm font-medium text-[#e8e8e4]">Alert Rules — Telegram</h2>
-        <p className="text-[11px] text-[#73757c] mt-0.5">
+    <CollapsibleSection
+      title="Alert Rules — Telegram"
+      subtitle={
+        <>
           Each rule below sends through its own bot. Create, pause or delete rules on the{" "}
           <a href="/alerts" className="text-[#9fb4ee] hover:underline">Alerts</a> page — this only edits which bot/chat each one uses.
-        </p>
-      </div>
-      <div className={`${card} divide-y divide-white/[0.06]`}>
+        </>
+      }
+    >
+      <div className="divide-y divide-white/[0.06]">
         {alerts.map(a => (
           <div key={a.id} className="p-5 grid md:grid-cols-[180px_1fr_1fr_auto] gap-4 items-start">
             <div>
@@ -139,6 +141,6 @@ export function AlertBotsPanel({ notify }: { notify: (ok: boolean, msg: string) 
           </div>
         ))}
       </div>
-    </section>
+    </CollapsibleSection>
   );
 }

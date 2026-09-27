@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { FlaskConical, Save } from "lucide-react";
 import type { PublicSetting, SettingKey } from "@/lib/settings";
 import { btn, card, input } from "./format";
+import { CollapsibleSection } from "./CollapsibleSection";
 
 type Kind = "secret" | "text" | "int" | "num" | "coins" | "flags" | "bool" | "select";
 interface Field {
@@ -254,9 +255,8 @@ export function SettingsPanel({ notify }: { notify: (ok: boolean, msg: string) =
   };
 
   return (
-    <section className="space-y-3">
-      <h2 className="text-sm font-medium text-[#e8e8e4]">Settings</h2>
-      <div className="grid md:grid-cols-2 gap-3">
+    <CollapsibleSection title="Settings">
+      <div className="p-5 pt-3 grid md:grid-cols-2 gap-3">
         {GROUPS.map(g => {
           const isDanger = g.danger?.(current);
           return (
@@ -289,6 +289,6 @@ export function SettingsPanel({ notify }: { notify: (ok: boolean, msg: string) =
           );
         })}
       </div>
-    </section>
+    </CollapsibleSection>
   );
 }

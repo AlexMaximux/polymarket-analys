@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Download, Eraser, Pause, Play } from "lucide-react";
-import { btn, card } from "./format";
+import { btn } from "./format";
+import { CollapsibleSection } from "./CollapsibleSection";
 import type { LogLine } from "./types";
 
 const NAMES = ["web", "crawl", "backfill", "alerts", "jev"];
@@ -64,32 +65,35 @@ export function LogsPanel({ supervisorUp }: { supervisorUp: boolean }) {
 
   const shown = lines.filter(l => l.t > clearedAt);
   return (
-    <section className={`${card} overflow-hidden`}>
-      <div className="px-5 py-3 border-b border-white/[0.06] flex flex-wrap items-center gap-3">
-        <h2 className="text-sm font-medium text-[#e8e8e4] mr-2">Logs</h2>
-        <div className="flex gap-1">
-          {NAMES.map(n => (
-            <button
-              key={n}
-              onClick={() => pick(n)}
-              className={`px-2.5 py-1 rounded-md text-xs font-mono transition-colors ${n === name ? "bg-white/[0.10] text-[#e8e8e4]" : "text-[#9a9ca3] hover:bg-white/[0.05]"}`}
-            >
-              {n}
+    <CollapsibleSection
+      title="Logs"
+      right={
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex gap-1">
+            {NAMES.map(n => (
+              <button
+                key={n}
+                onClick={() => pick(n)}
+                className={`px-2.5 py-1 rounded-md text-xs font-mono transition-colors ${n === name ? "bg-white/[0.10] text-[#e8e8e4]" : "text-[#9a9ca3] hover:bg-white/[0.05]"}`}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <button className={btn} disabled={!supervisorUp} onClick={() => setPaused(p => !p)}>
+              {paused ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />} {paused ? "Resume" : "Pause"}
             </button>
-          ))}
+            <button className={btn} disabled={!supervisorUp} onClick={() => setClearedAt(Date.now())}>
+              <Eraser className="w-3.5 h-3.5" /> Clear view
+            </button>
+            <button className={btn} disabled={!supervisorUp} onClick={download}>
+              <Download className="w-3.5 h-3.5" /> Download
+            </button>
+          </div>
         </div>
-        <div className="flex gap-2 ml-auto">
-          <button className={btn} disabled={!supervisorUp} onClick={() => setPaused(p => !p)}>
-            {paused ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />} {paused ? "Resume" : "Pause"}
-          </button>
-          <button className={btn} disabled={!supervisorUp} onClick={() => setClearedAt(Date.now())}>
-            <Eraser className="w-3.5 h-3.5" /> Clear view
-          </button>
-          <button className={btn} disabled={!supervisorUp} onClick={download}>
-            <Download className="w-3.5 h-3.5" /> Download
-          </button>
-        </div>
-      </div>
+      }
+    >
       <div ref={boxRef} className="h-80 overflow-auto px-5 py-3 font-mono text-[12px] leading-5 bg-black/20">
         {!supervisorUp ? (
           <p className="text-[#73757c]">Logs are available while the supervisor is running.</p>
@@ -109,6 +113,6 @@ export function LogsPanel({ supervisorUp }: { supervisorUp: boolean }) {
           ))
         )}
       </div>
-    </section>
+    </CollapsibleSection>
   );
 }

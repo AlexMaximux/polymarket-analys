@@ -2,7 +2,8 @@
 
 import { Play, RotateCw, Square } from "lucide-react";
 import { heartbeatFreshness } from "@/lib/staleness";
-import { btn, card, formatDuration } from "./format";
+import { btn, formatDuration } from "./format";
+import { CollapsibleSection } from "./CollapsibleSection";
 import type { StatusPayload, WorkerState } from "./types";
 
 const STATE_STYLE: Record<WorkerState, string> = {
@@ -38,15 +39,16 @@ export function WorkersPanel({
   const supervisorUp = !!status?.supervisor;
   const now = status?.now ?? 0;
   return (
-    <section className={`${card} overflow-hidden`}>
-      <div className="px-5 py-3 border-b border-white/[0.06] flex items-center justify-between">
-        <h2 className="text-sm font-medium text-[#e8e8e4]">Workers</h2>
-        {status?.supervisor && (
+    <CollapsibleSection
+      title="Workers"
+      right={
+        status?.supervisor && (
           <span className="text-[11px] text-[#73757c]">
             supervisor pid {status.supervisor.pid} · up {formatDuration(now - status.supervisor.startedAt)}
           </span>
-        )}
-      </div>
+        )
+      }
+    >
       <div className="divide-y divide-white/[0.06]">
         {(status?.workers ?? []).map(w => {
           const fresh = heartbeatFreshness(w.heartbeat?.last_ok_at, w.intervalSec, now);
@@ -105,6 +107,6 @@ export function WorkersPanel({
           );
         })}
       </div>
-    </section>
+    </CollapsibleSection>
   );
 }
