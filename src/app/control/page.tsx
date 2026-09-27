@@ -7,6 +7,7 @@ import { LogsPanel } from "@/components/control/LogsPanel";
 import { HealthStrip } from "@/components/control/HealthStrip";
 import { BotStatusStrip } from "@/components/control/BotStatusStrip";
 import { SettingsPanel } from "@/components/control/SettingsPanel";
+import { AlertBotsPanel } from "@/components/control/AlertBotsPanel";
 import type { StatusPayload } from "@/components/control/types";
 
 export default function ControlPage() {
@@ -83,6 +84,7 @@ export default function ControlPage() {
       <BotStatusStrip />
       <WorkersPanel status={status} busy={busy} onAction={onAction} />
       <LogsPanel supervisorUp={supervisorUp} />
+      <AlertBotsPanel notify={notify} />
       <SettingsPanel notify={notify} />
 
       {toast && (
