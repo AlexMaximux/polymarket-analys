@@ -1,7 +1,7 @@
 // Averaging-down ("ladder") backtest on top of signalAnalysis.ts. Pure functions only; that
 // file is never modified, only imported from.
 
-import { Trade, TradeStatus, SnapshotRow, sidePrice, rowTime, marketKey } from "./signalAnalysis";
+import { Trade, TradeStatus, SnapshotRow, sidePrice, rowTime, marketKey, wilson } from "./signalAnalysis";
 
 export interface LadderRung {
   distanceCents: number; // price drop from the base entry, e.g. 15
@@ -93,4 +93,88 @@ export function buildLadderTrades(
     const pnl = status === "WIN" ? totalShares - totalStake : status === "LOSS" ? -totalStake : 0;
     return { base, rungs, totalStake, totalShares, blendedEntry, status, pnl };
   });
+}
+
+export interface LadderMetrics {
+  trades: number;
+  wins: number;
+  losses: number;
+  pending: number;
+  resolved: number;
+  winRate: number | null;
+  ciLow: number | null;
+  ciHigh: number | null;
+  breakEven: number | null;
+  edge: number | null;
+  pnl: number;
+  roi: number | null;
+  evPerTrade: number | null;
+  maxDrawdown: number;
+  maxLossStreak: number;
+  fillRateByRung: number[];
+  avgRungsFilled: number;
+}
+
+export function computeLadderMetrics(trades: LadderTrade[]): LadderMetrics {
+  let wins = 0, losses = 0, pending = 0, pnl = 0;
+  let invEntrySum = 0, priced = 0;
+  let stakedResolved = 0;
+  let equity = 0, peak = 0, maxDrawdown = 0, lossStreak = 0, maxLossStreak = 0;
+  const rungCount = trades[0]?.rungs.length ?? 0;
+  const rungFillCounts = new Array(rungCount).fill(0);
+  let totalRungsFilled = 0;
+
+  for (const t of trades) {
+    t.rungs.forEach((r, i) => {
+      if (r.filled) {
+        rungFillCounts[i]++;
+        totalRungsFilled++;
+      }
+    });
+    if (t.status === "PENDING") {
+      pending++;
+      continue;
+    }
+    if (t.status === "WIN") {
+      wins++;
+      lossStreak = 0;
+    } else {
+      losses++;
+      lossStreak++;
+    }
+    maxLossStreak = Math.max(maxLossStreak, lossStreak);
+    if (t.blendedEntry != null && t.blendedEntry > 0) {
+      invEntrySum += 1 / t.blendedEntry;
+      priced++;
+    }
+    stakedResolved += t.totalStake;
+    pnl += t.pnl;
+    equity += t.pnl;
+    peak = Math.max(peak, equity);
+    maxDrawdown = Math.max(maxDrawdown, peak - equity);
+  }
+
+  const resolved = wins + losses;
+  const winRate = resolved ? wins / resolved : null;
+  const ci = wilson(wins, resolved);
+  const breakEven = priced ? priced / invEntrySum : null;
+  return {
+    trades: trades.length,
+    wins,
+    losses,
+    pending,
+    resolved,
+    winRate,
+    ciLow: ci?.low ?? null,
+    ciHigh: ci?.high ?? null,
+    breakEven,
+    edge: winRate != null && breakEven != null ? winRate - breakEven : null,
+    pnl,
+    roi: stakedResolved > 0 ? pnl / stakedResolved : null,
+    evPerTrade: resolved ? pnl / resolved : null,
+    maxDrawdown,
+    maxLossStreak,
+    fillRateByRung: rungFillCounts.map((c) => (trades.length ? c / trades.length : 0)),
+    avgRungsFilled: trades.length ? totalRungsFilled / trades.length : 0,
+  };
 }

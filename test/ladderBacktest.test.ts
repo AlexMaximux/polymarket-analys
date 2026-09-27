@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildTrades, DEFAULT_ANALYSIS_CONFIG, type AnalysisConfig, type SnapshotRow } from '@/lib/signalAnalysis';
-import { buildLadderTrades, DEFAULT_LADDER_CONFIG, type LadderConfig } from '@/lib/ladderBacktest';
+import { buildLadderTrades, computeLadderMetrics, DEFAULT_LADDER_CONFIG, type LadderConfig, type LadderTrade } from '@/lib/ladderBacktest';
 
 let seq = 0;
 function row(p: Partial<SnapshotRow> & { hm: string; slug?: string }): SnapshotRow {
@@ -110,5 +110,46 @@ describe('buildLadderTrades — edge cases', () => {
     expect(t.blendedEntry).toBeNull();
     expect(t.pnl).toBe(0);
     expect(t.rungs.every((r) => !r.filled)).toBe(true);
+  });
+});
+
+function ladderTrade(p: Partial<LadderTrade> & { status: LadderTrade['status']; pnl: number; totalStake: number; blendedEntry: number | null; filled: boolean[] }): LadderTrade {
+  return {
+    base: {} as any,
+    rungs: p.filled.map((filled, i) => ({ distanceCents: (i + 1) * 15, sizeMultiplier: 0.5, filled, fillPrice: filled ? 0.5 : null, fillTime: filled ? 1 : null })),
+    totalStake: p.totalStake,
+    totalShares: p.blendedEntry ? p.totalStake / p.blendedEntry : 0,
+    blendedEntry: p.blendedEntry,
+    status: p.status,
+    pnl: p.pnl,
+  };
+}
+
+describe('computeLadderMetrics', () => {
+  it('returns neutral zero/null values for an empty trade list', () => {
+    const m = computeLadderMetrics([]);
+    expect(m).toMatchObject({ trades: 0, wins: 0, losses: 0, pending: 0, resolved: 0, winRate: null, roi: null, fillRateByRung: [], avgRungsFilled: 0 });
+  });
+
+  it('computes ROI from total staked across resolved trades, and per-rung fill rate', () => {
+    const trades = [
+      ladderTrade({ status: 'WIN', pnl: 5, totalStake: 15, blendedEntry: 0.75, filled: [true, false] }),
+      ladderTrade({ status: 'LOSS', pnl: -10, totalStake: 10, blendedEntry: 0.8, filled: [false, false] }),
+    ];
+    const m = computeLadderMetrics(trades);
+    expect(m.wins).toBe(1);
+    expect(m.losses).toBe(1);
+    expect(m.roi).toBeCloseTo(-5 / 25);
+    expect(m.fillRateByRung).toEqual([0.5, 0]);
+    expect(m.avgRungsFilled).toBeCloseTo(0.5);
+  });
+
+  it('counts a pending trade toward fillRateByRung diagnostics but not toward wins/losses/roi', () => {
+    const trades = [ladderTrade({ status: 'PENDING', pnl: 0, totalStake: 15, blendedEntry: 0.75, filled: [true, true] })];
+    const m = computeLadderMetrics(trades);
+    expect(m.pending).toBe(1);
+    expect(m.resolved).toBe(0);
+    expect(m.roi).toBeNull();
+    expect(m.fillRateByRung).toEqual([1, 1]);
   });
 });
