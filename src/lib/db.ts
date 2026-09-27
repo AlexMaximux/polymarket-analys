@@ -62,6 +62,8 @@ export function initializeDb(dbInstance?: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_users_total_notional ON users(total_notional);
     CREATE INDEX IF NOT EXISTS idx_users_trade_count ON users(trade_count);
     CREATE INDEX IF NOT EXISTS idx_trades_wallet ON trades(proxyWallet);
+    -- covering index for the crawler's per-trade COUNT(DISTINCT conditionId) (runs inside its write transaction)
+    CREATE INDEX IF NOT EXISTS idx_trades_wallet_condition ON trades(proxyWallet, conditionId);
 
     CREATE TABLE IF NOT EXISTS alerts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
