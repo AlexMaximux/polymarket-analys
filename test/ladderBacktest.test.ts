@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildTrades, DEFAULT_ANALYSIS_CONFIG, type AnalysisConfig, type SnapshotRow } from '@/lib/signalAnalysis';
-import { buildLadderTrades, computeLadderMetrics, DEFAULT_LADDER_CONFIG, type LadderConfig, type LadderTrade } from '@/lib/ladderBacktest';
+import { buildLadderTrades, computeLadderMetrics, optimizeLadder, DEFAULT_LADDER_CONFIG, type LadderConfig, type LadderTrade } from '@/lib/ladderBacktest';
 
 let seq = 0;
 function row(p: Partial<SnapshotRow> & { hm: string; slug?: string }): SnapshotRow {
@@ -151,5 +151,81 @@ describe('computeLadderMetrics', () => {
     expect(m.resolved).toBe(0);
     expect(m.roi).toBeNull();
     expect(m.fillRateByRung).toEqual([1, 1]);
+  });
+});
+
+// A deterministic rng: cycles through two fixed fractions so every random candidate this
+// generates is identical (2 rng() calls per rung: distance fraction, then multiplier fraction).
+function fixedRng(distanceFraction: number, multiplierFraction: number) {
+  let i = 0;
+  const seq = [distanceFraction, multiplierFraction];
+  return () => seq[i++ % seq.length];
+}
+
+function manyRowsForSignal(hm: string, outcome: 'UP' | 'DOWN', crashTo: number | null, slug: string) {
+  const rows = [row({ hm, slug })];
+  if (crashTo != null) {
+    const [h, m] = hm.split(':');
+    const laterM = String(Number(m) + 5).padStart(2, '0');
+    rows.push(row({ hm: `${h}:${laterM}`, up_1h_num: crashTo, slug }));
+  }
+  return rows.map((r) => ({ ...r, market_outcome: outcome }));
+}
+
+describe('optimizeLadder', () => {
+  it('falls back to the starting config when train data has too few resolved trades', async () => {
+    // Only 2 trades total, both dated before the split -> train has 2 resolved, well under the default 30 minimum.
+    const rows = [
+      ...manyRowsForSignal('04:10', 'UP', 60, 'bitcoin-up-or-down-september-26-2026-4am-et'),
+      ...manyRowsForSignal('05:10', 'UP', 60, 'bitcoin-up-or-down-september-26-2026-5am-et'),
+    ];
+    const base = buildTrades(rows, cfg());
+    const starting = ladderCfg([{ distanceCents: 15, sizeMultiplier: 0.5 }]);
+    const result = await optimizeLadder(base, rows, 10, '2026-09-27', starting, { iterations: 20, rng: fixedRng(0.5, 0.5) });
+    expect(result.config).toEqual(starting);
+    expect(result.cancelled).toBe(false);
+  });
+
+  it('finds a better config and computes holdout strictly from trades on/after the split date', async () => {
+    // Every market crashes from 0.80 to 0.50 shortly after the signal and resolves UP (a win).
+    // 20 distinct markets/hours on each of two train days (40 total, both before the split),
+    // plus 10 distinct markets on one holdout day (on/after the split). Each market gets its own
+    // et_time/timestamp/slug passed directly — row()'s ...p spread lets these override its
+    // hardcoded-date defaults, so there is no risk of two markets colliding on the same key.
+    function winningMarket(date: string, hour: number): SnapshotRow[] {
+      const hh = String(hour).padStart(2, '0');
+      const utcHour = String((hour + 4) % 24).padStart(2, '0');
+      const slug = `bitcoin-up-or-down-${date}-${hh}h-et`;
+      return [
+        row({ hm: `${hh}:10`, et_time: `${date} ${hh}:10:00 ET`, timestamp: `${date}T${utcHour}:10:00.000Z`, slug, market_outcome: 'UP' }),
+        row({ hm: `${hh}:20`, et_time: `${date} ${hh}:20:00 ET`, timestamp: `${date}T${utcHour}:20:00.000Z`, slug, up_1h_num: 50, market_outcome: 'UP' }),
+      ];
+    }
+    const rows = [
+      ...Array.from({ length: 20 }, (_, h) => winningMarket('2026-09-01', h)).flat(),
+      ...Array.from({ length: 20 }, (_, h) => winningMarket('2026-09-02', h)).flat(),
+      ...Array.from({ length: 10 }, (_, h) => winningMarket('2026-09-05', h)).flat(),
+    ];
+    const base = buildTrades(rows, cfg());
+    const starting = ladderCfg([{ distanceCents: 50, sizeMultiplier: 0.01 }]); // its rung needs price <=0.30, the crash only reaches 0.50 -> never fills
+    // fixedRng always draws distanceCents=15, sizeMultiplier=0.5 (inverting the implementation's snap() step):
+    // 15 = 5 + f*(80-5) -> f = 10/75; 0.5 = 0.05 + f*(1-0.05) -> f = 0.45/0.95.
+    const rng = fixedRng(10 / 75, 0.45 / 0.95);
+    const result = await optimizeLadder(base, rows, 10, '2026-09-03', starting, { iterations: 50, rng });
+    expect(result.config.rungs[0].distanceCents).toBeCloseTo(15);
+    expect(result.config.rungs[0].sizeMultiplier).toBeCloseTo(0.5);
+    expect(result.trainMetrics.resolved).toBe(40);
+    expect(result.holdoutMetrics.trades).toBe(10);
+    // starting config never fills its rung, so its train ROI is a fixed ~0.25 (2.5 pnl / 10 stake per trade);
+    // the found config fills a profitable rung and should clear that by a comfortable margin.
+    expect(result.trainMetrics.roi).toBeGreaterThan(0.3);
+  });
+
+  it('stops early and reports cancelled when shouldCancel returns true', async () => {
+    const rows = manyRowsForSignal('04:10', 'UP', 60, 'bitcoin-up-or-down-september-26-2026-4am-et');
+    const base = buildTrades(rows, cfg());
+    const result = await optimizeLadder(base, rows, 10, '2026-09-27', DEFAULT_LADDER_CONFIG, { iterations: 500 }, () => true);
+    expect(result.cancelled).toBe(true);
+    expect(result.triedCount).toBeLessThan(500);
   });
 });

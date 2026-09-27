@@ -1,7 +1,7 @@
 // Averaging-down ("ladder") backtest on top of signalAnalysis.ts. Pure functions only; that
 // file is never modified, only imported from.
 
-import { Trade, TradeStatus, SnapshotRow, sidePrice, rowTime, marketKey, wilson } from "./signalAnalysis";
+import { Trade, TradeStatus, SnapshotRow, sidePrice, rowTime, marketKey, wilson, MIN_RESOLVED_FOR_VERDICT } from "./signalAnalysis";
 
 export interface LadderRung {
   distanceCents: number; // price drop from the base entry, e.g. 15
@@ -176,5 +176,95 @@ export function computeLadderMetrics(trades: LadderTrade[]): LadderMetrics {
     maxLossStreak,
     fillRateByRung: rungFillCounts.map((c) => (trades.length ? c / trades.length : 0)),
     avgRungsFilled: trades.length ? totalRungsFilled / trades.length : 0,
+  };
+}
+
+export interface OptimizerOptions {
+  rangeCents?: [number, number];
+  rangeMultiplier?: [number, number];
+  iterations?: number;
+  minTrainResolved?: number;
+  rng?: () => number; // injectable for deterministic tests; defaults to Math.random
+}
+
+export interface OptimizerResult {
+  config: LadderConfig;
+  trainMetrics: LadderMetrics;
+  holdoutMetrics: LadderMetrics;
+  triedCount: number;
+  cancelled: boolean;
+}
+
+const STEP_CENTS = 5;
+const STEP_MULT = 0.05;
+
+function snap(value: number, step: number, min: number, max: number): number {
+  const snapped = Math.round(value / step) * step;
+  return Math.min(max, Math.max(min, Number(snapped.toFixed(2))));
+}
+
+function randomConfig(
+  rungCount: number,
+  rangeCents: [number, number],
+  rangeMultiplier: [number, number],
+  rng: () => number,
+): LadderConfig {
+  const rungs: LadderRung[] = [];
+  for (let i = 0; i < rungCount; i++) {
+    const distanceCents = snap(rangeCents[0] + rng() * (rangeCents[1] - rangeCents[0]), STEP_CENTS, rangeCents[0], rangeCents[1]);
+    const sizeMultiplier = snap(rangeMultiplier[0] + rng() * (rangeMultiplier[1] - rangeMultiplier[0]), STEP_MULT, rangeMultiplier[0], rangeMultiplier[1]);
+    rungs.push({ distanceCents, sizeMultiplier });
+  }
+  return { rungs };
+}
+
+export async function optimizeLadder(
+  baseTrades: Trade[],
+  allRows: SnapshotRow[],
+  baseStake: number,
+  splitDate: string,
+  startingConfig: LadderConfig = DEFAULT_LADDER_CONFIG,
+  opts: OptimizerOptions = {},
+  shouldCancel?: () => boolean,
+): Promise<OptimizerResult> {
+  const rangeCents = opts.rangeCents ?? [5, 80];
+  const rangeMultiplier = opts.rangeMultiplier ?? [0.05, 1];
+  const iterations = opts.iterations ?? 2000;
+  const minTrainResolved = opts.minTrainResolved ?? MIN_RESOLVED_FOR_VERDICT;
+  const rng = opts.rng ?? Math.random;
+  const rungCount = startingConfig.rungs.length;
+  const CHUNK = 100;
+
+  const train = baseTrades.filter((t) => t.date < splitDate);
+  const holdout = baseTrades.filter((t) => t.date >= splitDate);
+
+  let bestConfig = startingConfig;
+  let bestRoi = computeLadderMetrics(buildLadderTrades(train, allRows, startingConfig, baseStake)).roi ?? -Infinity;
+  let triedCount = 1;
+  let cancelled = false;
+
+  for (let i = 1; i < iterations; i++) {
+    const candidate = randomConfig(rungCount, rangeCents, rangeMultiplier, rng);
+    const m = computeLadderMetrics(buildLadderTrades(train, allRows, candidate, baseStake));
+    triedCount++;
+    if (m.resolved >= minTrainResolved && m.roi != null && m.roi > bestRoi) {
+      bestRoi = m.roi;
+      bestConfig = candidate;
+    }
+    if (i % CHUNK === 0) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      if (shouldCancel?.()) {
+        cancelled = true;
+        break;
+      }
+    }
+  }
+
+  return {
+    config: bestConfig,
+    trainMetrics: computeLadderMetrics(buildLadderTrades(train, allRows, bestConfig, baseStake)),
+    holdoutMetrics: computeLadderMetrics(buildLadderTrades(holdout, allRows, bestConfig, baseStake)),
+    triedCount,
+    cancelled,
   };
 }
