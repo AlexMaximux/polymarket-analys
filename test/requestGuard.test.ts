@@ -27,4 +27,16 @@ describe('checkLocalRequest', () => {
   it('accepts IPv6 loopback', () => {
     expect(checkLocalRequest('POST', '[::1]:8000', 'http://[::1]:8000')).toBeNull();
   });
+  it('allows remote hosts when ALLOW_REMOTE_ACCESS is set', () => {
+    process.env.ALLOW_REMOTE_ACCESS = 'true';
+    expect(checkLocalRequest('GET', '13.41.194.69', null)).toBeNull();
+    expect(checkLocalRequest('POST', '13.41.194.69', 'http://13.41.194.69')).toBeNull();
+    delete process.env.ALLOW_REMOTE_ACCESS;
+  });
+  it('allows specific hosts in ALLOWED_HOSTS', () => {
+    process.env.ALLOWED_HOSTS = 'my-domain.com,13.41.194.69';
+    expect(checkLocalRequest('GET', '13.41.194.69', null)).toBeNull();
+    expect(checkLocalRequest('GET', 'other.com', null)).not.toBeNull();
+    delete process.env.ALLOWED_HOSTS;
+  });
 });

@@ -14,7 +14,20 @@ function hostnameOf(host: string): string {
  */
 export function checkLocalRequest(method: string, host: string | null, origin: string | null): string | null {
   const h = (host || '').toLowerCase();
-  if (!h || !LOCAL_HOSTNAMES.has(hostnameOf(h))) return 'host not allowed';
+  const hostname = hostnameOf(h);
+
+  const allowRemote = process.env.ALLOW_REMOTE_ACCESS === 'true' || process.env.NODE_ENV === 'production';
+  const customAllowed = (process.env.ALLOWED_HOSTS || '')
+    .split(',')
+    .map(s => s.trim().toLowerCase())
+    .filter(Boolean);
+
+  const isAllowedHost =
+    LOCAL_HOSTNAMES.has(hostname) ||
+    customAllowed.includes(hostname) ||
+    allowRemote;
+
+  if (!h || !isAllowedHost) return 'host not allowed';
   if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return null;
   if (!origin) return null;
   let originHost: string;
