@@ -1049,8 +1049,9 @@ export default function JevAnalysisPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Selected coin filter (all, btc, eth, sol, ...)
-  const [selectedCoin, setSelectedCoin] = useState<string>("all");
+  // Selected coin filter (default to btc for instant loading instead of pulling all coins at once)
+  const [selectedCoin, setSelectedCoin] = useState<string>("btc");
+  const [visibleRowsCount, setVisibleRowsCount] = useState<number>(100);
 
   // Selected columns (default: coin, consensus, Jev, Kev, Span, and 1H market)
   const [selectedColIds, setSelectedColIds] = useState<string[]>([
@@ -3565,7 +3566,7 @@ export default function JevAnalysisPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/[0.05]">
-                {sortedData.map((row, index) => {
+                {sortedData.slice(0, visibleRowsCount).map((row, index) => {
                   const outcomeInfo = evaluateSignalOutcome(row, signals);
                   return (
                     <tr
@@ -3630,8 +3631,27 @@ export default function JevAnalysisPage() {
           </div>
         )}
 
+        {visibleRowsCount < sortedData.length && (
+          <div className="flex items-center justify-center gap-3 p-3.5 border-t border-white/[0.08] bg-[#181a1e]/80">
+            <button
+              type="button"
+              onClick={() => setVisibleRowsCount((prev) => prev + 100)}
+              className="px-4 py-1.5 rounded-lg bg-[#6aa9d8]/20 hover:bg-[#6aa9d8]/30 text-[#6aa9d8] text-xs font-medium transition-colors"
+            >
+              نمایش ۱۰۰ سطر دیگر ({Math.min(visibleRowsCount, sortedData.length)} از {sortedData.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setVisibleRowsCount(sortedData.length)}
+              className="px-3 py-1.5 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] text-[#9a9ca3] text-xs font-medium transition-colors"
+            >
+              نمایش همه ({sortedData.length})
+            </button>
+          </div>
+        )}
+
         <div className="bg-[#181a1e]/90 border-t border-white/[0.08] px-4 py-2.5 flex items-center justify-between text-[11px] text-[#9a9ca3]">
-          <span>نمایش {filteredData.length} از {data.length} فایل اسنپ‌شات (در بازه انتخابی)</span>
+          <span>نمایش {Math.min(visibleRowsCount, sortedData.length)} از {filteredData.length} فایل اسنپ‌شات (در بازه انتخابی)</span>
           <span>مسیر فایل‌ها در سرور: <code className="text-[#6aa9d8]">/jev/history/</code></span>
         </div>
       </div>

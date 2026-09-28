@@ -5,6 +5,9 @@ import { updateMarketResolutions, getResolutionsMap } from '@/lib/marketResolver
 
 export const dynamic = 'force-dynamic';
 
+// In-memory cache for historical JSON files (immutable once written)
+const jsonFileCache = new Map<string, any>();
+
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
@@ -51,9 +54,21 @@ export async function GET(req: Request) {
     // Sort descending by time
     fileNames.sort().reverse();
 
+    const limitParam = searchParams.get('limit');
+    if (limitParam) {
+      const limit = parseInt(limitParam, 10);
+      if (Number.isFinite(limit) && limit > 0) {
+        fileNames = fileNames.slice(0, limit);
+      }
+    }
+
     const files = fileNames.map(f => {
       try {
-        const content = JSON.parse(fs.readFileSync(path.join(historyDir, f), 'utf8'));
+        let content = jsonFileCache.get(f);
+        if (!content) {
+          content = JSON.parse(fs.readFileSync(path.join(historyDir, f), 'utf8'));
+          jsonFileCache.set(f, content);
+        }
         const preds = content.predictions || {};
         const p = preds.jev || content.prediction || {};
         const pKev = preds.kev || null;
