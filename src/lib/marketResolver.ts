@@ -99,23 +99,36 @@ export function parseGammaMarketOutcome(market: any): {
   return { outcome: null, isFinal: false, status: 'ACTIVE_TRADING' };
 }
 
+const FILENAME_TIMESTAMP_RE = /_(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})_ET\.json$/;
+
+// Filenames are "{coin}_updown_{date}_{time}_ET.json" -- the coin prefix varies (btc, bnb, eth, ...),
+// so sorting the raw filename string does NOT sort chronologically across coins. Extract the embedded
+// timestamp instead. Returns null for a name that doesn't match (caller keeps it rather than dropping it).
+function filenameTimestampMs(filename: string): number | null {
+  const m = filename.match(FILENAME_TIMESTAMP_RE);
+  if (!m) return null;
+  const [, y, mo, d, h, mi, s] = m;
+  return new Date(`${y}-${mo}-${d}T${h}:${mi}:${s}`).getTime();
+}
+
 /**
  * Scan recent history files and find all 1-hour market slugs
  */
-export function collectHistoryMarketSlugs(maxDays = 3): Set<string> {
-  const historyDir = path.join(process.cwd(), 'jev', 'history');
+export function collectHistoryMarketSlugs(maxDays = 3, historyDirOverride?: string): Set<string> {
+  const historyDir = historyDirOverride ?? path.join(process.cwd(), 'jev', 'history');
   const slugs = new Set<string>();
   if (!fs.existsSync(historyDir)) return slugs;
 
   try {
+    const cutoff = Date.now() - maxDays * 24 * 60 * 60 * 1000;
     const files = fs.readdirSync(historyDir).filter(f => f.endsWith('.json'));
-    // Sort descending by name/time and limit to recent files
-    files.sort().reverse();
 
-    // Check files from the last ~3 days (approx 2000 files at 5min interval for 7 coins)
-    const recentFiles = files.slice(0, 3000);
-
-    for (const f of recentFiles) {
+    // A real elapsed-time cutoff, applied per file regardless of which coin it belongs to --
+    // no fixed file-count budget that a fast-growing, multi-coin dataset can silently exhaust
+    // for whichever coin's filename prefix happens to sort last.
+    for (const f of files) {
+      const fileMs = filenameTimestampMs(f);
+      if (fileMs != null && fileMs < cutoff) continue;
       try {
         const filePath = path.join(historyDir, f);
         const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
