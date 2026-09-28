@@ -145,6 +145,8 @@ export function formatHelpMessage(): string {
     `• <code>buy: BTCUPDOW/1H/DOWN</code> -> خرید سهام پایین آمدن بیت‌کوین ۱ ساعته\n\n` +
     `🔹 <b>مدیریت و تنظیمات:</b>\n` +
     `• <code>/status</code> یا <code>وضعیت</code> -> گزارش مانده بودجه و والت\n` +
+    `• <code>/bot on</code> -> فعال‌سازی ربات (روشن کردن Kill switch)\n` +
+    `• <code>/bot off</code> -> غیرفعال‌سازی موقت ربات (Kill switch)\n` +
     `• <code>/set_budget 200</code> -> تنظیم سقف کل بودجه مجاز (مثلاً ۲۰۰ دلار)\n` +
     `• <code>/set_trade 15</code> -> تنظیم مقدار هر معامله (مثلاً ۱۵ دلار)\n` +
     `• <code>/sim on</code> -> فعال‌سازی حالت آزمایشی بدون خرج پول واقعی\n` +
@@ -301,7 +303,19 @@ export async function startTelegramBotListener() {
           continue;
         }
 
-        // 7. Help Command
+        // 7. Toggle Bot Kill Switch: "/bot on" or "/bot off"
+        if (text.toLowerCase() === '/bot on' || text.toLowerCase() === '/enable') {
+          applySettingChanges({ 'bot.enabled': true });
+          await sendTelegramMessage(token, chatId, '🟢 ربات تریدر <b>فعال</b> شد (Kill switch روشن). آماده دریافت سیگنال‌های خرید.');
+          continue;
+        }
+        if (text.toLowerCase() === '/bot off' || text.toLowerCase() === '/disable') {
+          applySettingChanges({ 'bot.enabled': false });
+          await sendTelegramMessage(token, chatId, '⛔ ربات تریدر <b>غیرفعال</b> شد (Kill switch خاموش). هیچ سفارشی ثبت نخواهد شد.');
+          continue;
+        }
+
+        // 8. Help Command
         if (text === '/help' || text === '/start' || text === 'راهنما') {
           const helpText = formatHelpMessage();
           await sendTelegramMessage(token, chatId, helpText);
