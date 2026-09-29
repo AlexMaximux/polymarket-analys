@@ -12,9 +12,24 @@ import { fetchNegRisk } from '@polymarket/client/actions';
 import { getPolymarketGeoStatus } from './geo';
 export { getBotWalletConfig } from './live';
 const POLYGON_CHAIN_ID = 137;
-export const MAX_ATTEMPTS = 5;
+/** Default for the bot.maxAttempts setting. */
+export const MAX_ATTEMPTS = 3;
 export const RETRY_DELAY_MS = 2000;
 const wait = () => new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
+
+/** True when an SDK error definitely means "the FOK order was killed, nothing was bought". Anything else is ambiguous. */
+const NO_FILL_RE = /FOK_ORDER_NOT_FILLED|couldn't be fully filled|could not be fully filled|fully filled or killed|not fully filled|unmatched/i;
+
+/** Log-safe summary of a thrown order error (no credentials, no full hashes) plus whether it proves a non-fill. */
+export function describeOrderError(e: unknown): { noFill: boolean; text: string } {
+  const raw = e instanceof Error ? e.message : String(e);
+  const meta = e as { name?: string; status?: unknown; code?: unknown };
+  const text = raw
+    .replace(/(secret|passphrase|api[-_ ]?key|authorization|bearer|signature|private)[^,;\n]*/gi, '$1=[hidden]')
+    .replace(/0x[0-9a-fA-F]{40,}/g, '0x…')
+    .slice(0, 200);
+  return { noFill: NO_FILL_RE.test(raw), text: [meta.name ?? 'Error', meta.status ?? meta.code ?? '', text].filter(Boolean).join(' ') };
+}
 
 /** Polymarket prices move in 0.01 (or 0.001) ticks; 0.99 is the highest price a buy is worth sending at. */
 const MARKET_PRICE_CAP = 0.99;
@@ -282,7 +297,16 @@ export async function executeSignal(signal: SignalRequest): Promise<TradeResult>
     if (bestAsk === null || !Number.isFinite(bestAsk) || bestAsk <= 0 || bestAsk >= 1 || !market.selectedTokenId) throw new Error('قیمت خرید معتبر در دفتر سفارش وجود ندارد.');
     // Not the exact best ask: the price moves between the read and the order, and a cap equal to the ask
     // makes the FOK order die on the first tick. The cap is what the order may pay at worst.
-    const cap = orderPriceCap(bestAsk, getSetting('bot.orderPriceMode'), getSetting('bot.slippageCents'));
+    let cap = orderPriceCap(bestAsk, getSetting('bot.orderPriceMode'), getSetting('bot.slippageCents'));
+    const maxAttempts = getSetting('bot.maxAttempts');
+    // A retry only makes sense at the CURRENT price: the first one usually failed because the ask moved.
+    const refreshCap = async () => {
+      const fresh = await resolveActiveMarket('btc', '1H', signal.outcome);
+      const ask = fresh?.selectedBestAsk;
+      if (!fresh || fresh.closed || !fresh.acceptingOrders || fresh.slug !== market.slug || fresh.selectedTokenId !== market.selectedTokenId ||
+          ask === null || ask === undefined || !Number.isFinite(ask) || ask <= 0 || ask >= 1) throw new Error('قیمت تازهٔ بازار برای تلاش مجدد در دسترس نیست؛ خرید انجام نشد.');
+      cap = orderPriceCap(ask, getSetting('bot.orderPriceMode'), getSetting('bot.slippageCents'));
+    };
     result = { ...result, slug: market.slug, tokenId: market.selectedTokenId };
     assertStillAllowed(row, market, identity, signal);
     if (market.minimumOrderSize && row.amount / cap + 0.000001 < market.minimumOrderSize) {
@@ -299,8 +323,8 @@ export async function executeSignal(signal: SignalRequest): Promise<TradeResult>
       const { client } = await createDepositWalletClient({ provisionBuilder: true });
       await ensureDepositTradingApprovals(client);
       const negRisk = market.selectedTokenId.startsWith('0x') ? false : await fetchNegRisk(client, { assetId: market.selectedTokenId });
-      for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-        if (attempt > 1) await wait();
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        if (attempt > 1) { await wait(); await refreshCap(); }
         assertStillAllowed(row, market, identity, signal);
         const signed = await client.createMarketOrder({
           assetId: market.selectedTokenId,
@@ -317,7 +341,15 @@ export async function executeSignal(signal: SignalRequest): Promise<TradeResult>
         result = { ...result, orderId, attempts: row.attempts };
         let response;
         try { response = await client.postOrder(signed); }
-        catch { return await reconcileAfterUnknown(signal, row); }
+        catch (e) {
+          const info = describeOrderError(e);
+          console.warn(`[TRADE] attempt ${attempt}/${maxAttempts} postOrder threw (${info.noFill ? 'not filled' : 'ambiguous'}): ${info.text}`);
+          if (!info.noFill) return await reconcileAfterUnknown(signal, row);
+          markRejected(row.request_id);
+          row = findRequest(row.request_id)!;
+          result = { ...result, orderId: undefined, error: 'در قیمت اولیه نقدینگی کافی نبود؛ خریدی انجام نشد.' };
+          continue;
+        }
         if (response.ok && response.status === 'matched' && response.orderId === orderId &&
             validFill(Number(response.makingAmount), Number(response.takingAmount), row)) {
           const amount = Number(response.makingAmount), shares = Number(response.takingAmount);
@@ -335,6 +367,7 @@ export async function executeSignal(signal: SignalRequest): Promise<TradeResult>
           row = findRequest(row.request_id)!;
           return settle(signal, row, { ...result, orderId: undefined, error: 'CLOB سفارش را رد کرد؛ موجودی، مجوز خرج‌کردن و تنظیمات کیف پول را بررسی کنید.' });
         }
+        console.warn(`[TRADE] attempt ${attempt}/${maxAttempts} ambiguous response: ok=${String((response as { ok?: unknown }).ok)} status=${String((response as { status?: unknown }).status)} code=${String((response as { code?: unknown }).code)}`);
         return await reconcileAfterUnknown(signal, row);
       }
       return settle(signal, row, result);
@@ -342,8 +375,8 @@ export async function executeSignal(signal: SignalRequest): Promise<TradeResult>
     const { client, orderHash } = await createLiveClient();
     const negRisk = await client.getNegRisk(market.selectedTokenId);
     if (typeof negRisk !== 'boolean') throw new Error('مشخصات بازار معتبر نیست.');
-    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-      if (attempt > 1) await wait();
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      if (attempt > 1) { await wait(); await refreshCap(); }
       assertStillAllowed(row, market, identity, signal);
       const signed = await client.createMarketOrder({ tokenID: market.selectedTokenId, amount: row.amount, side: Side.BUY, orderType: OrderType.FOK, price: cap }, { negRisk });
       assertStillAllowed(row, market, identity, signal);
@@ -353,7 +386,15 @@ export async function executeSignal(signal: SignalRequest): Promise<TradeResult>
       result = { ...result, orderId: row.order_id!, attempts: row.attempts };
       let response;
       try { response = await client.postOrder(signed, OrderType.FOK); }
-      catch { return await reconcileAfterUnknown(signal, row); }
+      catch (e) {
+        const info = describeOrderError(e);
+        console.warn(`[TRADE] attempt ${attempt}/${maxAttempts} postOrder threw (${info.noFill ? 'not filled' : 'ambiguous'}): ${info.text}`);
+        if (!info.noFill) return await reconcileAfterUnknown(signal, row);
+        markRejected(row.request_id);
+        row = findRequest(row.request_id)!;
+        result = { ...result, orderId: undefined, error: 'در قیمت اولیه نقدینگی کافی نبود؛ خریدی انجام نشد.' };
+        continue;
+      }
       if (response?.success === true && response.status === 'matched' && response.orderID === row.order_id && validFill(Number(response.makingAmount), Number(response.takingAmount), row)) {
         const amount = Number(response.makingAmount), shares = Number(response.takingAmount);
         return settle(signal, row, { ...result, success: true, error: undefined, amountUsd: amount, shares, price: amount / shares, txHash: response.transactionsHashes?.[0] });

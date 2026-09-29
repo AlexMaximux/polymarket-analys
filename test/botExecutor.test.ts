@@ -5,7 +5,7 @@ import * as dbModule from '../src/lib/db';
 import * as live from '../src/lib/bot/live';
 import * as geo from '../src/lib/bot/geo';
 import { applySettingChanges } from '../src/lib/settings';
-import { executeSignal, getBotWalletConfig, reconcileRequest, MAX_ATTEMPTS, buildHourlyEtSlug, orderPriceCap } from '../src/lib/bot/executor';
+import { executeSignal, getBotWalletConfig, reconcileRequest, MAX_ATTEMPTS, buildHourlyEtSlug, orderPriceCap, describeOrderError } from '../src/lib/bot/executor';
 import { getRecentTrades, getTotalSpent, initializeBotTables } from '../src/lib/bot/db';
 import { findRequest, pendingRequests, reservedBudget } from '../src/lib/bot/ledger';
 
@@ -152,7 +152,41 @@ describe('fixed BTC 1H execution', () => {
     expect(applySettingChanges({ 'bot.slippageCents': 21 }, db).ok).toBe(false);
     expect(applySettingChanges({ 'bot.slippageCents': -1 }, db).ok).toBe(false);
   });
+  it('uses the bot.maxAttempts setting for the number of buy attempts', async () => {
+    enable(true); postOrder.mockResolvedValue(rejected);
+    expect(applySettingChanges({ 'bot.maxAttempts': 2 }, db).ok).toBe(true);
+    const r = await run();
+    expect(r.success).toBe(false); expect(postOrder).toHaveBeenCalledTimes(2);
+    expect(getTotalSpent(false)).toBe(0);
+  });
+  it('a single attempt setting never retries', async () => {
+    enable(true); postOrder.mockResolvedValue(rejected);
+    expect(applySettingChanges({ 'bot.maxAttempts': 1 }, db).ok).toBe(true);
+    await run(); expect(postOrder).toHaveBeenCalledTimes(1);
+  });
+  it('retries after a thrown "not filled" error and succeeds on the next attempt', async () => {
+    enable(true);
+    postOrder.mockRejectedValueOnce(new Error("order couldn't be fully filled. FOK orders are fully filled or killed."));
+    const r = await run();
+    expect(r).toMatchObject({ success: true, attempts: 2 });
+    expect(postOrder).toHaveBeenCalledTimes(2);
+  });
+  it('re-reads the book and uses the fresh best ask for the retry cap', async () => {
+    enable(true);
+    postOrder.mockResolvedValueOnce(rejected);
+    vi.mocked(ClobClient.prototype.getOrderBook)
+      .mockResolvedValueOnce({ asks: [{ price: '0.5', size: '100' }], bids: [] } as never)
+      .mockResolvedValue({ asks: [{ price: '0.6', size: '100' }], bids: [] } as never);
+    const r = await run();
+    expect(r.success).toBe(true);
+    expect(createMarketOrder.mock.calls.map(([o]) => o.price)).toEqual([0.52, 0.62]);
+  });
+  it('does not retry an ambiguous thrown error', async () => {
+    enable(true); postOrder.mockRejectedValue(new Error('socket hang up'));
+    await run(); expect(postOrder).toHaveBeenCalledTimes(1);
+  });
   it('stops after five rejected attempts and releases the budget', async () => {
+    expect(applySettingChanges({ 'bot.maxAttempts': MAX_ATTEMPTS }, db).ok).toBe(true);
     enable(true); postOrder.mockResolvedValue(rejected);
     const r = await run();
     expect(r.success).toBe(false); expect(postOrder).toHaveBeenCalledTimes(MAX_ATTEMPTS);
@@ -247,5 +281,14 @@ describe('orderPriceCap', () => {
     expect(orderPriceCap(0.98, 'slippage', 20)).toBe(0.999);
     expect(orderPriceCap(0.995, 'market', 0)).toBe(0.995);
     expect(orderPriceCap(0.4, 'market', 0)).toBe(0.99);
+  });
+});
+
+describe('describeOrderError', () => {
+  it('recognises a killed FOK order and hides credentials and hashes', () => {
+    expect(describeOrderError(new Error('order couldn\'t be fully filled. FOK orders are fully filled or killed.')).noFill).toBe(true);
+    expect(describeOrderError(new Error('socket hang up')).noFill).toBe(false);
+    const t = describeOrderError(new Error('bad request, api key: abc123 order 0x' + 'a'.repeat(64))).text;
+    expect(t).not.toContain('abc123'); expect(t).not.toContain('a'.repeat(64));
   });
 });

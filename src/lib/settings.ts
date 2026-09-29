@@ -50,6 +50,7 @@ export interface Settings {
   'bot.perTradeAmount': number;
   'bot.orderPriceMode': 'slippage' | 'market';
   'bot.slippageCents': number;
+  'bot.maxAttempts': number;
   'bot.telegramToken': string;
   'bot.telegramChatId': string;
 }
@@ -233,6 +234,8 @@ export const SETTINGS: { [K in SettingKey]: SettingDef<Settings[K]> } = {
     restarts: [],
   },
   'bot.slippageCents': { default: 2, parse: intRange(0, 20), restarts: [] },
+  // Buy attempts per signal. Each retry re-reads the book and signs a fresh order; only a definite non-fill is retried.
+  'bot.maxAttempts': { default: 3, parse: intRange(1, 10), restarts: [] },
   'bot.telegramToken': {
     secret: true,
     env: ['TRADER_TELEGRAM_BOT_TOKEN', 'POLYMARKET_BOT_TELEGRAM_TOKEN', 'JEV_TELEGRAM_BOT_TOKEN', 'TELEGRAM_BOT_TOKEN'],
