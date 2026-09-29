@@ -1,20 +1,22 @@
 import { loadEnvConfig } from '@next/env';
 loadEnvConfig(process.cwd());
 
-import { startTelegramBotListener, formatStatusMessage } from '../src/lib/bot/telegramBot';
+import { startTelegramBotListener } from '../src/lib/bot/telegramBot';
+import { startRedemptionWorker } from '../src/lib/bot/redeem';
+import { startForwardWorker } from '../src/lib/bot/forward';
 import { initializeBotTables } from '../src/lib/bot/db';
 
 async function main() {
   console.log(`[${new Date().toISOString()}] Initializing Polymarket Pulse Trading Bot...`);
   initializeBotTables();
 
-  const status = await formatStatusMessage();
-  console.log('--- Bot Initial Status ---');
-  console.log(status.replace(/<[^>]*>/g, ''));
-  console.log('---------------------------');
-
-  console.log('[BOT] Starting Telegram polling listener...');
-  await startTelegramBotListener();
+  console.log('[BOT] Starting Telegram listener and redemption worker...');
+  // Redemption continues even when no Telegram token/chat is configured.
+  await Promise.all([
+    startTelegramBotListener().catch(() => console.error('[BOT] Telegram unavailable; redemption worker continues.')),
+    startRedemptionWorker(),
+    startForwardWorker(),
+  ]);
 }
 
 main().catch((err) => {

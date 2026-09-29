@@ -1,10 +1,15 @@
+import type { getRedemptionStatus } from './redeem';
 export type TradeOutcome = 'UP' | 'DOWN';
 
 export interface SignalRequest {
   symbol: string;        // e.g. "BTCUPDOW" or "BTC"
-  timeframe: string;     // e.g. "1H", "15M", "5M"
+  timeframe: string;     // only "1H"
   outcome: TradeOutcome; // "UP" | "DOWN"
-  amountUsd?: number;    // optional override, otherwise per_trade_amount
+  forwardArmedAt?: number;
+  expiresAt?: number;
+  expectedMarketSlug?: string; // pins automated signals to their original market
+  amountUsd?: number;    // legacy input ignored; always uses configured fixed amount
+  requestId?: string;    // required stable ID, reused when retrying the same signal
   source?: 'telegram' | 'api' | 'signal' | 'manual';
 }
 
@@ -28,6 +33,9 @@ export interface ActiveMarketInfo {
 
 export interface TradeResult {
   success: boolean;
+  requestId?: string;
+  status?: 'PENDING' | 'UNKNOWN' | 'FILLED' | 'SIMULATED' | 'FAILED';
+  attempts?: number;
   simulated: boolean;
   orderId?: string;
   txHash?: string;
@@ -47,13 +55,18 @@ export interface TradeResult {
 }
 
 export interface BotStatus {
+  forward?: { enabled: boolean; strategy: string; lastScan: number | null; lastError: string | null };
+  notifications?: { pending: number; failed: number };
+  redemption: ReturnType<typeof getRedemptionStatus>;
   enabled: boolean;
   walletAddress: string | null;
-  walletType: 'EOA' | 'POLY_PROXY' | 'POLY_GNOSIS_SAFE';
+  walletType: 'EOA' | 'POLY_PROXY' | 'POLY_GNOSIS_SAFE' | 'DEPOSIT_WALLET';
   isConfigured: boolean;
   simulationMode: boolean;
   maxTotalBudget: number;
   totalSpent: number;
+  reservedBudget: number;
+  pendingRequests: { requestId: string; state: string; orderId: string | null }[];
   remainingBudget: number;
   perTradeAmount: number;
   totalTradesCount: number;

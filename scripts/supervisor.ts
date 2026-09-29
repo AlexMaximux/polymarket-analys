@@ -26,7 +26,7 @@ const ROOT = fs.realpathSync(process.cwd());
 const bin = (name: string) => path.join(ROOT, 'node_modules', '.bin', name);
 const childEnv = { ...process.env, PMP_BASE_URL: process.env.PMP_BASE_URL || `http://127.0.0.1:${WEB_PORT}` };
 
-const isProd = process.env.NODE_ENV === 'production';
+const isProd = process.env.NODE_ENV === 'production' || fs.existsSync(path.join(ROOT, '.next', 'BUILD_ID'));
 const specs: WorkerSpec[] = [
   { name: 'web', command: bin('next'), args: [isProd ? 'start' : 'dev', '-H', '0.0.0.0', '-p', String(WEB_PORT)], controllable: false },
   ...WORKER_NAMES.map(name => ({ name, command: bin('tsx'), args: [`scripts/${name}.ts`], controllable: true })),

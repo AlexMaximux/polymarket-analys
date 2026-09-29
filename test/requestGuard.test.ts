@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { checkLocalRequest } from '../src/lib/requestGuard';
 
 describe('checkLocalRequest', () => {
@@ -39,4 +39,10 @@ describe('checkLocalRequest', () => {
     expect(checkLocalRequest('GET', 'other.com', null)).not.toBeNull();
     delete process.env.ALLOWED_HOSTS;
   });
+  it('does not implicitly allow remote hosts in production', () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    try { expect(checkLocalRequest('POST', 'untrusted.example', null)).not.toBeNull(); }
+    finally { vi.unstubAllEnvs(); }
+  });
+
 });

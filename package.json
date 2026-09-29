@@ -17,6 +17,7 @@
     "bot": "tsx scripts/bot.ts"
   },
   "dependencies": {
+    "@polymarket/client": "^0.11.0",
     "@polymarket/clob-client": "^5.8.1",
     "better-sqlite3": "^13.0.3",
     "date-fns": "^4.4.0",

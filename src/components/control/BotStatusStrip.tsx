@@ -88,6 +88,36 @@ export function BotStatusStrip() {
           </span>
         )}
       </div>
+      {status.forward && <div className="mt-2 text-xs text-[#9a9ca3]">
+        Frozen forward {status.forward.strategy}: {status.forward.enabled ? "ON" : "OFF"} · Last scan: {status.forward.lastScan ? new Date(status.forward.lastScan).toLocaleString() : "Waiting for bot worker"}
+        {status.forward.lastError && <div>{status.forward.lastError}</div>}
+        {status.notifications && <div>Telegram pending: {status.notifications.pending} · Awaiting retry: {status.notifications.failed}</div>}
+      </div>}
+      {status.redemption && (
+        <div className="mt-2 pt-2 border-t border-white/[0.06] text-xs text-[#9a9ca3] space-y-1">
+          <div>Auto-redeem: {status.redemption.active ? "ON" : "PAUSED"} · Received {money(status.redemption.totalRedeemed)} {status.redemption.collateral}{status.redemption.gasless ? " · Gasless" : ` · Gas cap ${status.redemption.maxGasPol} POL`}</div>
+          <div className="text-[11px]">Last scan: {status.redemption.lastScan ? new Date(status.redemption.lastScan).toLocaleString() : "Waiting for bot worker"}</div>
+          {status.redemption.lastError && <div className="text-[#d4b063]">{status.redemption.lastError}</div>}
+          {status.redemption.recent.slice(0, 3).map(r => <div key={r.id}>
+            {r.state} · {r.payout ? `${r.payout} ${status.redemption.collateral}` : r.slug}
+            {r.tx_hash && <a className="ml-2 underline" href={`https://polygonscan.com/tx/${r.tx_hash}`} target="_blank" rel="noreferrer">Transaction</a>}
+            {r.error && <span className="ml-2 text-[#d4b063]">{r.error}</span>}
+          </div>)}
+        </div>
+      )}
+      {status.pendingRequests?.map(r => (
+        <div key={r.requestId} className="mt-2 text-xs text-[#d4b063]">
+          {r.state}: {r.requestId} · Reserved {money(status.reservedBudget)}
+          <button type="button" className="ml-3 underline" onClick={async () => {
+            try {
+              const response = await fetch('/api/bot/reconcile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requestId: r.requestId }) });
+              if (!response.ok) { setError('Could not check order. No new order sent.'); return; }
+              const current = await fetch('/api/bot/trade', { cache: 'no-store' });
+              if (current.ok) setStatus(await current.json());
+            } catch { setError('Could not check order. No new order sent.'); }
+          }}>Check order status</button>
+        </div>
+      ))}
       {status.recentTrades.length > 0 && (
         <div className="mt-2 pt-2 border-t border-white/[0.06] text-[11px] text-[#73757c] space-x-3">
           {status.recentTrades.slice(0, 3).map(t => (

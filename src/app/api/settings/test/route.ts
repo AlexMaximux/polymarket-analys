@@ -6,6 +6,7 @@ import { pingLlm } from '@/lib/llmPing';
 import { getOpenRouterCredit } from '@/lib/openrouterCredit';
 import { resolveActiveMarket } from '@/lib/bot/executor';
 import { normalizePrivateKey } from '@/lib/validate';
+import { createDepositWalletClient, ensureDepositTradingApprovals } from '@/lib/bot/depositWallet';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,7 +46,14 @@ export async function POST(request: Request) {
       }
       const walletType = getSetting('bot.walletType');
       const proxyAddress = getSetting('bot.proxyAddress');
-      const effectiveAddress = walletType === 'POLY_PROXY' && proxyAddress ? proxyAddress : address;
+      const effectiveAddress = walletType !== 'EOA' && proxyAddress ? proxyAddress : address;
+      let walletNote = '';
+      if (walletType === 'DEPOSIT_WALLET') {
+        if (!proxyAddress) return NextResponse.json({ ok: false, message: 'save the Polymarket wallet address B first' });
+        const { client, builderReady } = await createDepositWalletClient({ provisionBuilder: true });
+        const approvals = await ensureDepositTradingApprovals(client);
+        walletNote = ` Owner verified: ${client.account.signer} → ${client.account.wallet}. Gasless authorization ${builderReady ? 'ready' : 'missing'}; trading approvals ready${approvals.changed ? ' (created now)' : ''}.`;
+      }
       // Best-effort connectivity check — never blocks the wallet-format result above, and never places an order.
       let marketNote = 'market check skipped';
       try {
@@ -54,7 +62,7 @@ export async function POST(request: Request) {
       } catch {
         marketNote = 'market check failed (network)';
       }
-      return NextResponse.json({ ok: true, message: `Wallet ok: ${effectiveAddress}. ${marketNote}. No order was placed.` });
+      return NextResponse.json({ ok: true, message: `Wallet ok: ${effectiveAddress}.${walletNote} ${marketNote}. No order was placed.` });
     }
     if (target === 'bot-telegram') {
       const token = getSetting('bot.telegramToken');

@@ -1386,16 +1386,18 @@ export default function JevAnalysisPage() {
     return data.filter((row) => {
       // Date filter
       if (dateFilter !== "ALL") {
-        if (!row.et_time.startsWith(dateFilter)) return false;
+        if (!row.et_time?.startsWith(dateFilter)) return false;
       }
 
       // Hour interval filter
       if (startHour != null && endHour != null) {
         try {
-          const timePart = row.et_time.split(" ")[1];
+          const timePart = row.et_time ? row.et_time.split(" ")[1] : null;
           if (timePart) {
             const h = parseInt(timePart.split(":")[0], 10);
             if (h < startHour || h >= endHour) return false;
+          } else {
+            return false;
           }
         } catch {
           return false;
@@ -1469,7 +1471,7 @@ export default function JevAnalysisPage() {
       const tA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
       const tB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
       if (tA && tB) return tA - tB;
-      return a.filename.localeCompare(b.filename);
+      return (a.filename || "").localeCompare(b.filename || "");
     });
 
     const seenGroup = new Set<string>();
@@ -3077,7 +3079,7 @@ export default function JevAnalysisPage() {
                     const item = chartData[idx];
                     if (!item) return null;
                     const x = curveCoordinates.getX(idx);
-                    const timeLabel = item.current_time_et || item.et_time.split(" ")[1] || item.et_time;
+                    const timeLabel = item.current_time_et || item.et_time?.split(" ")[1] || item.et_time || item.filename || "";
                     return (
                       <text
                         key={idx}

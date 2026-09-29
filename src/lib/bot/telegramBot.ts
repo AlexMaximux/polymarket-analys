@@ -1,9 +1,13 @@
 import {
   executeSignal,
   getBotStatus,
+  reconcileRequest,
+  buildHourlyEtSlug,
 } from './executor';
 import {
   getRecentTrades,
+  getBotSetting,
+  setBotSetting,
 } from './db';
 import { getSetting, applySettingChanges } from '../settings';
 import type { TradeResult } from './types';
@@ -23,8 +27,8 @@ export async function sendTelegramMessage(token: string, chatId: string | number
       }),
     });
     return res.ok;
-  } catch (err) {
-    console.error('Failed to send Telegram message:', err);
+  } catch {
+    console.error('Failed to send Telegram message');
     return false;
   }
 }
@@ -55,6 +59,11 @@ export function formatTradeNotification(res: TradeResult): string {
   const modeTag = res.simulated ? '🟡 [آزمایشی / SIMULATION]' : '🟢 [ترید واقعی / LIVE]';
   const outcomeEmoji = res.outcome === 'UP' ? '📈 صعودی (UP)' : '📉 نزولی (DOWN)';
 
+  if (res.status === 'UNKNOWN' || res.status === 'PENDING') {
+    return `<b>⏳ وضعیت سفارش ${res.status === 'UNKNOWN' ? 'نامشخص' : 'در حال پردازش'}</b>\n` +
+      `خرید جدید تا تعیین وضعیت متوقف است؛ دستور خرید دیگری نفرستید.\n` +
+      `بررسی مجدد: <code>/check ${res.requestId}</code>\nشناسه سفارش: <code>${res.orderId || '-'}</code>`;
+  }
   if (!res.success) {
     return (
       `<b>❌ شکست در معامله ${res.symbol}/${res.timeframe}</b>\n` +
@@ -77,7 +86,8 @@ export function formatTradeNotification(res: TradeResult): string {
     `• قیمت خرید: <b>$${res.price?.toFixed(3)}</b> (${pricePercent}¢)\n` +
     `• تعداد سهام (Shares): <b>${res.shares?.toLocaleString()}</b>\n` +
     `• مبلغ معامله: <b>$${res.amountUsd.toFixed(2)}</b>\n` +
-    `• شناسه سفارش: <code>${res.orderId || '-'}</code>\n\n` +
+    `• شناسه سفارش: <code>${res.orderId || '-'}</code>\n` +
+    `• تعداد تلاش: ${res.attempts || 0}\n\n` +
     `💰 <b>مدیریت سرمایه:</b>\n` +
     `• کل مصرف‌شده: <b>$${res.totalSpentAfter.toFixed(2)}</b> / $${res.maxBudget.toFixed(2)}\n` +
     `• باقی‌مانده سقف مجاز: <b>$${res.remainingBudget.toFixed(2)}</b>\n\n` +
@@ -109,7 +119,11 @@ export async function formatStatusMessage(): Promise<string> {
     `• سقف کل بودجه مجاز: <b>$${status.maxTotalBudget.toFixed(2)}</b>\n` +
     `• کل هزینه شده تا الان: <b>$${status.totalSpent.toFixed(2)}</b>\n` +
     `• باقی‌مانده بودجه مجاز: <b>$${status.remainingBudget.toFixed(2)}</b>\n` +
+    `• بودجه رزروشده: <b>$${status.reservedBudget.toFixed(2)}</b>\n` +
+    status.pendingRequests.map(r => `⏳ ${r.state}: <code>/check ${r.requestId}</code>\n`).join('') +
     `• مبلغ هر معامله: <b>$${status.perTradeAmount.toFixed(2)}</b>\n\n` +
+    `♻️ Redeem خودکار: ${status.redemption.active ? 'فعال' : 'متوقف'} | دریافتی تأییدشده: ${status.redemption.totalRedeemed.toFixed(2)} USDC.e\n` +
+    status.redemption.recent.slice(0, 3).map(r => `• Redeem: ${r.state}${r.payout ? ` — ${r.payout} USDC.e` : ''}\n`).join('') +
     `📊 <b>مارکت بیت‌کوین:</b>\n` +
     `${activeMarketText}\n\n` +
     `دستور خرید سریع:\n` +
@@ -151,6 +165,7 @@ export function formatHelpMessage(): string {
     `• <code>/set_trade 15</code> -> تنظیم مقدار هر معامله (مثلاً ۱۵ دلار)\n` +
     `• <code>/sim on</code> -> فعال‌سازی حالت آزمایشی بدون خرج پول واقعی\n` +
     `• <code>/sim off</code> -> فعال‌سازی معامله زنده و واقعی روی والت\n` +
+    `• <code>/check REQUEST_ID</code> -> بررسی سفارش نامشخص بدون خرید مجدد\n` +
     `• <code>/history</code> -> تاریخچه معاملات اخیر\n` +
     `• <code>/help</code> -> نمایش همین راهنما`
   );
@@ -168,7 +183,7 @@ export async function startTelegramBotListener() {
     console.error('[TELEGRAM BOT] No Telegram bot token configured — set it on Control → Trading Bot.');
     return;
   }
-  if (!authorizedChatId) {
+  if (!/^[1-9][0-9]*$/.test(authorizedChatId)) {
     // Never start an unauthenticated listener: without a chat id every message would be treated as
     // authorized (see the check below), letting anyone who finds the bot issue buy/budget commands.
     console.error('[TELEGRAM BOT] No authorized chat id configured — refusing to start. Set it on Control → Trading Bot.');
@@ -185,7 +200,8 @@ export async function startTelegramBotListener() {
   } catch {}
 
   console.log(`[TELEGRAM BOT] Starting listener with authorized chat: ${authorizedChatId || 'ANY'}`);
-  let offset = 0;
+  const offsetKey = `telegram-offset:${token.split(':')[0]}`;
+  let offset = Number(getBotSetting(offsetKey, '0'));
 
   while (true) {
     try {
@@ -206,129 +222,149 @@ export async function startTelegramBotListener() {
 
       for (const update of data.result) {
         offset = update.update_id + 1;
-        const msg = update.message;
-        if (!msg || !msg.text) continue;
+        try {
+          const msg = update.message;
+          if (!msg || !msg.text) continue;
 
-        const chatId = msg.chat.id.toString();
-        const text = msg.text.trim();
+          const chatId = msg.chat.id.toString();
+          const text = msg.text.trim();
 
-        // Security: only allow the authorized chat ID
-        if (authorizedChatId && chatId !== authorizedChatId.toString()) {
-          console.warn(`[TELEGRAM BOT] Unauthorized message attempt from chat ID: ${chatId}`);
-          await sendTelegramMessage(token, chatId, '⛔ دسترسی غیرمجاز. این ربات خصوصی است.');
-          continue;
-        }
-
-        // 1. Check for Buy Signal
-        const signal = parseTradeSignal(text);
-        if (signal) {
-          await sendTelegramMessage(
-            token,
-            chatId,
-            `⏳ دریافت دستور خرید: <b>${signal.symbol}/${signal.timeframe} ${signal.outcome}</b>\nدر حال بررسی بازار و ثبت سفارش در پلی‌مارکت...`
-          );
-
-          try {
-            const result = await executeSignal({
-              symbol: signal.symbol,
-              timeframe: signal.timeframe,
-              outcome: signal.outcome,
-              source: 'telegram',
-            });
-            const notifyText = formatTradeNotification(result);
-            await sendTelegramMessage(token, chatId, notifyText);
-          } catch (err: any) {
-            await sendTelegramMessage(token, chatId, `❌ خطا در پردازش سفارش: ${err.message || err}`);
+          // Security: only allow the authorized chat ID
+          if (chatId !== authorizedChatId || msg.chat.type !== 'private' || String(msg.from?.id) !== authorizedChatId) {
+            console.warn(`[TELEGRAM BOT] Unauthorized message attempt from chat ID: ${chatId}`);
+            await sendTelegramMessage(token, chatId, '⛔ دسترسی غیرمجاز. این ربات خصوصی است.');
+            continue;
           }
-          continue;
-        }
 
-        // 2. Status Command
-        if (text === '/status' || text.toLowerCase() === 'status' || text === 'وضعیت') {
-          const statusText = await formatStatusMessage();
-          await sendTelegramMessage(token, chatId, statusText);
-          continue;
-        }
-
-        // 3. History Command
-        if (text === '/history' || text === 'تاریخچه') {
-          const historyText = formatHistoryMessage();
-          await sendTelegramMessage(token, chatId, historyText);
-          continue;
-        }
-
-        // 4. Set Budget Command: "/set_budget 150"
-        // Writes through applySettingChanges — the same validated path as /control, so Telegram
-        // can never save a budget config the dashboard's cross-field checks would reject.
-        const setBudgetMatch = text.match(/^\/set_budget\s+(\d+(?:\.\d+)?)$/i);
-        if (setBudgetMatch) {
-          const newBudget = parseFloat(setBudgetMatch[1]);
-          const r = applySettingChanges({ 'bot.maxBudget': newBudget });
-          if (r.ok) {
-            await sendTelegramMessage(token, chatId, `✅ سقف کل بودجه مجاز به <b>$${newBudget.toFixed(2)}</b> تغییر یافت.`);
-          } else {
-            await sendTelegramMessage(token, chatId, `❌ ${Object.values(r.errors)[0]}`);
+          // Do not execute stale queued commands after downtime (especially previous-hour buys).
+          if (!Number.isFinite(msg.date) || Date.now() / 1000 - msg.date > 120) {
+            await sendTelegramMessage(token, chatId, 'دستور قدیمی اجرا نشد؛ در صورت نیاز دستور جدید بفرستید.');
+            continue;
           }
-          continue;
-        }
-
-        // 5. Set Per-Trade Amount: "/set_trade 20"
-        const setTradeMatch = text.match(/^\/set_trade\s+(\d+(?:\.\d+)?)$/i);
-        if (setTradeMatch) {
-          const newTrade = parseFloat(setTradeMatch[1]);
-          const r = applySettingChanges({ 'bot.perTradeAmount': newTrade });
-          if (r.ok) {
-            await sendTelegramMessage(token, chatId, `✅ مبلغ مجاز هر معامله به <b>$${newTrade.toFixed(2)}</b> تغییر یافت.`);
-          } else {
-            await sendTelegramMessage(token, chatId, `❌ ${Object.values(r.errors)[0]}`);
+          const check = text.match(/^\/check\s+([A-Za-z0-9:_-]{1,160})$/);
+          if (check) {
+            try { await sendTelegramMessage(token, chatId, formatTradeNotification(await reconcileRequest(check[1]))); }
+            catch { await sendTelegramMessage(token, chatId, 'بررسی سفارش ممکن نشد. خرید جدیدی ارسال نشد.'); }
+            continue;
           }
-          continue;
-        }
+          // 1. Check for Buy Signal
+          const signal = parseTradeSignal(text);
+          if (signal) {
+            if (buildHourlyEtSlug('btc', new Date(msg.date * 1000)) !== buildHourlyEtSlug('btc')) {
+              await sendTelegramMessage(token, chatId, 'دستور مربوط به ساعت قبلی است و اجرا نشد.');
+              continue;
+            }
+            await sendTelegramMessage(
+              token,
+              chatId,
+              `⏳ دریافت دستور خرید: <b>${signal.symbol}/${signal.timeframe} ${signal.outcome}</b>\nدر حال بررسی بازار و ثبت سفارش در پلی‌مارکت...`
+            );
 
-        // 6. Toggle Simulation Mode: "/sim on" or "/sim off"
-        // Turning simulation off is also validated here: applySettingChanges refuses it without a
-        // saved wallet private key, the same rule /control enforces.
-        if (text.toLowerCase() === '/sim on') {
-          applySettingChanges({ 'bot.simulationMode': true });
-          await sendTelegramMessage(token, chatId, '🟡 حالت آزمایشی (Simulation) <b>فعال</b> شد. هیچ پول واقعی خرج نخواهد شد.');
-          continue;
-        }
-        if (text.toLowerCase() === '/sim off') {
-          const r = applySettingChanges({ 'bot.simulationMode': false });
-          if (r.ok) {
-            await sendTelegramMessage(token, chatId, '🟢 حالت معامله واقعی (Live CLOB) <b>فعال</b> شد.');
-          } else {
-            await sendTelegramMessage(token, chatId, `❌ ${Object.values(r.errors)[0]}`);
+            try {
+              const result = await executeSignal({
+                symbol: signal.symbol,
+                timeframe: signal.timeframe,
+                outcome: signal.outcome,
+                source: 'telegram',
+                requestId: `tg:${token.split(':')[0]}:${update.update_id}`,
+              });
+              const notifyText = formatTradeNotification(result);
+              await sendTelegramMessage(token, chatId, notifyText);
+            } catch {
+              await sendTelegramMessage(token, chatId, '❌ وضعیت سفارش قابل تأیید نیست؛ قبل از دستور جدید وضعیت را بررسی کنید.');
+            }
+            continue;
           }
-          continue;
-        }
 
-        // 7. Toggle Bot Kill Switch: "/bot on" or "/bot off"
-        if (text.toLowerCase() === '/bot on' || text.toLowerCase() === '/enable') {
-          applySettingChanges({ 'bot.enabled': true });
-          await sendTelegramMessage(token, chatId, '🟢 ربات تریدر <b>فعال</b> شد (Kill switch روشن). آماده دریافت سیگنال‌های خرید.');
-          continue;
-        }
-        if (text.toLowerCase() === '/bot off' || text.toLowerCase() === '/disable') {
-          applySettingChanges({ 'bot.enabled': false });
-          await sendTelegramMessage(token, chatId, '⛔ ربات تریدر <b>غیرفعال</b> شد (Kill switch خاموش). هیچ سفارشی ثبت نخواهد شد.');
-          continue;
-        }
+          // 2. Status Command
+          if (text === '/status' || text.toLowerCase() === 'status' || text === 'وضعیت') {
+            const statusText = await formatStatusMessage();
+            await sendTelegramMessage(token, chatId, statusText);
+            continue;
+          }
 
-        // 8. Help Command
-        if (text === '/help' || text === '/start' || text === 'راهنما') {
-          const helpText = formatHelpMessage();
-          await sendTelegramMessage(token, chatId, helpText);
-          continue;
-        }
+          // 3. History Command
+          if (text === '/history' || text === 'تاریخچه') {
+            const historyText = formatHistoryMessage();
+            await sendTelegramMessage(token, chatId, historyText);
+            continue;
+          }
 
-        // Default hint
-        if (text.startsWith('/')) {
-          await sendTelegramMessage(token, chatId, 'دستور نامعتبر است. برای مشاهده راهنما /help را ارسال کنید.');
+          // 4. Set Budget Command: "/set_budget 150"
+          // Writes through applySettingChanges — the same validated path as /control, so Telegram
+          // can never save a budget config the dashboard's cross-field checks would reject.
+          const setBudgetMatch = text.match(/^\/set_budget\s+(\d+(?:\.\d+)?)$/i);
+          if (setBudgetMatch) {
+            const newBudget = parseFloat(setBudgetMatch[1]);
+            const r = applySettingChanges({ 'bot.maxBudget': newBudget });
+            if (r.ok) {
+              await sendTelegramMessage(token, chatId, `✅ سقف کل بودجه مجاز به <b>$${newBudget.toFixed(2)}</b> تغییر یافت.`);
+            } else {
+              await sendTelegramMessage(token, chatId, `❌ ${Object.values(r.errors)[0]}`);
+            }
+            continue;
+          }
+
+          // 5. Set Per-Trade Amount: "/set_trade 20"
+          const setTradeMatch = text.match(/^\/set_trade\s+(\d+(?:\.\d+)?)$/i);
+          if (setTradeMatch) {
+            const newTrade = parseFloat(setTradeMatch[1]);
+            const r = applySettingChanges({ 'bot.perTradeAmount': newTrade });
+            if (r.ok) {
+              await sendTelegramMessage(token, chatId, `✅ مبلغ مجاز هر معامله به <b>$${newTrade.toFixed(2)}</b> تغییر یافت.`);
+            } else {
+              await sendTelegramMessage(token, chatId, `❌ ${Object.values(r.errors)[0]}`);
+            }
+            continue;
+          }
+
+          // 6. Toggle Simulation Mode: "/sim on" or "/sim off"
+          // Turning simulation off is also validated here: applySettingChanges refuses it without a
+          // saved wallet private key, the same rule /control enforces.
+          if (text.toLowerCase() === '/sim on') {
+            applySettingChanges({ 'bot.simulationMode': true });
+            await sendTelegramMessage(token, chatId, '🟡 حالت آزمایشی (Simulation) <b>فعال</b> شد. هیچ پول واقعی خرج نخواهد شد.');
+            continue;
+          }
+          if (text.toLowerCase() === '/sim off') {
+            const r = applySettingChanges({ 'bot.simulationMode': false });
+            if (r.ok) {
+              await sendTelegramMessage(token, chatId, '🟢 حالت معامله واقعی (Live CLOB) <b>فعال</b> شد.');
+            } else {
+              await sendTelegramMessage(token, chatId, `❌ ${Object.values(r.errors)[0]}`);
+            }
+            continue;
+          }
+
+          // 7. Toggle Bot Kill Switch: "/bot on" or "/bot off"
+          if (text.toLowerCase() === '/bot on' || text.toLowerCase() === '/enable') {
+            applySettingChanges({ 'bot.enabled': true });
+            await sendTelegramMessage(token, chatId, '🟢 ربات تریدر <b>فعال</b> شد (Kill switch روشن). آماده دریافت سیگنال‌های خرید.');
+            continue;
+          }
+          if (text.toLowerCase() === '/bot off' || text.toLowerCase() === '/disable') {
+            applySettingChanges({ 'bot.enabled': false });
+            await sendTelegramMessage(token, chatId, '⛔ ربات تریدر <b>غیرفعال</b> شد (Kill switch خاموش). هیچ سفارشی ثبت نخواهد شد.');
+            continue;
+          }
+
+          // 8. Help Command
+          if (text === '/help' || text === '/start' || text === 'راهنما') {
+            const helpText = formatHelpMessage();
+            await sendTelegramMessage(token, chatId, helpText);
+            continue;
+          }
+
+          // Default hint
+          if (text.startsWith('/')) {
+            await sendTelegramMessage(token, chatId, 'دستور نامعتبر است. برای مشاهده راهنما /help را ارسال کنید.');
+          }
+        } finally {
+          setBotSetting(offsetKey, String(offset));
         }
       }
-    } catch (err) {
-      console.error('[TELEGRAM BOT] Polling error:', err);
+    } catch {
+      console.error('[TELEGRAM BOT] Polling failed');
       await new Promise((r) => setTimeout(r, 5000));
     }
   }

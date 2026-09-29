@@ -1,3 +1,4 @@
+import { chmodSync, closeSync, existsSync, openSync } from 'node:fs';
 import Database from 'better-sqlite3';
 import path from 'path';
 
@@ -7,6 +8,8 @@ export function getDb() {
   if (db) return db;
 
   const dbPath = path.join(process.cwd(), 'polymarket.db');
+  closeSync(openSync(dbPath, 'a', 0o600));
+  chmodSync(dbPath, 0o600);
   db = new Database(dbPath, {
     // several processes (crawler, backfills, alerts worker, server) write this file; wait up to 15 s
     // for a lock instead of the 5 s default, which failed the alerts worker with SQLITE_BUSY every minute
@@ -15,7 +18,9 @@ export function getDb() {
   });
 
   db.pragma('journal_mode = WAL');
-  db.pragma('synchronous = NORMAL');
+  // Durable reservations must survive a crash before an external order is submitted.
+  db.pragma('synchronous = FULL');
+  for (const suffix of ['-wal', '-shm']) if (existsSync(dbPath + suffix)) chmodSync(dbPath + suffix, 0o600);
   db.pragma('foreign_keys = OFF'); // Disable to allow inserting trades before users in the same loop if needed
 
   return db;
@@ -64,6 +69,7 @@ export function initializeDb(dbInstance?: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_trades_wallet ON trades(proxyWallet);
     -- covering index for the crawler's per-trade COUNT(DISTINCT conditionId) (runs inside its write transaction)
     CREATE INDEX IF NOT EXISTS idx_trades_wallet_condition ON trades(proxyWallet, conditionId);
+    CREATE INDEX IF NOT EXISTS idx_trades_timestamp ON trades(timestamp DESC);
 
     CREATE TABLE IF NOT EXISTS alerts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -122,7 +128,7 @@ export function initializeDb(dbInstance?: Database.Database) {
       note TEXT DEFAULT '',
       sort INTEGER DEFAULT 0
     )`);
-    const wcc = (db.prepare(`SELECT COUNT(*) as n FROM watch_categories`).all() as any)[0];
+    const wcc = db.prepare(`SELECT COUNT(*) as n FROM watch_categories`).get() as { n: number };
     if (!wcc || wcc.n === 0) {
       db.exec(`INSERT INTO watch_categories (label, emoji, note, sort) VALUES
         ('Gold', '🥇', '', 1), ('Silver', '🥈', '', 2), ('Red', '🔴', '', 3)`);

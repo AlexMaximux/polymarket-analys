@@ -105,3 +105,7 @@ Create your first alert at `/alerts` → fill Telegram bot token + chat ID → *
 - `alerts` — rules (`alert_type`: `new_whale` | `starred_open`), Telegram target, enabled flag.
 - `alert_wallets` — watchlist wallets per `starred_open` alert.
 - `alert_seen` / `alert_pos_seen` — dedupe ledgers (marked after successful send only).
+
+### BTC hourly trading bot
+
+See [the trading bot guide](docs/trading-bot.md) for fixed-size buys, price-capped retries, request IDs, recovery, frozen forward-strategy execution, Telegram reports, automatic redemption and local key storage.

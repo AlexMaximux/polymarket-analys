@@ -16,7 +16,7 @@ export function checkLocalRequest(method: string, host: string | null, origin: s
   const h = (host || '').toLowerCase();
   const hostname = hostnameOf(h);
 
-  const allowRemote = process.env.ALLOW_REMOTE_ACCESS === 'true' || process.env.NODE_ENV === 'production';
+  const allowRemote = process.env.ALLOW_REMOTE_ACCESS === 'true';
   const customAllowed = (process.env.ALLOWED_HOSTS || '')
     .split(',')
     .map(s => s.trim().toLowerCase())

@@ -1,3 +1,5 @@
+import { privateKeyToAccount } from 'viem/accounts';
+import { encryptBotSecret, decryptBotSecret, isEncryptedBotSecret } from './bot/secretStorage';
 import type Database from 'better-sqlite3';
 import { getDb } from './db';
 import { JEV_COINS, isJevCoin, type JevCoin } from './coins';
@@ -13,8 +15,8 @@ import { maskSecret } from './secrets';
 export type WorkerName = 'crawl' | 'backfill' | 'alerts' | 'jev' | 'bot';
 export const WORKER_NAMES: WorkerName[] = ['crawl', 'backfill', 'alerts', 'jev', 'bot'];
 
-export type BotWalletType = 'EOA' | 'POLY_PROXY' | 'POLY_GNOSIS_SAFE';
-const WALLET_TYPES: BotWalletType[] = ['EOA', 'POLY_PROXY', 'POLY_GNOSIS_SAFE'];
+export type BotWalletType = 'EOA' | 'POLY_PROXY' | 'POLY_GNOSIS_SAFE' | 'DEPOSIT_WALLET';
+const WALLET_TYPES: BotWalletType[] = ['EOA', 'POLY_PROXY', 'POLY_GNOSIS_SAFE', 'DEPOSIT_WALLET'];
 
 export interface Settings {
   'openrouter.apiKey': string;
@@ -30,10 +32,16 @@ export interface Settings {
   'crawl.intervalSec': number;
   'alerts.intervalSec': number;
   'supervisor.autostart': Record<WorkerName, boolean>;
+  'bot.forwardEnabled': boolean;
   'bot.enabled': boolean;
+  'bot.autoRedeem': boolean;
+  'bot.redeemMaxGasPol': number;
   'bot.simulationMode': boolean;
   'bot.walletType': BotWalletType;
   'bot.privateKey': string;
+  'bot.builderApiKey': string;
+  'bot.builderSecret': string;
+  'bot.builderPassphrase': string;
   'bot.proxyAddress': string;
   'bot.rpcUrl': string;
   'bot.maxBudget': number;
@@ -142,12 +150,18 @@ export const SETTINGS: { [K in SettingKey]: SettingDef<Settings[K]> } = {
     parse: flags(WORKER_NAMES, false),
     restarts: [],
   },
+  'bot.autoRedeem': { default: true, parse: bool, restarts: [] },
+  'bot.redeemMaxGasPol': { default: 0.1, parse: numRange(0.01, 10), restarts: [] },
+  'bot.forwardEnabled': { default: false, parse: bool, restarts: [] },
   'bot.enabled': { default: false, parse: bool, restarts: [] },
   'bot.simulationMode': { default: true, parse: bool, restarts: [] },
   'bot.walletType': {
     default: 'EOA',
     parse: v => {
-      const s = String(v).toUpperCase();
+      let s = String(v).toUpperCase();
+      if (s === 'PROXY') s = 'POLY_PROXY';
+      if (s === 'DEPOSIT') s = 'DEPOSIT_WALLET';
+      if (s === 'SAFE' || s === 'GNOSIS') s = 'POLY_GNOSIS_SAFE';
       if (!WALLET_TYPES.includes(s as BotWalletType)) throw new SettingError(`must be one of ${WALLET_TYPES.join(', ')}`);
       return s as BotWalletType;
     },
@@ -159,10 +173,15 @@ export const SETTINGS: { [K in SettingKey]: SettingDef<Settings[K]> } = {
     parse: v => {
       const s = requiredString('Private key')(v);
       if (!isPrivateKeyFormat(s)) throw new SettingError('must be 64 hex characters, with or without 0x');
-      return normalizePrivateKey(s);
+      const normalized = normalizePrivateKey(s);
+      try { privateKeyToAccount(normalized as `0x${string}`); } catch { throw new SettingError('invalid private key'); }
+      return normalized;
     },
     restarts: [],
   },
+  'bot.builderApiKey': { secret: true, default: '', parse: requiredString('Builder API key'), restarts: [] },
+  'bot.builderSecret': { secret: true, default: '', parse: requiredString('Builder secret'), restarts: [] },
+  'bot.builderPassphrase': { secret: true, default: '', parse: requiredString('Builder passphrase'), restarts: [] },
   'bot.proxyAddress': {
     default: '',
     parse: v => {
@@ -197,12 +216,19 @@ export const SETTINGS: { [K in SettingKey]: SettingDef<Settings[K]> } = {
   'bot.telegramChatId': {
     env: ['TRADER_TELEGRAM_CHAT_ID', 'JEV_TELEGRAM_CHAT_ID', 'TELEGRAM_CHAT_ID'],
     default: '',
-    parse: requiredString('Chat ID'),
+    parse: v => {
+      const id = requiredString('Chat ID')(v);
+      if (!/^[1-9][0-9]*$/.test(id)) throw new SettingError('use your private Telegram user/chat ID, not a group');
+      return id;
+    },
     restarts: ['bot'],
   },
 };
 
 const SETTING_KEYS = Object.keys(SETTINGS) as SettingKey[];
+const ENCRYPTED_BOT_SECRETS = new Set<SettingKey>([
+  'bot.privateKey', 'bot.telegramToken', 'bot.builderApiKey', 'bot.builderSecret', 'bot.builderPassphrase',
+]);
 
 const prepared = new WeakSet<Database.Database>();
 function ensureTables(db: Database.Database) {
@@ -239,9 +265,17 @@ function resolve<K extends SettingKey>(key: K, db: Database.Database): { value: 
       try {
         stored = JSON.parse(row.value);
       } catch {
+        if (key.startsWith('bot.')) throw new SettingError(`unreadable saved setting: ${key}`);
         console.warn(`[settings] ignoring unreadable stored value for ${key}`);
       }
     }
+  }
+  if (ENCRYPTED_BOT_SECRETS.has(key) && typeof stored === 'string' && stored) {
+    const plaintext = decryptBotSecret(stored, db);
+    if (!isEncryptedBotSecret(stored)) {
+      db.prepare('UPDATE settings SET value = ? WHERE key = ?').run(JSON.stringify(encryptBotSecret(plaintext, db)), key);
+    }
+    stored = plaintext;
   }
   if (stored !== undefined && stored !== null) {
     try {
@@ -252,7 +286,7 @@ function resolve<K extends SettingKey>(key: K, db: Database.Database): { value: 
   }
   for (const name of def.env ?? []) {
     const v = process.env[name];
-    if (v && v.trim()) return { value: v.trim() as Settings[K], source: 'env' };
+    if (v && v.trim()) return { value: key.startsWith('bot.') ? def.parse(v.trim()) : v.trim() as Settings[K], source: 'env' };
   }
   return { value: structuredClone(def.default), source: 'default' };
 }
@@ -317,8 +351,12 @@ export function applySettingChanges(changes: Record<string, unknown>, db: Databa
     if (merged('bot.simulationMode') === false && !merged('bot.privateKey')) {
       return { ok: false, errors: { 'bot.simulationMode': 'save a wallet private key before turning off simulation mode' } };
     }
-    if (merged('bot.walletType') === 'POLY_PROXY' && !merged('bot.proxyAddress')) {
-      return { ok: false, errors: { 'bot.proxyAddress': 'wallet type POLY_PROXY requires a proxy address' } };
+    if (merged('bot.walletType') !== 'EOA' && !merged('bot.proxyAddress')) {
+      return { ok: false, errors: { 'bot.proxyAddress': 'proxy, Safe and Deposit Wallet accounts require the Polymarket wallet address' } };
+    }
+    const builder = [merged('bot.builderApiKey'), merged('bot.builderSecret'), merged('bot.builderPassphrase')];
+    if (builder.some(Boolean) && !builder.every(Boolean)) {
+      return { ok: false, errors: { 'bot.builderApiKey': 'builder key, secret and passphrase must be saved together' } };
     }
   }
 
@@ -333,13 +371,21 @@ export function applySettingChanges(changes: Record<string, unknown>, db: Databa
     }
   }
 
+  const rearmForward = parsed.some(([k, v]) => ['bot.forwardEnabled', 'bot.enabled', 'bot.simulationMode'].includes(k) && getSetting(k, db) !== v);
   const now = Math.floor(Date.now() / 1000);
   db.transaction(() => {
+    if (rearmForward) {
+      db.exec('CREATE TABLE IF NOT EXISTS bot_forward_gate (id INTEGER PRIMARY KEY, armed_at INTEGER NOT NULL)');
+      db.prepare('INSERT INTO bot_forward_gate VALUES(1,?) ON CONFLICT(id) DO UPDATE SET armed_at=excluded.armed_at').run(Date.now());
+    }
     const upsert = db.prepare(
       `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)
        ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`
     );
-    for (const [k, v] of parsed) if (!SETTINGS[k].llmColumn) upsert.run(k, JSON.stringify(v), now);
+    for (const [k, v] of parsed) if (!SETTINGS[k].llmColumn) {
+      const value = ENCRYPTED_BOT_SECRETS.has(k) ? encryptBotSecret(String(v), db) : v;
+      upsert.run(k, JSON.stringify(value), now);
+    }
     if (llmRow) {
       db.prepare(
         `INSERT INTO llm_settings (id, base_url, api_key, model, updated_at) VALUES (1, ?, ?, ?, ?)

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
+import { forwardSnapshotRow } from '@/lib/forwardSnapshot';
 import path from 'path';
 import { updateMarketResolutions, getResolutionsMap } from '@/lib/marketResolver';
 
@@ -79,10 +80,8 @@ export async function GET(req: Request) {
         const detectedCoin = content.coin || (f.toLowerCase().startsWith('btc') ? 'BTC' : f.split('_')[0].toUpperCase());
 
         return {
-          filename: f,
           coin: detectedCoin,
           coin_label: content.coin_label || null,
-          et_time: content.et_time || f,
           current_time_et: content.current_time_et || null,
           timestamp: content.timestamp || null,
           score: p.score != null ? Number(p.score) : null,
@@ -164,14 +163,15 @@ export async function GET(req: Request) {
           open_price: content.open_price != null ? Number(content.open_price) : null,
           price_to_beat: content.price_to_beat != null ? Number(content.price_to_beat) : (content.open_price != null ? Number(content.open_price) : null),
           market_slug: cards['1h']?.slug || null,
+          ...forwardSnapshotRow(f, content),
           market_outcome: (cards['1h']?.slug && resolutionsMap[cards['1h'].slug]) ? resolutionsMap[cards['1h'].slug] : null,
           tokens: p.tokens ?? null,
           cost: p.cost != null ? Number(p.cost.toFixed(6)) : null,
         };
       } catch {
-        return { filename: f };
+        return null;
       }
-    });
+    }).filter((f): f is NonNullable<typeof f> => f !== null && typeof (f as any).et_time === 'string');
 
     return NextResponse.json({ count: files.length, files });
   } catch (err: any) {

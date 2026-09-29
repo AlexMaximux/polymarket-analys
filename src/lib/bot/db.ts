@@ -43,7 +43,7 @@ export function getBotSetting(key: string, defaultValue: string): string {
       return row.value;
     }
   } catch (err) {
-    console.error(`Error reading bot setting ${key}:`, err);
+    throw new Error(`Failed to read bot setting ${key}`, { cause: err });
   }
   return defaultValue;
 }
@@ -58,7 +58,7 @@ export function setBotSetting(key: string, value: string): void {
       ON CONFLICT(key) DO UPDATE SET value = excluded.value
     `).run(key, value);
   } catch (err) {
-    console.error(`Error setting bot setting ${key}:`, err);
+    throw new Error(`Failed to persist bot setting ${key}`, { cause: err });
   }
 }
 
@@ -71,20 +71,14 @@ export function getBotBudgetLimits(): { maxBudget: number; perTrade: number; sim
   };
 }
 
-export function getTotalSpent(): number {
+export function getTotalSpent(simulated = getSetting('bot.simulationMode')): number {
   initializeBotTables();
   const db = getDb();
-  try {
-    const row = db.prepare(`
-      SELECT COALESCE(SUM(amount_usd), 0) AS total
-      FROM bot_trades
-      WHERE status IN ('FILLED', 'SIMULATED')
-    `).get() as { total: number };
-    return row.total || 0;
-  } catch (err) {
-    console.error('Error fetching total spent:', err);
-    return 0;
-  }
+  const row = db.prepare(`
+    SELECT COALESCE(SUM(amount_usd), 0) AS total FROM bot_trades WHERE status = ?
+  `).get(simulated ? 'SIMULATED' : 'FILLED') as { total: number };
+  return row.total;
+
 }
 
 export function recordBotTrade(trade: Omit<TradeRecord, 'id'>): number {
@@ -115,8 +109,7 @@ export function recordBotTrade(trade: Omit<TradeRecord, 'id'>): number {
     );
     return Number(result.lastInsertRowid);
   } catch (err) {
-    console.error('Error recording bot trade:', err);
-    return -1;
+    throw new Error('Failed to persist bot trade', { cause: err });
   }
 }
 
@@ -133,4 +126,9 @@ export function getRecentTrades(limit = 10): TradeRecord[] {
     console.error('Error fetching recent bot trades:', err);
     return [];
   }
+}
+
+export function getTradeCount(): number {
+  initializeBotTables();
+  return (getDb().prepare('SELECT COUNT(*) AS total FROM bot_trades').get() as { total: number }).total;
 }

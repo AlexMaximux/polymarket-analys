@@ -70,3 +70,6 @@ polymarket.db*
 # supervisor (scripts/supervisor.ts)
 /logs/
 /.supervisor-token
+
+# Local trading secret encryption key
+*.bot-key

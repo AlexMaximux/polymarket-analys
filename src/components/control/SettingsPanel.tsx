@@ -41,21 +41,27 @@ const FIELDS: Record<SettingKey, Field> = {
     flags: { crawl: "crawl", backfill: "backfill", alerts: "alerts", jev: "jev", bot: "bot (never autostarts by default)" },
     hint: "Applies next time the supervisor starts",
   },
+  "bot.forwardEnabled": { label: "Execute frozen forward signals", kind: "bool", hint: "Uses the Frozen strategy on cloud-analysis. Only fresh BTC 1H signals after activation; fixed bot stake. Start the bot worker. Browser need not stay open." },
+  "bot.autoRedeem": { label: "Auto-redeem wins", kind: "bool", hint: "Checks finalized real BTC 1H winners every minute while the bot worker runs. It remains active when buying is disabled or in simulation. Deposit Wallet redemption is gasless." },
+  "bot.redeemMaxGasPol": { label: "Maximum gas per redeem (POL)", kind: "num", hint: "Transactions above this fee cap are not sent. Default: 0.10 POL." },
   "bot.enabled": { label: "Enabled (kill switch)", kind: "bool", hint: "Off by default. While off, every buy signal — Telegram or API — is refused before any market is even looked up." },
   "bot.simulationMode": { label: "Simulation mode", kind: "bool", hint: "On = paper trading, no funds move. Turning this off enables real orders with real money on the next trade." },
-  "bot.walletType": { label: "Wallet type", kind: "select", options: ["EOA", "POLY_PROXY", "POLY_GNOSIS_SAFE"] },
+  "bot.walletType": { label: "Wallet type", kind: "select", options: ["EOA", "POLY_PROXY", "POLY_GNOSIS_SAFE", "DEPOSIT_WALLET"] },
   "bot.proxyAddress": {
-    label: "Proxy address",
+    label: "Polymarket wallet address",
     kind: "text",
-    hint: "Required when wallet type is POLY_PROXY",
-    showIf: current => current("bot.walletType") === "POLY_PROXY",
+    hint: "For your account, enter the B address shown by Polymarket. The test verifies that private-key address A owns it.",
+    showIf: current => current("bot.walletType") !== "EOA",
   },
-  "bot.privateKey": { label: "Wallet private key", kind: "secret", hint: "Used to sign orders locally — never sent anywhere except Polymarket's CLOB API." },
+  "bot.privateKey": { label: "Wallet private key", kind: "secret", hint: "Signs locally; the private key is never sent to Polymarket. Stored encrypted on this computer." },
+  "bot.builderApiKey": { label: "Builder API key", kind: "secret", hint: "Created automatically by Wallet test for gasless Deposit Wallet actions. Stored encrypted." },
+  "bot.builderSecret": { label: "Builder secret", kind: "secret", hint: "Created automatically; leave empty to keep the saved value." },
+  "bot.builderPassphrase": { label: "Builder passphrase", kind: "secret", hint: "Created automatically; leave empty to keep the saved value." },
   "bot.rpcUrl": { label: "Polygon RPC URL", kind: "text", hint: "Optional — defaults to a public Polygon RPC" },
   "bot.maxBudget": { label: "Total budget cap ($)", kind: "num" },
-  "bot.perTradeAmount": { label: "Per-trade amount ($)", kind: "num", hint: "Never exceeded in a single trade, even if a caller asks for more" },
+  "bot.perTradeAmount": { label: "Per-trade amount ($)", kind: "num", hint: "Fixed amount for each BTC 1H buy. Signal amounts are ignored." },
   "bot.telegramToken": { label: "Bot token", kind: "secret", hint: "Separate bot from the Jev alert bot above — e.g. @tornbalancebot" },
-  "bot.telegramChatId": { label: "Chat ID", kind: "text" },
+  "bot.telegramChatId": { label: "Private user/chat ID", kind: "text" },
 };
 
 const GROUPS: Array<{ title: string; keys: SettingKey[]; test?: string; danger?: (current: (key: SettingKey) => unknown) => boolean }> = [
@@ -71,6 +77,8 @@ const GROUPS: Array<{ title: string; keys: SettingKey[]; test?: string; danger?:
     test: "bot",
     danger: current => current("bot.enabled") === true && current("bot.simulationMode") === false,
   },
+  { title: "Trading Bot — Forward test", keys: ["bot.forwardEnabled"] },
+  { title: "Trading Bot — Redemption", keys: ["bot.autoRedeem", "bot.redeemMaxGasPol", "bot.builderApiKey", "bot.builderSecret", "bot.builderPassphrase"] },
   { title: "Trading Bot — Telegram", keys: ["bot.telegramToken", "bot.telegramChatId"], test: "bot-telegram" },
 ];
 
