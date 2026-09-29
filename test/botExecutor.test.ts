@@ -5,7 +5,7 @@ import * as dbModule from '../src/lib/db';
 import * as live from '../src/lib/bot/live';
 import * as geo from '../src/lib/bot/geo';
 import { applySettingChanges } from '../src/lib/settings';
-import { executeSignal, getBotWalletConfig, reconcileRequest, MAX_ATTEMPTS, buildHourlyEtSlug, orderPriceCap, describeOrderError } from '../src/lib/bot/executor';
+import { executeSignal, getBotWalletConfig, reconcileRequest, MAX_ATTEMPTS, buildHourlyEtSlug, orderPriceCap, describeOrderError, marketBuyAmountsValid, signFittingMarketBuy } from '../src/lib/bot/executor';
 import { getRecentTrades, getTotalSpent, initializeBotTables } from '../src/lib/bot/db';
 import { findRequest, pendingRequests, reservedBudget } from '../src/lib/bot/ledger';
 
@@ -181,6 +181,24 @@ describe('fixed BTC 1H execution', () => {
     expect(r.success).toBe(true);
     expect(createMarketOrder.mock.calls.map(([o]) => o.price)).toEqual([0.52, 0.62]);
   });
+  it('signs again with a cent less when the amounts would be rejected (0.001-tick markets)', async () => {
+    enable(true, 10);
+    createMarketOrder.mockImplementation(async (o: { amount: number }) => ({
+      hash: `order-${++sequence}`,
+      // share side with 5 decimals until the spend reaches $9.98
+      makerAmount: String(Math.round(o.amount * 1e6)), takerAmount: o.amount > 9.985 ? '10101010' : '10091000',
+    }));
+    const r = await run();
+    expect(r.success).toBe(true);
+    expect(createMarketOrder.mock.calls.map(([o]) => o.amount)).toEqual([10, 9.99, 9.98]);
+    expect(postOrder).toHaveBeenCalledTimes(1);
+  });
+  it('treats an "invalid amounts" 400 as a definite rejection and retries', async () => {
+    enable(true);
+    postOrder.mockRejectedValueOnce(new Error('invalid amounts, the market buy orders maker amount supports a max accuracy of 2 decimals'));
+    const r = await run();
+    expect(r).toMatchObject({ success: true, attempts: 2 });
+  });
   it('does not retry an ambiguous thrown error', async () => {
     enable(true); postOrder.mockRejectedValue(new Error('socket hang up'));
     await run(); expect(postOrder).toHaveBeenCalledTimes(1);
@@ -290,5 +308,17 @@ describe('describeOrderError', () => {
     expect(describeOrderError(new Error('socket hang up')).noFill).toBe(false);
     const t = describeOrderError(new Error('bad request, api key: abc123 order 0x' + 'a'.repeat(64))).text;
     expect(t).not.toContain('abc123'); expect(t).not.toContain('a'.repeat(64));
+  });
+});
+
+describe('market buy amount decimals', () => {
+  it('needs at most 2 decimals of USDC and 4 decimals of shares', () => {
+    expect(marketBuyAmountsValid({ makerAmount: '9990000', takerAmount: '10090900' })).toBe(true);
+    expect(marketBuyAmountsValid({ makerAmount: '9990000', takerAmount: '10090910' })).toBe(false);
+    expect(marketBuyAmountsValid({ makerAmount: '9995000', takerAmount: '10090900' })).toBe(false);
+    expect(marketBuyAmountsValid({})).toBe(true);
+  });
+  it('gives up instead of sending an order the exchange would reject', async () => {
+    await expect(signFittingMarketBuy(async () => ({ makerAmount: '9995000', takerAmount: '1' }), 1, 5)).rejects.toThrow(/سفارشی ارسال نشد/);
   });
 });

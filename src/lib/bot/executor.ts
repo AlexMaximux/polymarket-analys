@@ -17,8 +17,8 @@ export const MAX_ATTEMPTS = 3;
 export const RETRY_DELAY_MS = 2000;
 const wait = () => new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
 
-/** True when an SDK error definitely means "the FOK order was killed, nothing was bought". Anything else is ambiguous. */
-const NO_FILL_RE = /FOK_ORDER_NOT_FILLED|couldn't be fully filled|could not be fully filled|fully filled or killed|not fully filled|unmatched/i;
+/** True when an SDK error definitely means "nothing was bought": the FOK order was killed, or the exchange refused to create it. Anything else is ambiguous. */
+const NO_FILL_RE = /invalid amounts|FOK_ORDER_NOT_FILLED|couldn't be fully filled|could not be fully filled|fully filled or killed|not fully filled|unmatched/i;
 
 /** Log-safe summary of a thrown order error (no credentials, no full hashes) plus whether it proves a non-fill. */
 export function describeOrderError(e: unknown): { noFill: boolean; text: string } {
@@ -29,6 +29,30 @@ export function describeOrderError(e: unknown): { noFill: boolean; text: string 
     .replace(/0x[0-9a-fA-F]{40,}/g, '0x…')
     .slice(0, 200);
   return { noFill: NO_FILL_RE.test(raw), text: [meta.name ?? 'Error', meta.status ?? meta.code ?? '', text].filter(Boolean).join(' ') };
+}
+
+/**
+ * The exchange refuses a market buy unless the USDC side has at most 2 decimals and the share side at most 4
+ * (both are 6-decimal base units). On 0.001-tick markets (prices above 0.96 or below 0.04) the SDK rounds the
+ * share side to 5 decimals, so an order it signs can be rejected with "invalid amounts". Orders that carry no
+ * amounts (test doubles) cannot be checked and pass.
+ */
+export function marketBuyAmountsValid(order: { makerAmount?: unknown; takerAmount?: unknown }): boolean {
+  if (order.makerAmount === undefined || order.takerAmount === undefined) return true;
+  try { return BigInt(order.makerAmount as string) % BigInt(10_000) === BigInt(0) && BigInt(order.takerAmount as string) % BigInt(100) === BigInt(0); }
+  catch { return false; }
+}
+
+/** Sign a market buy; if the amounts would be rejected, spend a cent less and sign again (nothing is sent). */
+export async function signFittingMarketBuy<T extends { makerAmount?: unknown; takerAmount?: unknown }>(
+  sign: (spend: number) => Promise<T>, amount: number, maxSteps = 60,
+): Promise<T> {
+  let spend = Number(amount.toFixed(2));
+  for (let i = 0; i <= maxSteps && spend > 0; i++, spend = Number((spend - 0.01).toFixed(2))) {
+    const order = await sign(spend);
+    if (marketBuyAmountsValid(order)) return order;
+  }
+  throw new Error('مبلغ خرید با دقت اعشاری مجاز بازار سازگار نشد؛ سفارشی ارسال نشد.');
 }
 
 /** Polymarket prices move in 0.01 (or 0.001) ticks; 0.99 is the highest price a buy is worth sending at. */
@@ -326,14 +350,14 @@ export async function executeSignal(signal: SignalRequest): Promise<TradeResult>
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         if (attempt > 1) { await wait(); await refreshCap(); }
         assertStillAllowed(row, market, identity, signal);
-        const signed = await client.createMarketOrder({
+        const signed = await signFittingMarketBuy(spend => client.createMarketOrder({
           assetId: market.selectedTokenId,
-          amount: row.amount,
-          maxSpend: row.amount,
+          amount: spend,
+          maxSpend: spend,
           maxPrice: cap,
           side: UnifiedOrderSide.BUY,
           orderType: UnifiedOrderType.FOK,
-        });
+        }), row.amount);
         assertStillAllowed(row, market, identity, signal);
         const orderId = depositOrderHash(signed, negRisk);
         prepareSubmission(row.request_id, orderId, market, cap, identity);
@@ -378,7 +402,7 @@ export async function executeSignal(signal: SignalRequest): Promise<TradeResult>
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       if (attempt > 1) { await wait(); await refreshCap(); }
       assertStillAllowed(row, market, identity, signal);
-      const signed = await client.createMarketOrder({ tokenID: market.selectedTokenId, amount: row.amount, side: Side.BUY, orderType: OrderType.FOK, price: cap }, { negRisk });
+      const signed = await signFittingMarketBuy(spend => client.createMarketOrder({ tokenID: market.selectedTokenId, amount: spend, side: Side.BUY, orderType: OrderType.FOK, price: cap }, { negRisk }), row.amount);
       assertStillAllowed(row, market, identity, signal);
       // Save the actual signed order hash BEFORE POST, so a crash cannot lose its identity.
       prepareSubmission(row.request_id, orderHash(signed, negRisk), market, cap, identity);
