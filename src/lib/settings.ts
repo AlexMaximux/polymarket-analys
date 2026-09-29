@@ -48,6 +48,8 @@ export interface Settings {
   'bot.rpcUrl': string;
   'bot.maxBudget': number;
   'bot.perTradeAmount': number;
+  'bot.orderPriceMode': 'slippage' | 'market';
+  'bot.slippageCents': number;
   'bot.telegramToken': string;
   'bot.telegramChatId': string;
 }
@@ -221,6 +223,16 @@ export const SETTINGS: { [K in SettingKey]: SettingDef<Settings[K]> } = {
   },
   'bot.maxBudget': { default: 100, parse: numRange(1, 100_000), restarts: [] },
   'bot.perTradeAmount': { default: 10, parse: numRange(1, 100_000), restarts: [] },
+  // How the buy order is priced: best ask + slippage (a hard worst price), or market (sweep the book up to 0.99).
+  'bot.orderPriceMode': {
+    default: 'slippage',
+    parse: v => {
+      if (v !== 'slippage' && v !== 'market') throw new SettingError('must be slippage or market');
+      return v;
+    },
+    restarts: [],
+  },
+  'bot.slippageCents': { default: 2, parse: intRange(0, 20), restarts: [] },
   'bot.telegramToken': {
     secret: true,
     env: ['TRADER_TELEGRAM_BOT_TOKEN', 'POLYMARKET_BOT_TELEGRAM_TOKEN', 'JEV_TELEGRAM_BOT_TOKEN', 'TELEGRAM_BOT_TOKEN'],

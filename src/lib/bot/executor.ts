@@ -16,6 +16,19 @@ export const MAX_ATTEMPTS = 5;
 export const RETRY_DELAY_MS = 2000;
 const wait = () => new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
 
+/** Polymarket prices move in 0.01 (or 0.001) ticks; 0.99 is the highest price a buy is worth sending at. */
+const MARKET_PRICE_CAP = 0.99;
+
+/**
+ * Worst price the FOK buy may fill at. 'slippage': best ask + N cents, rounded UP to a 0.01 tick (valid on
+ * both tick sizes). 'market': the book is swept up to 0.99. The order still fills at the best available
+ * prices; the cap only bounds how far the price may run before the order is killed instead of filled.
+ */
+export function orderPriceCap(bestAsk: number, mode: 'slippage' | 'market', slippageCents: number): number {
+  const wanted = mode === 'market' ? MARKET_PRICE_CAP : Math.ceil((bestAsk + slippageCents / 100) * 100 - 1e-9) / 100;
+  return Math.min(0.999, Math.max(bestAsk, wanted));
+}
+
 /** Build the hourly slug according to ET (Eastern Time) convention */
 export function buildHourlyEtSlug(coin = 'btc', targetDate = new Date()): string {
   const parts = new Intl.DateTimeFormat('en-US', {
@@ -265,16 +278,19 @@ export async function executeSignal(signal: SignalRequest): Promise<TradeResult>
     const market = await resolveActiveMarket('btc', '1H', signal.outcome);
     if (!market || market.closed || !market.acceptingOrders || !Number.isFinite(Date.parse(market.endDate))) throw new Error('بازار فعال و معتبر BTC یک‌ساعته پیدا نشد.');
     if (signal.expectedMarketSlug && signal.expectedMarketSlug !== market.slug) throw new Error('بازار سیگنال با بازار جاری متفاوت است؛ خرید انجام نشد.');
-    const cap = market.selectedBestAsk;
-    if (cap === null || !Number.isFinite(cap) || cap <= 0 || cap >= 1 || !market.selectedTokenId) throw new Error('قیمت خرید معتبر در دفتر سفارش وجود ندارد.');
+    const bestAsk = market.selectedBestAsk;
+    if (bestAsk === null || !Number.isFinite(bestAsk) || bestAsk <= 0 || bestAsk >= 1 || !market.selectedTokenId) throw new Error('قیمت خرید معتبر در دفتر سفارش وجود ندارد.');
+    // Not the exact best ask: the price moves between the read and the order, and a cap equal to the ask
+    // makes the FOK order die on the first tick. The cap is what the order may pay at worst.
+    const cap = orderPriceCap(bestAsk, getSetting('bot.orderPriceMode'), getSetting('bot.slippageCents'));
     result = { ...result, slug: market.slug, tokenId: market.selectedTokenId };
     assertStillAllowed(row, market, identity, signal);
     if (market.minimumOrderSize && row.amount / cap + 0.000001 < market.minimumOrderSize) {
       const minimumUsd = market.minimumOrderSize * cap;
-      throw new Error(`مبلغ ثابت برای حداقل ${market.minimumOrderSize} سهم کافی نیست؛ در قیمت فعلی حداقل ${minimumUsd.toFixed(2)} دلار لازم است.`);
+      throw new Error(`مبلغ ثابت برای حداقل ${market.minimumOrderSize} سهم کافی نیست؛ در بدترین قیمت مجاز حداقل ${minimumUsd.toFixed(2)} دلار لازم است.`);
     }
     if (row.simulated) {
-      return settle(signal, row, { ...result, success: true, shares: row.amount / cap, price: cap, orderId: `sim_${row.request_id}` });
+      return settle(signal, row, { ...result, success: true, shares: row.amount / bestAsk, price: bestAsk, orderId: `sim_${row.request_id}` });
     }
     const geo = await getPolymarketGeoStatus(true);
     if (!geo.checked) throw new Error('بررسی محدودیت جغرافیایی Polymarket ناموفق بود؛ برای ایمنی سفارش ارسال نشد.');

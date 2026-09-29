@@ -61,6 +61,8 @@ const FIELDS: Record<SettingKey, Field> = {
   "bot.builderPassphrase": { label: "Builder passphrase", kind: "secret", hint: "Created automatically; leave empty to keep the saved value." },
   "bot.rpcUrl": { label: "Polygon RPC URL", kind: "text", hint: "Optional — defaults to a public Polygon RPC" },
   "bot.maxBudget": { label: "Total budget cap ($)", kind: "num" },
+  "bot.orderPriceMode": { label: "Order price", kind: "select", options: ["slippage", "market"], hint: "slippage: pay at most the best ask + the slippage below. market: take the best available prices up to 0.99 (fills almost always, but can pay far above the signal price)." },
+  "bot.slippageCents": { label: "Slippage (¢)", kind: "int", hint: "0–20. Used when Order price is slippage: the order is cancelled instead of filled above best ask + this many cents." },
   "bot.perTradeAmount": { label: "Per-trade amount ($)", kind: "num", hint: "Fixed amount for each BTC 1H buy. Polymarket normally requires at least 5 shares; use $5 or more to cover that minimum at any valid price." },
   "bot.telegramToken": { label: "Bot token", kind: "secret", hint: "Separate bot from the Jev alert bot above — e.g. @tornbalancebot" },
   "bot.telegramChatId": { label: "Private user/chat ID", kind: "text" },
@@ -76,7 +78,7 @@ const GROUPS: Array<{ title: string; keys: SettingKey[]; test?: string; danger?:
   { title: "Supervisor", keys: ["supervisor.autostart"] },
   {
     title: "Trading Bot — Wallet & Risk",
-    keys: ["bot.enabled", "bot.simulationMode", "bot.walletType", "bot.proxyAddress", "bot.privateKey", "bot.rpcUrl", "bot.maxBudget", "bot.perTradeAmount"],
+    keys: ["bot.enabled", "bot.simulationMode", "bot.walletType", "bot.proxyAddress", "bot.privateKey", "bot.rpcUrl", "bot.maxBudget", "bot.perTradeAmount", "bot.orderPriceMode", "bot.slippageCents"],
     test: "bot",
     danger: current => current("bot.enabled") === true && current("bot.simulationMode") === false,
   },

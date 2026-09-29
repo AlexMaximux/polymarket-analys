@@ -5,7 +5,7 @@ import * as dbModule from '../src/lib/db';
 import * as live from '../src/lib/bot/live';
 import * as geo from '../src/lib/bot/geo';
 import { applySettingChanges } from '../src/lib/settings';
-import { executeSignal, getBotWalletConfig, reconcileRequest, MAX_ATTEMPTS, buildHourlyEtSlug } from '../src/lib/bot/executor';
+import { executeSignal, getBotWalletConfig, reconcileRequest, MAX_ATTEMPTS, buildHourlyEtSlug, orderPriceCap } from '../src/lib/bot/executor';
 import { getRecentTrades, getTotalSpent, initializeBotTables } from '../src/lib/bot/db';
 import { findRequest, pendingRequests, reservedBudget } from '../src/lib/bot/ledger';
 
@@ -117,15 +117,40 @@ describe('fixed BTC 1H execution', () => {
     enable(true, 10, 10); expect((await run('live')).success).toBe(true);
     expect(getTotalSpent(false)).toBe(10); expect(getTotalSpent(true)).toBe(10);
   });
-  it('retries definite FOK rejection at the same original price and records actual fill', async () => {
+  it('retries definite FOK rejection at the same worst price (best ask 0.50 + default 2¢) and records actual fill', async () => {
     enable(true);
     postOrder.mockResolvedValueOnce(rejected).mockResolvedValueOnce(rejected).mockImplementationOnce(async (o: { hash: string }) => ({ success: true, status: 'matched', orderID: o.hash, makingAmount: '9.8', takingAmount: '20', transactionsHashes: ['real-tx'] }));
     const r = await run();
     expect(r).toMatchObject({ success: true, attempts: 3, amountUsd: 9.8, txHash: 'real-tx' });
     expect(r.price).toBeCloseTo(0.49);
     expect(r.error).toBeUndefined();
-    expect(createMarketOrder.mock.calls.every(([order]) => order.price === 0.5 && order.amount === 10)).toBe(true);
+    expect(createMarketOrder.mock.calls.every(([order]) => order.price === 0.52 && order.amount === 10)).toBe(true);
     expect(getRecentTrades()).toHaveLength(1); expect(getTotalSpent(false)).toBe(9.8);
+  });
+  it('prices the order at the best ask when slippage is 0', async () => {
+    enable(true);
+    expect(applySettingChanges({ 'bot.slippageCents': 0 }, db).ok).toBe(true);
+    expect((await run()).success).toBe(true);
+    expect(createMarketOrder.mock.calls[0][0].price).toBe(0.5);
+  });
+  it('adds the configured slippage to the best ask', async () => {
+    enable(true);
+    expect(applySettingChanges({ 'bot.slippageCents': 5 }, db).ok).toBe(true);
+    expect((await run()).success).toBe(true);
+    expect(createMarketOrder.mock.calls[0][0].price).toBe(0.55);
+  });
+  it('market mode sweeps the book up to 0.99 and still records the real fill price', async () => {
+    enable(true);
+    expect(applySettingChanges({ 'bot.orderPriceMode': 'market' }, db).ok).toBe(true);
+    const r = await run();
+    expect(createMarketOrder.mock.calls[0][0].price).toBe(0.99);
+    expect(r).toMatchObject({ success: true, amountUsd: 10 });
+    expect(r.price).toBeCloseTo(0.5);
+  });
+  it('rejects an invalid order price mode or slippage', () => {
+    expect(applySettingChanges({ 'bot.orderPriceMode': 'limit' }, db).ok).toBe(false);
+    expect(applySettingChanges({ 'bot.slippageCents': 21 }, db).ok).toBe(false);
+    expect(applySettingChanges({ 'bot.slippageCents': -1 }, db).ok).toBe(false);
   });
   it('stops after five rejected attempts and releases the budget', async () => {
     enable(true); postOrder.mockResolvedValue(rejected);
@@ -210,4 +235,17 @@ describe('fixed BTC 1H execution', () => {
     expect((await run()).status).toBe('UNKNOWN'); expect(reservedBudget(false)).toBe(10);
   });
 
+});
+
+describe('orderPriceCap', () => {
+  it('rounds best ask + slippage up to a 0.01 tick', () => {
+    expect(orderPriceCap(0.5, 'slippage', 2)).toBe(0.52);
+    expect(orderPriceCap(0.505, 'slippage', 2)).toBe(0.53);
+    expect(orderPriceCap(0.5, 'slippage', 0)).toBe(0.5);
+  });
+  it('never sends a buy above 0.999, and never below the ask it is meant to take', () => {
+    expect(orderPriceCap(0.98, 'slippage', 20)).toBe(0.999);
+    expect(orderPriceCap(0.995, 'market', 0)).toBe(0.995);
+    expect(orderPriceCap(0.4, 'market', 0)).toBe(0.99);
+  });
 });
