@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   DEFAULT_ANALYSIS_CONFIG,
   FROZEN_STRATEGY,
+  FROZEN_STRATEGY_2,
   STRATEGY_HISTORY,
   buildTrades,
   computeMetrics,
@@ -170,6 +171,15 @@ describe('solar filter', () => {
     expect(buildTrades([row({ hm: '04:40', solar_score_confidence: 79 })], on)).toHaveLength(0);
     expect(buildTrades([row({ hm: '04:40' })], on)).toHaveLength(0);
     expect(buildTrades([row({ hm: '04:40', solar_score_confidence: 80 })], on)).toHaveLength(1);
+  });
+  it('strategy 2 is strategy 1 plus only the Solar confidence filter, and runs in parallel', () => {
+    const { solarMinConf, ...s2 } = FROZEN_STRATEGY_2.rule;
+    const { solarMinConf: none, ...v2 } = FROZEN_STRATEGY.rule;
+    expect(solarMinConf).toBe(80);
+    expect(none).toBe(0);
+    expect(s2).toEqual(v2);
+    expect(STRATEGY_HISTORY).not.toContain(FROZEN_STRATEGY_2);
+    expect(FROZEN_STRATEGY_2.frozenUntil).toBeNull();
   });
   it('uses Solar own score when it is the model', () => {
     const r = row({ hm: '04:10', score: 0.1, solar_score: 3.9, solar_score_confidence: 95 });

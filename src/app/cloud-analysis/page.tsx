@@ -15,6 +15,7 @@ import {
 import {
   DEFAULT_ANALYSIS_CONFIG,
   FROZEN_STRATEGY,
+  FROZEN_STRATEGY_2,
   STRATEGY_HISTORY,
   LATE_MINUTE,
   MINUTE_BUCKETS,
@@ -458,16 +459,17 @@ function verdictDetail(v: Verdict, m: Metrics): string {
 }
 
 // ---------- frozen strategy forward test ----------
-function FrozenCard({ before, after, afterTrades, history, stake, slippage, budget, onBudget }: {
+function FrozenCard({ strategy, title, before, after, afterTrades, history, stake, slippage, budget, onBudget }: {
+  strategy: typeof STRATEGY_HISTORY[number]; title: string;
   before: Metrics; after: Metrics; afterTrades: Trade[];
   history: { strategy: typeof STRATEGY_HISTORY[number]; trades: Trade[]; metrics: Metrics }[];
   stake: number; slippage: number; budget: number; onBudget: (v: number) => void;
 }) {
-  const frozenEt = new Date(FROZEN_STRATEGY.frozenAt).toLocaleString("en-US", {
+  const frozenEt = new Date(strategy.frozenAt).toLocaleString("en-US", {
     timeZone: "America/New_York", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false,
   });
   const v = verdictOf(after);
-  const nextCp = FROZEN_STRATEGY.checkpoints.find((c) => c > after.resolved);
+  const nextCp = strategy.checkpoints.find((c) => c > after.resolved);
   const losses = after.losses;
   const lossesCovered = stake > 0 ? Math.floor(budget / stake) : 0;
   // Losses that would erase profit at the win rate the rule needs: about one loss per (1/entry - 1)^-1 wins.
@@ -477,8 +479,8 @@ function FrozenCard({ before, after, afterTrades, history, stake, slippage, budg
 
   return (
     <Card
-      title="Frozen strategy: forward test"
-      subtitle={`${FROZEN_STRATEGY.name}. Rule locked ${frozenEt} ET. Only signals after that time count here.`}
+      title={title}
+      subtitle={`${strategy.name}. Rule locked ${frozenEt} ET. Only signals after that time count here.`}
       right={<span className="text-[11px] px-2 py-0.5 rounded-md border border-white/[0.12] text-[#9a9ca3]">locked</span>}
       defaultOpen={false}
     >
@@ -654,9 +656,9 @@ export default function CloudAnalysisPage() {
   // Forward test of the currently-active frozen rule. Independent of the left-panel filters;
   // only stake and slippage are shared. "before" = the backtest on data that existed at freeze
   // time (optimistic, rule was tuned against it); "after" = real forward signals since then.
-  const frozen = useMemo(() => {
-    const c: AnalysisConfig = { ...FROZEN_STRATEGY.rule, stake: cfg.stake, slippageCents: cfg.slippageCents };
-    const t0 = new Date(FROZEN_STRATEGY.frozenAt).getTime();
+  const forwardOf = (strategy: typeof FROZEN_STRATEGY) => {
+    const c: AnalysisConfig = { ...strategy.rule, stake: cfg.stake, slippageCents: cfg.slippageCents };
+    const t0 = new Date(strategy.frozenAt).getTime();
     const base = filterBaseRows(rows, c);
     const beforeTrades = buildTrades(base.filter((r) => (r.timestamp ? new Date(r.timestamp).getTime() : 0) < t0), c);
     const afterTrades = buildTrades(base.filter((r) => (r.timestamp ? new Date(r.timestamp).getTime() : 0) >= t0), c);
@@ -666,7 +668,9 @@ export default function CloudAnalysisPage() {
       before: computeMetrics(beforeTrades, c.stake),
       after: computeMetrics(afterTrades, c.stake),
     };
-  }, [rows, cfg.stake, cfg.slippageCents]);
+  };
+  const frozen = useMemo(() => forwardOf(FROZEN_STRATEGY), [rows, cfg.stake, cfg.slippageCents]); // eslint-disable-line react-hooks/exhaustive-deps
+  const frozen2 = useMemo(() => forwardOf(FROZEN_STRATEGY_2), [rows, cfg.stake, cfg.slippageCents]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Each closed/current rule in STRATEGY_HISTORY, scored only on its own forward window
   // [frozenAt, frozenUntil). A superseded rule's window is frozen in time, so its result never
@@ -957,10 +961,24 @@ export default function CloudAnalysisPage() {
           ) : (
             <>
               <FrozenCard
+                strategy={FROZEN_STRATEGY}
+                title="Frozen strategy 1: forward test"
                 before={frozen.before}
                 after={frozen.after}
                 afterTrades={frozen.afterTrades}
                 history={strategyHistory}
+                stake={cfg.stake}
+                slippage={cfg.slippageCents}
+                budget={budget}
+                onBudget={setBudget}
+              />
+              <FrozenCard
+                strategy={FROZEN_STRATEGY_2}
+                title="Frozen strategy 2: forward test (Solar ≥ 80%)"
+                before={frozen2.before}
+                after={frozen2.after}
+                afterTrades={frozen2.afterTrades}
+                history={[]}
                 stake={cfg.stake}
                 slippage={cfg.slippageCents}
                 budget={budget}

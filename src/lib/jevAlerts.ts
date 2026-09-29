@@ -366,6 +366,11 @@ export function formatTelegramSignalMessage(
     const sDetails = [sScore, sProb].filter(Boolean).join(' | ');
     multiModelBlock += `• <b>Span-01:</b> جهت <b>${preds.span.direction || '—'}</b> (${sDetails})\n`;
   }
+  if (preds.solar) {
+    const soScore = preds.solar.score != null ? `اسکور: ${Number(preds.solar.score).toFixed(2)}` : '';
+    const soConf = preds.solar.score_confidence != null ? `اطمینان: ${Math.round(preds.solar.score_confidence * 100)}%` : '';
+    multiModelBlock += `• <b>Solar-Decide (فیلتر اضافه):</b> جهت <b>${preds.solar.direction || '—'}</b> (${[soScore, soConf].filter(Boolean).join(' | ')})\n`;
+  }
   multiModelBlock += `• <b>نتیجه اجماع:</b> <code>${preds.consensus?.summary || '3/3 Agreement (تمام مدل‌ها موافق)'}</code> ✅\n\n`;
 
   const minuteStr = signal.minute != null ? `دقیقه ${signal.minute}` : 'بعد از دقیقه ۳۱';

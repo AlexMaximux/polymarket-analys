@@ -1028,17 +1028,17 @@ const PRESETS = [
   {
     id: "multi_models",
     title: "🤖 ۳ مدل هوش مصنوعی (Jev + Kev + Span)",
-    cols: ["coin", "consensus", "signal", "signal_result", "direction", "score", "kev_direction", "kev_score", "span_direction", "span_score", "up_1h", "market_outcome"],
+    cols: ["coin", "consensus", "signal", "signal_result", "direction", "score", "kev_direction", "kev_score", "span_direction", "span_score", "solar_direction", "solar_score", "up_1h", "market_outcome"],
   },
   {
     id: "top3",
     title: "🌟 شاخص‌های اصلی + ۳ مدل",
-    cols: ["coin", "consensus", "signal", "signal_result", "direction", "score", "kev_direction", "kev_score", "span_direction", "span_score", "up_1h", "market_outcome"],
+    cols: ["coin", "consensus", "signal", "signal_result", "direction", "score", "kev_direction", "kev_score", "span_direction", "span_score", "solar_direction", "solar_score", "up_1h", "market_outcome"],
   },
   {
     id: "ai",
     title: "🧠 مقایسه تفصیلی اسکور و اطمینان ۳ مدل",
-    cols: ["coin", "direction", "score", "score_confidence", "kev_direction", "kev_score", "kev_score_confidence", "kev_direction_confidence", "span_direction", "span_score", "span_confidence"],
+    cols: ["coin", "direction", "score", "score_confidence", "kev_direction", "kev_score", "kev_score_confidence", "kev_direction_confidence", "span_direction", "span_score", "solar_direction", "solar_score", "span_confidence"],
   },
   {
     id: "markets",
@@ -1058,7 +1058,7 @@ const PRESETS = [
   {
     id: "full",
     title: "🔍 نمایش جامع (تمام شاخص‌های ۳ مدل + بازار)",
-    cols: ["coin", "consensus", "signal", "signal_result", "market_outcome", "direction", "score", "score_confidence", "kev_direction", "kev_score", "kev_score_confidence", "kev_direction_confidence", "span_direction", "span_score", "span_confidence", "span_prob_up", "up_1h", "fair_15m"],
+    cols: ["coin", "consensus", "signal", "signal_result", "market_outcome", "direction", "score", "score_confidence", "kev_direction", "kev_score", "kev_score_confidence", "kev_direction_confidence", "span_direction", "span_score", "solar_direction", "solar_score", "span_confidence", "span_prob_up", "up_1h", "fair_15m"],
   },
 ];
 
@@ -1115,6 +1115,8 @@ export default function JevAnalysisPage() {
     "kev_score",
     "span_direction",
     "span_score",
+    "solar_direction",
+    "solar_score",
     "up_1h",
   ]);
 
@@ -1284,7 +1286,7 @@ export default function JevAnalysisPage() {
         localStorage.removeItem(STORAGE_KEY);
       } catch {}
       setSelectedCoin("all");
-      setSelectedColIds(["coin", "consensus", "direction", "score", "kev_direction", "kev_score", "span_direction", "span_score", "up_1h"]);
+      setSelectedColIds(["coin", "consensus", "direction", "score", "kev_direction", "kev_score", "span_direction", "span_score", "solar_direction", "solar_score", "up_1h"]);
       setVisibleCurves({
         score: true,
         scoreConfidence: false,

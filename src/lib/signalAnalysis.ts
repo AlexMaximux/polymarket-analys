@@ -141,6 +141,20 @@ export const STRATEGY_HISTORY: FrozenStrategy[] = [
 
 export const FROZEN_STRATEGY = STRATEGY_HISTORY[STRATEGY_HISTORY.length - 1];
 
+// A second forward test that runs alongside FROZEN_STRATEGY, not after it: v2 keeps its own window and
+// result. It is v2's rule plus one filter, so the two can be compared over the same hours.
+// The 80% threshold was picked after looking at BTC history with Solar backfilled (it removed 4 of 9
+// losses in-sample), so the backtest before `frozenAt` is optimistic and only the forward window counts.
+export const FROZEN_STRATEGY_2: FrozenStrategy = {
+  id: "s2",
+  name: "BTC · Jev + Kev + Span all agree · minute 32+ · Solar confidence ≥ 80%",
+  note: "Strategy 1 (v2) plus a Solar-Decide filter: Solar's score confidence must be at least 80%. Solar pointing the same way was not useful on its own (it agreed on every v2 trade). Runs in parallel with v2 so both are scored on the same hours. Rows without a Solar prediction cannot trade.",
+  frozenAt: "2026-09-29T09:50:00.000Z", // 05:50 ET
+  frozenUntil: null,
+  rule: baseRule({ minMinute: 32, solarMinConf: 80 }),
+  checkpoints: [10, 20, 30, 50],
+};
+
 export interface Trade {
   row: SnapshotRow;
   coin: string;
