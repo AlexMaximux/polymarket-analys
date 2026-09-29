@@ -21,6 +21,8 @@ const FIELDS: Record<SettingKey, Field> = {
   "openrouter.apiKey": { label: "API key", kind: "secret" },
   "jev.telegramToken": { label: "Bot token", kind: "secret", hint: "Default target for Jev signal alerts" },
   "jev.telegramChat": { label: "Chat ID", kind: "text" },
+  "watchdog.telegramToken": { label: "Bot token", kind: "secret", hint: "Sends a message when a worker or the BTC prediction records stall" },
+  "watchdog.telegramChat": { label: "Chat ID", kind: "text" },
   "llm.baseUrl": { label: "Base URL", kind: "text", hint: "OpenAI-compatible endpoint, e.g. https://…/v1" },
   "llm.apiKey": { label: "API key", kind: "secret" },
   "llm.model": { label: "Model", kind: "text" },
@@ -28,7 +30,7 @@ const FIELDS: Record<SettingKey, Field> = {
   "jev.models": {
     label: "Models",
     kind: "flags",
-    flags: { jev: "Jev", kev: "Kev-4b", span: "Span-01" },
+    flags: { jev: "Jev", kev: "Kev-4b", span: "Span-01", solar: "Solar-Decide (extra filter, not a consensus vote)" },
     hint: "Each enabled model is one paid OpenRouter call per coin per record",
   },
   "jev.recordIntervalSec": { label: "Record every (s)", kind: "int", hint: "60–3600" },
@@ -67,6 +69,7 @@ const FIELDS: Record<SettingKey, Field> = {
 const GROUPS: Array<{ title: string; keys: SettingKey[]; test?: string; danger?: (current: (key: SettingKey) => unknown) => boolean }> = [
   { title: "OpenRouter", keys: ["openrouter.apiKey"], test: "openrouter" },
   { title: "Jev Telegram", keys: ["jev.telegramToken", "jev.telegramChat"], test: "telegram" },
+  { title: "Heartbeat alerts", keys: ["watchdog.telegramToken", "watchdog.telegramChat"] },
   { title: "Wallet-analysis LLM", keys: ["llm.baseUrl", "llm.apiKey", "llm.model"], test: "llm" },
   { title: "Jev collector", keys: ["jev.coins", "jev.models", "jev.recordIntervalSec", "jev.snapshotIntervalSec"] },
   { title: "Intervals", keys: ["crawl.intervalSec", "alerts.intervalSec"] },

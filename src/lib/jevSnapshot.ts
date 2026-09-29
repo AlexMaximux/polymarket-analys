@@ -251,12 +251,19 @@ export async function callJevDecision(snapshotData: any, apiKey?: string) {
   };
 }
 
-export async function callKevDecision(snapshotData: any, apiKey?: string) {
+export const KEV_MODEL = 'jaredpalmer/kev-4b';
+export const SOLAR_MODEL = 'upstage/solar-decide';
+
+export const callKevDecision = (snapshotData: any, apiKey?: string) => callStandardDecision(KEV_MODEL, 'Kev', snapshotData, apiKey);
+export const callSolarDecision = (snapshotData: any, apiKey?: string) => callStandardDecision(SOLAR_MODEL, 'Solar', snapshotData, apiKey);
+
+/** Kev and Solar take the same score + direction questions and return the same answer shape. */
+async function callStandardDecision(modelId: string, label: string, snapshotData: any, apiKey?: string) {
   const key = openRouterKey(apiKey);
   const coinLabel = snapshotData.coin_label || snapshotData.coin || 'Crypto';
 
   const payload = {
-    model: 'jaredpalmer/kev-4b',
+    model: modelId,
     state: {
       et_time: snapshotData.et_time,
       coin: snapshotData.coin,
@@ -300,7 +307,7 @@ export async function callKevDecision(snapshotData: any, apiKey?: string) {
 
   if (!res.ok) {
     const errText = await res.text();
-    throw new Error(`OpenRouter Kev error (${res.status}): ${errText}`);
+    throw new Error(`OpenRouter ${label} error (${res.status}): ${errText}`);
   }
 
   const decision = await res.json();
@@ -321,7 +328,7 @@ export async function callKevDecision(snapshotData: any, apiKey?: string) {
   const downProb = answers.one_hour_direction?.probabilities?.DOWN;
 
   return {
-    model: decision.model || 'jaredpalmer/kev-4b',
+    model: decision.model || modelId,
     coin: snapshotData.coin,
     score,
     score_interpretation: scoreInterpretation,
@@ -466,15 +473,22 @@ export async function callSpanDecision(snapshotData: any, apiKey?: string) {
 export async function callMultiModelDecisions(snapshotData: any, apiKey?: string) {
   const enabled = getSetting('jev.models');
   const off = Promise.resolve(null);
-  const [jevRes, kevRes, spanRes] = await Promise.allSettled([
+  const [jevRes, kevRes, spanRes, solarRes] = await Promise.allSettled([
     enabled.jev ? callJevDecision(snapshotData, apiKey) : off,
     enabled.kev ? callKevDecision(snapshotData, apiKey) : off,
     enabled.span ? callSpanDecision(snapshotData, apiKey) : off,
+    enabled.solar ? callSolarDecision(snapshotData, apiKey) : off,
   ]);
 
   const jev = jevRes.status === 'fulfilled' ? jevRes.value : null;
   const kev = kevRes.status === 'fulfilled' ? kevRes.value : null;
   const span = spanRes.status === 'fulfilled' ? spanRes.value : null;
+  // Solar is recorded next to the others but is NOT one of the consensus votes: the frozen forward
+  // strategies count Jev/Kev/Span only, and changing that would rewrite their history.
+  const solar = solarRes.status === 'fulfilled' ? solarRes.value : null;
+  if (solarRes.status === 'rejected') {
+    console.error('[MultiModel] Solar error:', solarRes.reason?.message || solarRes.reason);
+  }
 
   if (jevRes.status === 'rejected') {
     console.error('[MultiModel] Jev error:', jevRes.reason?.message || jevRes.reason);
@@ -511,6 +525,7 @@ export async function callMultiModelDecisions(snapshotData: any, apiKey?: string
     jev,
     kev,
     span,
+    solar,
     consensus,
     primary,
   };
@@ -562,6 +577,7 @@ export function saveHistoricalJevRecord(
       jev: predictionOrMulti.jev,
       kev: predictionOrMulti.kev,
       span: predictionOrMulti.span,
+      solar: predictionOrMulti.solar,
       consensus: predictionOrMulti.consensus,
     };
     primaryPrediction = predictionOrMulti.primary || predictionOrMulti.jev || primaryPrediction;

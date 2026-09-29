@@ -11,6 +11,8 @@ import { getSetting, WORKER_NAMES } from '../src/lib/settings';
 import { LogBuffer } from '../src/lib/supervisor/logs';
 import { Worker, type ChildLike, type WorkerSpec } from '../src/lib/supervisor/worker';
 import { createControlHandler } from '../src/lib/supervisor/control';
+import { sendTelegram } from '../src/lib/alerts';
+import { collectChecks, watchdogStep } from '../src/lib/watchdog';
 import { SUPERVISOR_PORT, TOKEN_FILE, WEB_PORT } from '../src/lib/supervisor/config';
 
 /**
@@ -125,6 +127,24 @@ async function main() {
     const s = w.start();
     console.log(`[supervisor] ${name}: ${s.state}${s.externalPid ? ` (already running outside the supervisor, pid ${s.externalPid})` : ''}`);
   }
+
+  // Telegram alert when a worker or the prediction records stall; silent until a token + chat are set.
+  const WATCHDOG_INTERVAL_MS = 60_000, WATCHDOG_GRACE_MS = 3 * 60_000;
+  const startedAt = Date.now();
+  let down = new Set<string>();
+  const watchdog = setInterval(async () => {
+    try {
+      if (Date.now() - startedAt < WATCHDOG_GRACE_MS) return;
+      const token = getSetting('watchdog.telegramToken'), chat = getSetting('watchdog.telegramChat');
+      if (!token || !chat) return;
+      const step = watchdogStep(collectChecks(), down);
+      down = step.down;
+      for (const m of step.messages) await sendTelegram(token, chat, m);
+    } catch (err) {
+      console.error('[supervisor] watchdog error:', err);
+    }
+  }, WATCHDOG_INTERVAL_MS);
+  watchdog.unref();
 
   let shuttingDown = false;
   const shutdown = async () => {

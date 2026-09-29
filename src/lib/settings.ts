@@ -22,11 +22,13 @@ export interface Settings {
   'openrouter.apiKey': string;
   'jev.telegramToken': string;
   'jev.telegramChat': string;
+  'watchdog.telegramToken': string;
+  'watchdog.telegramChat': string;
   'llm.baseUrl': string;
   'llm.apiKey': string;
   'llm.model': string;
   'jev.coins': JevCoin[];
-  'jev.models': { jev: boolean; kev: boolean; span: boolean };
+  'jev.models': { jev: boolean; kev: boolean; span: boolean; solar: boolean };
   'jev.recordIntervalSec': number;
   'jev.snapshotIntervalSec': number;
   'crawl.intervalSec': number;
@@ -117,6 +119,18 @@ export const SETTINGS: { [K in SettingKey]: SettingDef<Settings[K]> } = {
     restarts: ['jev'],
   },
   'jev.telegramChat': { env: ['JEV_TELEGRAM_CHAT_ID', 'TELEGRAM_CHAT_ID'], default: '', parse: requiredString('Chat ID'), restarts: ['jev'] },
+  'watchdog.telegramToken': {
+    secret: true,
+    env: ['WATCHDOG_TELEGRAM_BOT_TOKEN'],
+    default: '',
+    parse: v => {
+      const s = requiredString('Bot token')(v);
+      if (!TELEGRAM_TOKEN_RE.test(s)) throw new SettingError('bot token looks invalid (expected 123456:ABC…)');
+      return s;
+    },
+    restarts: [],
+  },
+  'watchdog.telegramChat': { env: ['WATCHDOG_TELEGRAM_CHAT_ID'], default: '', parse: requiredString('Chat ID'), restarts: [] },
   'llm.baseUrl': {
     llmColumn: 'base_url',
     default: '',
@@ -139,7 +153,12 @@ export const SETTINGS: { [K in SettingKey]: SettingDef<Settings[K]> } = {
     },
     restarts: ['jev'],
   },
-  'jev.models': { default: { jev: true, kev: true, span: true }, parse: flags(['jev', 'kev', 'span'] as const, true), restarts: ['jev'] },
+  // A value saved before Solar existed has no `solar` key: treat it as on instead of discarding the setting.
+  'jev.models': {
+    default: { jev: true, kev: true, span: true, solar: true },
+    parse: v => flags(['jev', 'kev', 'span', 'solar'] as const, true)(v && typeof v === 'object' ? { solar: true, ...v } : v),
+    restarts: ['jev'],
+  },
   'jev.recordIntervalSec': { default: 300, parse: intRange(60, 3600), restarts: ['jev'] },
   'jev.snapshotIntervalSec': { default: 30, parse: intRange(10, 600), restarts: ['jev'] },
   'crawl.intervalSec': { default: 30, parse: intRange(10, 600), restarts: ['crawl'] },

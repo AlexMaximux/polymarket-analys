@@ -42,7 +42,7 @@ export interface SignalMarkerConfig {
   confidenceType: "score" | "direction" | "any";
   bullishColor: string;     // default "#6aa9d8"
   bearishColor: string;     // default "#d8646a"
-  modelSource?: "jev" | "kev" | "span" | "consensus"; // Default "jev"
+  modelSource?: "jev" | "kev" | "span" | "solar" | "consensus"; // Default "jev"
 }
 
 const DEFAULT_SIGNAL_CONFIG: SignalMarkerConfig = {
@@ -90,6 +90,12 @@ function evaluateSignal(r: JevFileRecord, cfg: SignalMarkerConfig): SignalMatch 
     targetScore = r.span_score;
     conf = r.span_confidence;
     modelName = "Span-01";
+  } else if (modelSrc === "solar") {
+    targetScore = r.solar_score;
+    conf = cfg.confidenceType === "direction"
+      ? r.solar_direction_confidence ?? r.solar_confidence
+      : r.solar_score_confidence ?? r.solar_confidence;
+    modelName = "Solar-Decide";
   } else if (modelSrc === "consensus") {
     const scores = [r.score, r.kev_score, r.span_score].filter((s): s is number => s != null);
     targetScore = scores.length > 0 ? Number((scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(2)) : null;
@@ -186,6 +192,14 @@ interface JevFileRecord {
   span_score?: number | null;
   span_score_label?: string | null;
   span_confidence?: number | null;
+  // Upstage Solar-Decide (extra filter, not part of the 3-model consensus)
+  solar_direction?: "UP" | "DOWN" | null;
+  solar_score?: number | null;
+  solar_score_label?: string | null;
+  solar_confidence?: number | null;
+  solar_score_confidence?: number | null;
+  solar_direction_confidence?: number | null;
+  solar_prob_up?: number | null;
   span_prob_up?: number | null;
   span_prob_down?: number | null;
 
@@ -742,6 +756,44 @@ const ALL_COLUMNS: ColumnDef[] = [
         <span className="text-[#73757c]">—</span>
       ),
     exportVal: (r) => r.span_score ?? "",
+  },
+  {
+    id: "solar_direction",
+    label: "سیگنال Solar-Decide (فیلتر اضافه)",
+    shortLabel: "سیگنال Solar",
+    category: "models",
+    render: (r) =>
+      r.solar_direction ? (
+        <span
+          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold ${
+            r.solar_direction === "UP"
+              ? "bg-[#d6a24e]/20 text-[#d6a24e] border border-[#d6a24e]/30"
+              : "bg-[#e5787f]/20 text-[#e5787f] border border-[#e5787f]/30"
+          }`}
+        >
+          {r.solar_direction === "UP" ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+          {r.solar_direction}
+        </span>
+      ) : (
+        <span className="text-[#73757c]">—</span>
+      ),
+    exportVal: (r) => r.solar_direction || "",
+  },
+  {
+    id: "solar_score",
+    label: "اسکور Solar-Decide (0 - 4)",
+    shortLabel: "اسکور Solar",
+    category: "models",
+    render: (r) =>
+      r.solar_score != null ? (
+        <span className="inline-flex items-center gap-1 font-mono text-xs font-semibold tabular-nums text-white">
+          {r.solar_score.toFixed(2)}
+          {r.solar_confidence != null && <span className="text-[10px] text-[#cfad4e]">({r.solar_confidence}%)</span>}
+        </span>
+      ) : (
+        <span className="text-[#73757c]">—</span>
+      ),
+    exportVal: (r) => r.solar_score ?? "",
   },
   {
     id: "span_confidence",
@@ -2683,7 +2735,7 @@ export default function JevAnalysisPage() {
                       onChange={(e) =>
                         setSignals((p) => ({
                           ...p,
-                          modelSource: e.target.value as "jev" | "kev" | "span" | "consensus",
+                          modelSource: e.target.value as "jev" | "kev" | "span" | "solar" | "consensus",
                         }))
                       }
                       className="w-full bg-[#0f1013] text-white border border-white/[0.15] rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-[#6aa9d8]"
@@ -2691,6 +2743,7 @@ export default function JevAnalysisPage() {
                       <option value="jev">مدل Jev (انحصاری Jev - پیش‌فرض)</option>
                       <option value="kev">مدل Kev-4b (اسکور ۰ تا ۴)</option>
                       <option value="span">مدل Span-01 (اسکور ۰ تا ۴)</option>
+                      <option value="solar">مدل Solar-Decide (اسکور ۰ تا ۴)</option>
                       <option value="consensus">اجماع هر ۳ مدل (میانگین اسکور)</option>
                     </select>
                   </div>

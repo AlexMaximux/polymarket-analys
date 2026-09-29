@@ -74,6 +74,8 @@ export async function GET(req: Request) {
         const p = preds.jev || content.prediction || {};
         const pKev = preds.kev || null;
         const pSpan = preds.span || null;
+        const pSolar = preds.solar || null;
+        const pct = (x: unknown) => (x != null ? Number((Number(x) * 100).toFixed(0)) : null);
         const consensus = preds.consensus || null;
         const cards = content.cards || {};
         const fv = content.fair_values || {};
@@ -139,6 +141,15 @@ export async function GET(req: Request) {
           span_confidence: pSpan?.score_confidence != null ? Number((pSpan.score_confidence * 100).toFixed(0)) : null,
           span_prob_up: pSpan?.prob_up ?? null,
           span_prob_down: pSpan?.prob_down ?? null,
+
+          // Upstage Solar-Decide predictions (extra filter, not part of the consensus)
+          solar_direction: pSolar?.direction ?? null,
+          solar_score: pSolar?.score != null ? Number(pSolar.score) : null,
+          solar_score_label: pSolar?.score_interpretation ?? null,
+          solar_score_confidence: pct(pSolar?.score_confidence ?? pSolar?.raw_decision?.answers?.one_hour_score?.confidence),
+          solar_direction_confidence: pct(pSolar?.direction_confidence ?? pSolar?.raw_decision?.answers?.one_hour_direction?.confidence),
+          solar_confidence: pct(pSolar?.score_confidence ?? pSolar?.direction_confidence),
+          solar_prob_up: pSolar?.prob_up ?? null,
 
           // Consensus
           consensus_direction: consensus?.direction ?? null,

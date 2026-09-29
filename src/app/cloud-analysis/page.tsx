@@ -62,13 +62,15 @@ type ScenarioDef = { id: string; name: string; hint: string; over: Partial<Analy
 // Scenarios keep the current data scope (coins/dates/hours) and money settings; they change only signal logic.
 const SIGNAL_KEYS: (keyof AnalysisConfig)[] = [
   "model", "confidenceType", "bullishScore", "bearishScore", "bullishMinConf", "bearishMinConf", "directions",
-  "consensus", "minMinute", "maxMinute", "minEntry", "maxEntry", "dedupe", "pickOrder",
+  "consensus", "solarAgrees", "solarMinConf", "minMinute", "maxMinute", "minEntry", "maxEntry", "dedupe", "pickOrder",
 ];
 const SCENARIOS: ScenarioDef[] = [
   { id: "raw", name: "Every signal snapshot", hint: "Each 5-min snapshot counted as its own trade (inflated).", over: { dedupe: "all" } },
   { id: "dash", name: "Dashboard: first per hour + direction", hint: "What the Jev page counts today.", over: { dedupe: "firstPerHourDir" } },
   { id: "strict", name: "Strict: first signal of the hour", hint: "One trade per market hour, later signals ignored.", over: { dedupe: "firstPerHour" } },
   { id: "c33", name: "3/3 consensus, first per hour", hint: "First signal where Jev, Kev and Span all agree.", over: { consensus: "3of3", dedupe: "firstPerHour" } },
+  { id: "c33solar", name: "3/3 + Solar agrees", hint: "3/3 consensus plus Solar-Decide pointing the same way. Only rows recorded after Solar was added or backfilled can pass.", over: { consensus: "3of3", solarAgrees: true, dedupe: "firstPerHour" } },
+  { id: "c33solarconf", name: "3/3 + Solar confidence ≥ 80%", hint: "3/3 consensus, and Solar's score confidence at least 80%. Threshold picked after looking at the data, so treat it as a hypothesis for a forward test.", over: { consensus: "3of3", solarMinConf: 80, dedupe: "firstPerHour" } },
   { id: "c33late", name: `3/3 + no late signals (min ≤ ${LATE_MINUTE - 1})`, hint: "Drops signals in the last 10 minutes.", over: { consensus: "3of3", dedupe: "firstPerHour", maxMinute: LATE_MINUTE - 1 } },
   { id: "c33price", name: "3/3 + price ≤ 90¢", hint: "Skips near-certain, low-payout entries.", over: { consensus: "3of3", dedupe: "firstPerHour", maxEntry: 90 } },
   { id: "c33first", name: "3/3 must be the hour's first signal", hint: "If the first signal is not 3/3, skip the hour.", over: { consensus: "3of3", dedupe: "firstPerHour", pickOrder: "beforeFilters" } },
@@ -861,6 +863,7 @@ export default function CloudAnalysisPage() {
                 { value: "jev", label: "Jev" },
                 { value: "kev", label: "Kev" },
                 { value: "span", label: "Span" },
+                { value: "solar", label: "Solar" },
                 { value: "avg", label: "Avg of 3", title: "Average of the three scores; confidence = agreement %" },
               ]}
             />
@@ -894,6 +897,16 @@ export default function CloudAnalysisPage() {
               onChange={(v) => set("consensus", v)}
               options={[{ value: "none", label: "Any" }, { value: "2of3", label: "2 of 3" }, { value: "3of3", label: "3 of 3" }]}
             />
+          </Field>
+          <Field label="Solar-Decide" hint="Upstage Solar must point the same way as the signal. Rows without a Solar prediction are excluded.">
+            <Segmented
+              value={cfg.solarAgrees ? "on" : "off"}
+              onChange={(v) => set("solarAgrees", v === "on")}
+              options={[{ value: "off", label: "Ignore" }, { value: "on", label: "Must agree" }]}
+            />
+          </Field>
+          <Field label="Solar min confidence %" hint="0 = off. Rows without a Solar prediction are excluded when above 0.">
+            <NumberInput value={cfg.solarMinConf} min={0} max={100} onChange={(v) => set("solarMinConf", v)} />
           </Field>
           <Field label="Signal minute (of the hour)" hint="Late signals come when the result is almost settled">
             <div className="grid grid-cols-2 gap-2">

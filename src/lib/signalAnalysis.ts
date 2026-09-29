@@ -2,7 +2,7 @@
 // Pure functions only, so the page and the tests share one implementation.
 
 export type Dir = "UP" | "DOWN";
-export type ModelSource = "jev" | "kev" | "span" | "avg";
+export type ModelSource = "jev" | "kev" | "span" | "solar" | "avg";
 export type ConsensusRule = "none" | "2of3" | "3of3";
 export type DedupeMode = "all" | "firstPerHour" | "firstPerHourDir";
 // afterFilters: first snapshot of the hour that passes every filter becomes the trade.
@@ -27,6 +27,11 @@ export interface SnapshotRow {
   span_direction?: Dir | null;
   span_score?: number | null;
   span_confidence?: number | null;
+  solar_direction?: Dir | null;
+  solar_score?: number | null;
+  solar_confidence?: number | null;
+  solar_score_confidence?: number | null;
+  solar_direction_confidence?: number | null;
   consensus_agreement?: number | null;
   up_1h_num?: number | null;
   market_slug?: string | null;
@@ -48,6 +53,10 @@ export interface AnalysisConfig {
   directions: "both" | Dir;
 
   consensus: ConsensusRule;
+  // Extra filter, separate from `consensus` (which counts Jev/Kev/Span only): Solar-Decide must
+  // point the same way as the signal. Rows recorded before Solar existed have no direction and fail it.
+  solarAgrees: boolean;
+  solarMinConf: number; // Solar score confidence, %; 0 = off. Rows without a Solar prediction fail when > 0.
   minMinute: number; // minute of the hour the signal appeared, inclusive
   maxMinute: number; // inclusive
   minEntry: number; // price paid for the chosen side, in cents, inclusive
@@ -73,6 +82,8 @@ export const DEFAULT_ANALYSIS_CONFIG: AnalysisConfig = {
   bearishMinConf: 90,
   directions: "both",
   consensus: "none",
+  solarAgrees: false,
+  solarMinConf: 0,
   minMinute: 0,
   maxMinute: 59,
   minEntry: 0,
@@ -205,6 +216,11 @@ export function detectSignal(
   } else if (cfg.model === "span") {
     score = r.span_score;
     conf = r.span_confidence;
+  } else if (cfg.model === "solar") {
+    score = r.solar_score;
+    conf = cfg.confidenceType === "direction"
+      ? r.solar_direction_confidence ?? r.solar_confidence
+      : r.solar_score_confidence ?? r.solar_confidence;
   } else if (cfg.model === "avg") {
     const scores = [r.score, r.kev_score, r.span_score].filter((s): s is number => s != null);
     score = scores.length ? Number((scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(2)) : null;
@@ -302,6 +318,8 @@ function passesFilters(t: Trade, cfg: AnalysisConfig): boolean {
   if (cfg.directions !== "both" && t.dir !== cfg.directions) return false;
   if (cfg.consensus === "2of3" && t.agreeCount < 2) return false;
   if (cfg.consensus === "3of3" && t.agreeCount < 3) return false;
+  if (cfg.solarAgrees && t.row.solar_direction !== t.dir) return false;
+  if (cfg.solarMinConf > 0 && !((t.row.solar_score_confidence ?? -1) >= cfg.solarMinConf)) return false;
   if (t.minute < cfg.minMinute || t.minute > cfg.maxMinute) return false;
   const priceFilterOn = cfg.minEntry > 0 || cfg.maxEntry < 100;
   if (priceFilterOn) {

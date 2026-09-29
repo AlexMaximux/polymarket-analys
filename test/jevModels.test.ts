@@ -15,7 +15,7 @@ describe('callMultiModelDecisions', () => {
   afterEach(() => vi.restoreAllMocks());
 
   it('makes no OpenRouter call for disabled models', async () => {
-    applySettingChanges({ 'openrouter.apiKey': 'sk-test-0123456789', 'jev.models': { jev: false, kev: false, span: true } }, db);
+    applySettingChanges({ 'openrouter.apiKey': 'sk-test-0123456789', 'jev.models': { jev: false, kev: false, span: true, solar: false } }, db);
     const r = await callMultiModelDecisions({ coin: 'btc', coin_label: 'Bitcoin', cards: {}, fair_values: {} });
     expect(global.fetch).toHaveBeenCalledTimes(1);
     expect(r.jev).toBeNull();

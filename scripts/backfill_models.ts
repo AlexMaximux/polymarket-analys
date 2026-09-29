@@ -3,7 +3,7 @@ loadEnvConfig(process.cwd());
 
 import fs from 'fs';
 import path from 'path';
-import { callKevDecision, callSpanDecision } from '../src/lib/jevSnapshot';
+import { callKevDecision, callSpanDecision, callSolarDecision } from '../src/lib/jevSnapshot';
 
 const CONCURRENCY = 6; // 6 concurrent calls to OpenRouter
 const SLEEP_BETWEEN_BATCHES_MS = 250;
@@ -25,8 +25,8 @@ async function processFile(filename: string): Promise<boolean> {
     return false;
   }
 
-  // Check if already has both kev and span
-  if (data.predictions?.kev && data.predictions?.span) {
+  // Check if already has kev, span and solar
+  if (data.predictions?.kev && data.predictions?.span && data.predictions?.solar) {
     return true;
   }
 
@@ -37,13 +37,15 @@ async function processFile(filename: string): Promise<boolean> {
   }
 
   try {
-    const [kevRes, spanRes] = await Promise.allSettled([
+    const [kevRes, spanRes, solarRes] = await Promise.allSettled([
       data.predictions?.kev ? Promise.resolve(data.predictions.kev) : callKevDecision(data),
       data.predictions?.span ? Promise.resolve(data.predictions.span) : callSpanDecision(data),
+      data.predictions?.solar ? Promise.resolve(data.predictions.solar) : callSolarDecision(data),
     ]);
 
     const kev = kevRes.status === 'fulfilled' ? kevRes.value : null;
     const span = spanRes.status === 'fulfilled' ? spanRes.value : null;
+    const solar = solarRes.status === 'fulfilled' ? solarRes.value : null;
 
     const jev = data.predictions?.jev || data.prediction || null;
 
@@ -66,10 +68,13 @@ async function processFile(filename: string): Promise<boolean> {
       agreement: totalVotes > 0 ? Number(((Math.max(upVotes, downVotes) / totalVotes) * 100).toFixed(0)) : null,
     };
 
+    // Solar is stored beside the others but is not a consensus vote (see callMultiModelDecisions).
     data.predictions = {
+      ...data.predictions,
       jev: jev,
       kev: kev,
       span: span,
+      ...(solar ? { solar } : {}),
       consensus: consensus,
     };
 
@@ -94,8 +99,9 @@ async function processFile(filename: string): Promise<boolean> {
     }
 
     const kevSummary = kev ? `${kev.direction} (${kev.score})` : 'failed';
+    const solarSummary = solar ? `${solar.direction} (${solar.score})` : 'failed';
     const spanSummary = span ? `${span.direction} (${span.prob_up}% UP)` : 'failed';
-    console.log(`[DONE] ${filename} -> Kev: ${kevSummary} | Span: ${spanSummary} | Consensus: ${consensus.summary}`);
+    console.log(`[DONE] ${filename} -> Kev: ${kevSummary} | Span: ${spanSummary} | Solar: ${solarSummary} | Consensus: ${consensus.summary}`);
     return true;
   } catch (err: any) {
     console.error(`[ERROR] Failed to enrich ${filename}:`, err.message || err);
@@ -134,7 +140,7 @@ async function run() {
   for (const f of files) {
     try {
       const data = JSON.parse(fs.readFileSync(path.join(historyDir, f), 'utf8'));
-      if (!data.predictions?.kev || !data.predictions?.span) {
+      if (!data.predictions?.kev || !data.predictions?.span || !data.predictions?.solar) {
         if (data.cards) { // only process files with market cards
           candidates.push(f);
         }
@@ -144,7 +150,7 @@ async function run() {
 
   const toProcess = candidates.slice(0, limit);
   console.log(`\n======================================================`);
-  console.log(`Found ${candidates.length} historical files needing Kev-4b & Span-01 enrichment.`);
+  console.log(`Found ${candidates.length} historical files needing Kev-4b, Span-01 & Solar enrichment.`);
   console.log(`Processing ${toProcess.length} files (Concurrency: ${CONCURRENCY})...`);
   console.log(`======================================================\n`);
 

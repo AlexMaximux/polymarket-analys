@@ -145,6 +145,38 @@ describe('frozen strategy', () => {
   });
 });
 
+describe('solar filter', () => {
+  it('is off in every frozen strategy, so adding Solar does not change their history', () => {
+    for (const s of STRATEGY_HISTORY) expect(s.rule.solarAgrees).toBe(false);
+  });
+  it('keeps rows without a Solar prediction when the filter is off', () => {
+    expect(buildTrades([row({ hm: '04:40' })], cfg({ dedupe: 'firstPerHour' }))).toHaveLength(1);
+  });
+  it('drops rows where Solar disagrees or is missing when the filter is on', () => {
+    const on = cfg({ solarAgrees: true, dedupe: 'firstPerHour' });
+    expect(buildTrades([row({ hm: '04:40', solar_direction: 'DOWN' })], on)).toHaveLength(0);
+    expect(buildTrades([row({ hm: '04:40' })], on)).toHaveLength(0);
+    expect(buildTrades([row({ hm: '04:40', solar_direction: 'UP' })], on)).toHaveLength(1);
+  });
+  it('picks the first hour signal that Solar agrees with', () => {
+    const on = cfg({ solarAgrees: true, dedupe: 'firstPerHour' });
+    const trades = buildTrades([row({ hm: '04:35', solar_direction: 'DOWN' }), row({ hm: '04:40', solar_direction: 'UP' })], on);
+    expect(trades).toHaveLength(1);
+    expect(trades[0].minute).toBe(40);
+  });
+  it('solarMinConf drops low-confidence and missing Solar rows, and is off in the frozen rules', () => {
+    for (const s of STRATEGY_HISTORY) expect(s.rule.solarMinConf).toBe(0);
+    const on = cfg({ solarMinConf: 80, dedupe: 'firstPerHour' });
+    expect(buildTrades([row({ hm: '04:40', solar_score_confidence: 79 })], on)).toHaveLength(0);
+    expect(buildTrades([row({ hm: '04:40' })], on)).toHaveLength(0);
+    expect(buildTrades([row({ hm: '04:40', solar_score_confidence: 80 })], on)).toHaveLength(1);
+  });
+  it('uses Solar own score when it is the model', () => {
+    const r = row({ hm: '04:10', score: 0.1, solar_score: 3.9, solar_score_confidence: 95 });
+    expect(detectSignal(r, cfg({ model: 'solar' }))?.dir).toBe('UP');
+  });
+});
+
 describe('verdict', () => {
   it('reports too few trades under the minimum sample', () => {
     const t = buildTrades([row({ hm: '04:10' })], cfg());
