@@ -59,7 +59,7 @@ const FIELDS: Record<SettingKey, Field> = {
   "bot.builderPassphrase": { label: "Builder passphrase", kind: "secret", hint: "Created automatically; leave empty to keep the saved value." },
   "bot.rpcUrl": { label: "Polygon RPC URL", kind: "text", hint: "Optional — defaults to a public Polygon RPC" },
   "bot.maxBudget": { label: "Total budget cap ($)", kind: "num" },
-  "bot.perTradeAmount": { label: "Per-trade amount ($)", kind: "num", hint: "Fixed amount for each BTC 1H buy. Signal amounts are ignored." },
+  "bot.perTradeAmount": { label: "Per-trade amount ($)", kind: "num", hint: "Fixed amount for each BTC 1H buy. Polymarket normally requires at least 5 shares; use $5 or more to cover that minimum at any valid price." },
   "bot.telegramToken": { label: "Bot token", kind: "secret", hint: "Separate bot from the Jev alert bot above — e.g. @tornbalancebot" },
   "bot.telegramChatId": { label: "Private user/chat ID", kind: "text" },
 };

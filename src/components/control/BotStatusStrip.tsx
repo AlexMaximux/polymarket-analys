@@ -10,6 +10,8 @@ const money = (n: number) => `$${n.toFixed(2)}`;
 export function BotStatusStrip() {
   const [status, setStatus] = useState<BotStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [checking, setChecking] = useState<string | null>(null);
+  const [checkMessage, setCheckMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let stop = false;
@@ -79,15 +81,43 @@ export function BotStatusStrip() {
           )}
         </span>
         <span className="text-xs text-[#9a9ca3] tabular-nums">
+          Wallet balance:{" "}
+          {status.walletConnection === "CONNECTED" && status.walletBalanceUsd != null ? (
+            <span className="text-[#5fbf9a] font-medium">{money(status.walletBalanceUsd)} USDC · CONNECTED</span>
+          ) : status.walletConnection === "ERROR" ? (
+            <span className="text-[#e5787f]">connection check failed</span>
+          ) : (
+            <span className="text-[#e5787f]">not configured</span>
+          )}
+        </span>
+        <span className="text-xs text-[#9a9ca3] tabular-nums">
           Spent: <span className="text-[#e8e8e4]">{money(status.totalSpent)}</span> / {money(status.maxTotalBudget)}
           <span className="text-[#73757c]"> · {money(status.perTradeAmount)}/trade</span>
         </span>
         {status.activeMarket && (
-          <span className="text-xs text-[#9a9ca3] truncate max-w-[260px]" title={status.activeMarket.title}>
-            Market: <span className="text-[#bdbdb8]">{status.activeMarket.title}</span>
-          </span>
+          <>
+            <span className="text-xs text-[#9a9ca3] truncate max-w-[260px]" title={status.activeMarket.title}>
+              Market: <span className="text-[#bdbdb8]">{status.activeMarket.title}</span>
+            </span>
+            {status.activeMarket.minimumOrderSize && status.activeMarket.bestAskUp && status.activeMarket.bestAskDown &&
+              status.perTradeAmount + 0.000001 < status.activeMarket.minimumOrderSize * Math.max(status.activeMarket.bestAskUp, status.activeMarket.bestAskDown) && (
+              <span className="text-xs text-[#d4b063]">
+                Stake too low: {money(status.perTradeAmount)} · current minimum UP {money(status.activeMarket.minimumOrderSize * status.activeMarket.bestAskUp)} / DOWN {money(status.activeMarket.minimumOrderSize * status.activeMarket.bestAskDown)}
+              </span>
+            )}
+          </>
         )}
       </div>
+      {status.geo?.blocked && (
+        <div className="mt-3 rounded border border-[#e5787f]/40 bg-[#e5787f]/10 px-3 py-2 text-xs text-[#ef9da2]">
+          Trading blocked by Polymarket for this server location: {status.geo.country || "unknown"}{status.geo.region ? ` / ${status.geo.region}` : ""}. Wallet reads and redemption remain enabled; new buys are stopped before signing.
+        </div>
+      )}
+      {status.geo && !status.geo.checked && (
+        <div className="mt-3 rounded border border-[#d4b063]/40 bg-[#d4b063]/10 px-3 py-2 text-xs text-[#e7c87e]">
+          Polymarket location check is unavailable. Live buys are stopped until the server location can be verified.
+        </div>
+      )}
       {status.forward && <div className="mt-2 text-xs text-[#9a9ca3]">
         Frozen forward {status.forward.strategy}: {status.forward.enabled ? "ON" : "OFF"} · Last scan: {status.forward.lastScan ? new Date(status.forward.lastScan).toLocaleString() : "Waiting for bot worker"}
         {status.forward.lastError && <div>{status.forward.lastError}</div>}
@@ -108,16 +138,22 @@ export function BotStatusStrip() {
       {status.pendingRequests?.map(r => (
         <div key={r.requestId} className="mt-2 text-xs text-[#d4b063]">
           {r.state}: {r.requestId} · Reserved {money(status.reservedBudget)}
-          <button type="button" className="ml-3 underline" onClick={async () => {
+          <button type="button" disabled={checking === r.requestId} className="ml-3 rounded border border-[#d4b063]/40 bg-[#d4b063]/10 px-2 py-1 text-[#e7c87e] hover:bg-[#d4b063]/20 disabled:cursor-wait disabled:opacity-60" onClick={async () => {
+            setChecking(r.requestId);
+            setCheckMessage(null);
             try {
               const response = await fetch('/api/bot/reconcile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requestId: r.requestId }) });
-              if (!response.ok) { setError('Could not check order. No new order sent.'); return; }
+              const result = await response.json();
+              if (!response.ok) { setCheckMessage(result.error || 'Could not check order. No new order sent.'); return; }
+              setCheckMessage(result.status === 'FILLED' ? 'Order filled and recorded.' : result.status === 'FAILED' ? (result.error || 'No trade occurred; reserved budget released.') : 'Order is still being verified. No new order was sent.');
               const current = await fetch('/api/bot/trade', { cache: 'no-store' });
               if (current.ok) setStatus(await current.json());
-            } catch { setError('Could not check order. No new order sent.'); }
-          }}>Check order status</button>
+            } catch { setCheckMessage('Could not check order. No new order was sent.'); }
+            finally { setChecking(null); }
+          }}>{checking === r.requestId ? 'Checking…' : 'Check order status'}</button>
         </div>
       ))}
+      {checkMessage && <div className="mt-2 text-xs text-[#bdbdb8]">{checkMessage}</div>}
       {status.recentTrades.length > 0 && (
         <div className="mt-2 pt-2 border-t border-white/[0.06] text-[11px] text-[#73757c] space-x-3">
           {status.recentTrades.slice(0, 3).map(t => (

@@ -48,8 +48,10 @@ export async function runForwardCycle(rows?: SnapshotRow[], execute: (signal: Si
   getDb().exec('CREATE TABLE IF NOT EXISTS bot_forward_events (id TEXT PRIMARY KEY, signal TEXT NOT NULL, created_at INTEGER NOT NULL)');
   const inserted = getDb().prepare('INSERT OR IGNORE INTO bot_forward_events VALUES(?,?,?)').run(signal.requestId, JSON.stringify(signal), Date.now());
   if (!inserted.changes) return;
+  console.log(`[FORWARD] Signal received: BTC 1H ${signal.outcome} · ${signal.expectedMarketSlug} · ${signal.requestId}`);
   enqueueNotification(`signal:${signal.requestId}`, `📥 سیگنال forward دریافت شد؛ هنوز خرید تأیید نشده\nBTC 1H ${signal.outcome}\n${signal.expectedMarketSlug}\n${signal.requestId}`);
   const result = await execute(signal);
+  console.log(`[TRADE] ${result.status || (result.success ? 'FILLED' : 'FAILED')} · BTC 1H ${result.outcome || signal.outcome} · $${result.amountUsd ?? '—'} · attempts=${result.attempts ?? 0} · ${result.requestId || signal.requestId}`);
   if (!result.success && !findRequest(signal.requestId!)) enqueueNotification(`blocked:${signal.requestId}`, `⛔ سیگنال forward اجرا نشد؛ وضعیت بات و بودجه را بررسی کنید.\n${signal.expectedMarketSlug}\n${signal.requestId}`);
 }
 export function forwardStatus() {
@@ -58,7 +60,10 @@ export function forwardStatus() {
 export async function startForwardWorker() {
   while (true) {
     try {
-      for (const row of pendingRequests(false)) if (row.order_id) await reconcileRequest(row.request_id);
+      for (const row of pendingRequests(false)) if (row.order_id) {
+        const result = await reconcileRequest(row.request_id);
+        if (result.status && result.status !== row.state) console.log(`[RECONCILE] ${row.state} → ${result.status} · ${row.request_id}`);
+      }
       await runForwardCycle();
       setBotSetting('forward.lastError', '');
     } catch { setBotSetting('forward.lastError', 'Forward scan failed; no blind retry performed.'); }

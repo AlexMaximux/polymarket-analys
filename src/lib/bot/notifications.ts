@@ -49,6 +49,7 @@ export async function deliverNotifications(send = fetch) {
       const body = await response.json();
       if (!response.ok || body.ok !== true || !Number.isInteger(body.result?.message_id)) throw new Error('not accepted');
       getDb().prepare("UPDATE bot_notifications SET state='SENT',message_id=?,last_error=NULL WHERE event=?").run(body.result.message_id, row.event);
+      console.log(`[TELEGRAM] Delivered · ${row.event}`);
     } catch {
       getDb().prepare('UPDATE bot_notifications SET next_at=?,last_error=? WHERE event=?').run(Date.now() + Math.min(3600_000, 30_000 * 2 ** Math.min(row.attempts, 7)), 'Telegram delivery unconfirmed; retry scheduled', row.event);
       return;

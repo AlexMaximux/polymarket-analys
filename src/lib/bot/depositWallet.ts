@@ -1,5 +1,7 @@
 import { createSecureClient, WalletType, type SignedOrder } from '@polymarket/client';
 import { createBuilderApiKey } from '@polymarket/client/actions';
+import { fetchBalanceAllowance } from '@polymarket/client/actions';
+import { AssetType } from '@polymarket/bindings/clob';
 import { builderApiKey } from '@polymarket/client/node';
 import { privateKey } from '@polymarket/client/viem';
 import { hashTypedData, http } from 'viem';
@@ -92,4 +94,12 @@ export async function ensureDepositTradingApprovals(client: Awaited<ReturnType<t
   const after = before.isFullyApproved ? before : await client.fetchTradingApprovalsState();
   if (!after.isFullyApproved) throw new DepositWalletError('مجوزهای لازم برای معامله در Deposit Wallet کامل نشد.');
   return { changed: !before.isFullyApproved };
+}
+
+/** Read the CLOB collateral balance for the configured Polymarket wallet (6 decimals). */
+export async function getDepositCollateralBalanceUsd() {
+  const { client } = await createDepositWalletClient();
+  const result = await fetchBalanceAllowance(client, { assetType: AssetType.COLLATERAL });
+  const raw = BigInt(result.balance);
+  return Number(raw) / 1_000_000;
 }

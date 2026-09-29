@@ -29,6 +29,7 @@ export interface ActiveMarketInfo {
   bestBidDown: number | null;
   selectedTokenId: string;
   selectedBestAsk: number | null;
+  minimumOrderSize: number | null;
 }
 
 export interface TradeResult {
@@ -62,6 +63,9 @@ export interface BotStatus {
   walletAddress: string | null;
   walletType: 'EOA' | 'POLY_PROXY' | 'POLY_GNOSIS_SAFE' | 'DEPOSIT_WALLET';
   isConfigured: boolean;
+  walletBalanceUsd: number | null;
+  walletConnection: 'CONNECTED' | 'ERROR' | 'NOT_CONFIGURED';
+  geo: { checked: boolean; blocked: boolean; country: string | null; region: string | null };
   simulationMode: boolean;
   maxTotalBudget: number;
   totalSpent: number;
@@ -76,6 +80,7 @@ export interface BotStatus {
     title: string;
     bestAskUp: number | null;
     bestAskDown: number | null;
+    minimumOrderSize: number | null;
   } | null;
 }
 

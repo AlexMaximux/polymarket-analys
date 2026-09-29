@@ -45,7 +45,7 @@ export interface SignalMarkerConfig {
   modelSource?: "jev" | "kev" | "span" | "consensus"; // Default "jev"
 }
 
-export const DEFAULT_SIGNAL_CONFIG: SignalMarkerConfig = {
+const DEFAULT_SIGNAL_CONFIG: SignalMarkerConfig = {
   enabled: true,
   bullishScore: 3.5,
   bullishMinConf: 90,
@@ -70,7 +70,7 @@ export interface SignalMatch {
   sourceModel?: string;
 }
 
-export function evaluateSignal(r: JevFileRecord, cfg: SignalMarkerConfig): SignalMatch | null {
+function evaluateSignal(r: JevFileRecord, cfg: SignalMarkerConfig): SignalMatch | null {
   if (!cfg.enabled) return null;
 
   const modelSrc = cfg.modelSource || "jev";
@@ -202,7 +202,7 @@ interface JevFileRecord {
   is_first_hourly_signal?: boolean;
 }
 
-export function evaluateSignalOutcome(r: JevFileRecord, cfg: SignalMarkerConfig): {
+function evaluateSignalOutcome(r: JevFileRecord, cfg: SignalMarkerConfig): {
   hasSignal: boolean;
   signalDirection?: "UP" | "DOWN";
   marketOutcome?: "UP" | "DOWN" | "PENDING" | null;
@@ -1033,7 +1033,7 @@ function generateSmoothCurve(points: { x: number; y: number }[]) {
   return d;
 }
 
-export const AVAILABLE_COINS = [
+const AVAILABLE_COINS = [
   { key: "all", label: "همه ارزها (All)" },
   { key: "btc", label: "بیت‌کوین (BTC)", color: "#d49a4a" },
   { key: "eth", label: "اتریوم (ETH)", color: "#627EEA" },

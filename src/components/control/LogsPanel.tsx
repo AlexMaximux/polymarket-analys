@@ -6,10 +6,10 @@ import { btn } from "./format";
 import { CollapsibleSection } from "./CollapsibleSection";
 import type { LogLine } from "./types";
 
-const NAMES = ["web", "crawl", "backfill", "alerts", "jev"];
+const NAMES = ["bot", "web", "crawl", "backfill", "alerts", "jev"];
 
 export function LogsPanel({ supervisorUp }: { supervisorUp: boolean }) {
-  const [name, setName] = useState("crawl");
+  const [name, setName] = useState("bot");
   const [lines, setLines] = useState<LogLine[]>([]);
   const [paused, setPaused] = useState(false);
   const [clearedAt, setClearedAt] = useState(0);

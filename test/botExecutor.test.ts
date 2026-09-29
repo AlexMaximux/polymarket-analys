@@ -3,6 +3,7 @@ import Database from 'better-sqlite3';
 import { ClobClient } from '@polymarket/clob-client';
 import * as dbModule from '../src/lib/db';
 import * as live from '../src/lib/bot/live';
+import * as geo from '../src/lib/bot/geo';
 import { applySettingChanges } from '../src/lib/settings';
 import { executeSignal, getBotWalletConfig, reconcileRequest, MAX_ATTEMPTS, buildHourlyEtSlug } from '../src/lib/bot/executor';
 import { getRecentTrades, getTotalSpent, initializeBotTables } from '../src/lib/bot/db';
@@ -24,6 +25,7 @@ describe('fixed BTC 1H execution', () => {
     db = new Database(':memory:');
     dbModule.initializeDb(db);
     vi.spyOn(dbModule, 'getDb').mockReturnValue(db);
+    vi.spyOn(geo, 'getPolymarketGeoStatus').mockResolvedValue({ checked: true, blocked: false, country: 'US', region: null });
     initializeBotTables();
     vi.useFakeTimers({ toFake: ['setTimeout'] });
     vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => new Response(JSON.stringify([{ slug: buildHourlyEtSlug('btc'), title: 'BTC', markets: [{

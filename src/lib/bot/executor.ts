@@ -7,8 +7,9 @@ import { createLiveClient, getBotWalletConfig, walletIdentity, CLOB_HOST } from 
 import { findRequest, reserveRequest, reservedBudget, pendingRequests, prepareSubmission, markRejected, markUnknown, finishRequest, type BotRequest } from './ledger';
 import type { SignalRequest, ActiveMarketInfo, TradeResult, BotStatus, TradeOutcome } from './types';
 import { OrderSide as UnifiedOrderSide, OrderType as UnifiedOrderType } from '@polymarket/client';
-import { createDepositWalletClient, depositOrderHash, ensureDepositTradingApprovals } from './depositWallet';
+import { createDepositWalletClient, depositOrderHash, ensureDepositTradingApprovals, getDepositCollateralBalanceUsd } from './depositWallet';
 import { fetchNegRisk } from '@polymarket/client/actions';
+import { getPolymarketGeoStatus } from './geo';
 export { getBotWalletConfig } from './live';
 const POLYGON_CHAIN_ID = 137;
 export const MAX_ATTEMPTS = 5;
@@ -88,6 +89,8 @@ export async function resolveActiveMarket(coin = 'btc', timeframe = '1H', outcom
 
           const selectedTokenId = outcome === 'UP' ? tokenUp : tokenDown;
           const selectedBestAsk = outcome === 'UP' ? upPrices.bestAsk : downPrices.bestAsk;
+          const selectedBook = outcome === 'UP' ? bookUp : bookDown;
+          const minimumOrderSize = selectedBook?.min_order_size == null ? null : Number(selectedBook.min_order_size);
 
           return {
             slug,
@@ -105,6 +108,7 @@ export async function resolveActiveMarket(coin = 'btc', timeframe = '1H', outcom
             bestBidDown: downPrices.bestBid,
             selectedTokenId,
             selectedBestAsk,
+            minimumOrderSize: Number.isFinite(minimumOrderSize) && minimumOrderSize! > 0 ? minimumOrderSize : null,
           };
         }
       }
@@ -167,7 +171,30 @@ export async function reconcileRequest(requestId: string): Promise<TradeResult> 
   try {
     if (getBotWalletConfig().walletType === 'DEPOSIT_WALLET') {
       const { client } = await createDepositWalletClient();
-      const order = await client.fetchOrder({ orderId: row.order_id });
+      let order;
+      try { order = await client.fetchOrder({ orderId: row.order_id }); }
+      catch {
+        // A lost POST response can leave no order endpoint record. Account trades are an
+        // independent authenticated ledger and let us settle an old FOK request safely.
+        const page = await client.listAccountTrades({
+          assetId: row.token_id!,
+          after: String(Math.floor((row.created_at - 60_000) / 1000)),
+        }).firstPage();
+        const own = page.items.filter(t => t.takerOrderId === row.order_id && t.side.toUpperCase() === 'BUY');
+        if (own.length) {
+          if (own.some(t => !['MATCHED', 'MINED', 'CONFIRMED'].includes(t.status.toUpperCase()))) return unknown(signal, row);
+          const shares = own.reduce((sum, t) => sum + Number(t.size), 0);
+          const amount = own.reduce((sum, t) => sum + Number(t.size) * Number(t.price), 0);
+          if (!validFill(amount, shares, row)) return unknown(signal, row);
+          return settle(signal, row, { ...resultFor(signal, row), success: true, amountUsd: amount, shares, price: amount / shares,
+            txHash: own.find(t => t.transactionHash)?.transactionHash });
+        }
+        // FOK orders never rest on the book. If both the order endpoint and the
+        // authenticated trade ledger are empty after five minutes, no fill occurred.
+        const oldFok = Date.now() - row.created_at >= 5 * 60_000;
+        if (oldFok) return settle(signal, row, resultFor(signal, row, 'سفارش در CLOB ثبت نشده و هیچ معامله‌ای انجام نشده است؛ بودجه آزاد شد.'));
+        return unknown(signal, row);
+      }
       if (order.id !== row.order_id || String(order.assetId) !== row.token_id || order.side.toUpperCase() !== 'BUY') return unknown(signal, row);
       if (['CANCELED', 'CANCELLED'].includes(order.status.toUpperCase()) && Number(order.sizeMatched) === 0) {
         return settle(signal, row, resultFor(signal, row, 'سفارش بدون خرید لغو شده است.'));
@@ -242,9 +269,16 @@ export async function executeSignal(signal: SignalRequest): Promise<TradeResult>
     if (cap === null || !Number.isFinite(cap) || cap <= 0 || cap >= 1 || !market.selectedTokenId) throw new Error('قیمت خرید معتبر در دفتر سفارش وجود ندارد.');
     result = { ...result, slug: market.slug, tokenId: market.selectedTokenId };
     assertStillAllowed(row, market, identity, signal);
+    if (market.minimumOrderSize && row.amount / cap + 0.000001 < market.minimumOrderSize) {
+      const minimumUsd = market.minimumOrderSize * cap;
+      throw new Error(`مبلغ ثابت برای حداقل ${market.minimumOrderSize} سهم کافی نیست؛ در قیمت فعلی حداقل ${minimumUsd.toFixed(2)} دلار لازم است.`);
+    }
     if (row.simulated) {
       return settle(signal, row, { ...result, success: true, shares: row.amount / cap, price: cap, orderId: `sim_${row.request_id}` });
     }
+    const geo = await getPolymarketGeoStatus(true);
+    if (!geo.checked) throw new Error('بررسی محدودیت جغرافیایی Polymarket ناموفق بود؛ برای ایمنی سفارش ارسال نشد.');
+    if (geo.blocked) throw new Error(`معامله از موقعیت ${geo.country || 'فعلی'} توسط Polymarket مسدود است؛ سفارش ارسال نشد.`);
     if (getBotWalletConfig().walletType === 'DEPOSIT_WALLET') {
       const { client } = await createDepositWalletClient({ provisionBuilder: true });
       await ensureDepositTradingApprovals(client);
@@ -348,15 +382,25 @@ export async function getBotStatus(): Promise<BotStatus> {
   const totalSpent = getTotalSpent(limits.simulationMode);
   const reserved = reservedBudget(limits.simulationMode);
   const wallet = getBotWalletConfig();
-  const m = await resolveActiveMarket();
+  const [m, balance, geo] = await Promise.all([
+    resolveActiveMarket(),
+    wallet.isConfigured && wallet.walletType === 'DEPOSIT_WALLET'
+      ? getDepositCollateralBalanceUsd().then(value => ({ value, connected: true as const })).catch(() => ({ value: null, connected: false as const }))
+      : Promise.resolve({ value: null, connected: false as const }),
+    getPolymarketGeoStatus(),
+  ]);
   return {
     redemption: getRedemptionStatus(),
     enabled: getSetting('bot.enabled'), walletAddress: wallet.address, walletType: wallet.walletType,
-    isConfigured: wallet.isConfigured, simulationMode: limits.simulationMode,
+    isConfigured: wallet.isConfigured,
+    walletBalanceUsd: balance.value,
+    walletConnection: !wallet.isConfigured ? 'NOT_CONFIGURED' : wallet.walletType === 'DEPOSIT_WALLET' && balance.connected ? 'CONNECTED' : wallet.walletType === 'DEPOSIT_WALLET' ? 'ERROR' : 'CONNECTED',
+    geo,
+    simulationMode: limits.simulationMode,
     maxTotalBudget: limits.maxBudget, totalSpent, reservedBudget: reserved,
     pendingRequests: pendingRequests(limits.simulationMode).map(r => ({ requestId: r.request_id, state: r.state, orderId: r.order_id })),
     remainingBudget: Math.max(0, limits.maxBudget - totalSpent - reserved), perTradeAmount: limits.perTrade,
     totalTradesCount: getTradeCount(), recentTrades: getRecentTrades(5),
-    activeMarket: m ? { slug: m.slug, title: m.title, bestAskUp: m.bestAskUp, bestAskDown: m.bestAskDown } : null,
+    activeMarket: m ? { slug: m.slug, title: m.title, bestAskUp: m.bestAskUp, bestAskDown: m.bestAskDown, minimumOrderSize: m.minimumOrderSize } : null,
   };
 }
