@@ -65,7 +65,7 @@ export interface BotStatus {
   isConfigured: boolean;
   walletBalanceUsd: number | null;
   walletConnection: 'CONNECTED' | 'ERROR' | 'NOT_CONFIGURED';
-  geo: { checked: boolean; blocked: boolean; country: string | null; region: string | null };
+  geo: import('./geo').PolymarketGeoStatus;
   simulationMode: boolean;
   maxTotalBudget: number;
   totalSpent: number;

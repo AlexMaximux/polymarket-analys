@@ -108,9 +108,14 @@ export function BotStatusStrip() {
           </>
         )}
       </div>
-      {status.geo?.blocked && (
+      {status.geo?.checked && (status.geo.apiBlocked ?? status.geo.blocked) && (
         <div className="mt-3 rounded border border-[#e5787f]/40 bg-[#e5787f]/10 px-3 py-2 text-xs text-[#ef9da2]">
-          Trading blocked by Polymarket for this server location: {status.geo.country || "unknown"}{status.geo.region ? ` / ${status.geo.region}` : ""}. Wallet reads and redemption remain enabled; new buys are stopped before signing.
+          New buys restricted by Polymarket API for this server location: {status.geo.country || "unknown"}{status.geo.region ? ` / ${status.geo.region}` : ""}. New buys are stopped before signing.
+        </div>
+      )}
+      {status.geo?.checked && status.geo.blocked && status.geo.apiBlocked === false && (
+        <div className="mt-3 rounded border border-[#d4b063]/40 bg-[#d4b063]/10 px-3 py-2 text-xs text-[#e7c87e]">
+          Website restricted in {status.geo.country}; trading API is unrestricted by location according to Polymarket documentation. Orders remain subject to CLOB validation.
         </div>
       )}
       {status.geo && !status.geo.checked && (

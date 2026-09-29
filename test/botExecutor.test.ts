@@ -25,7 +25,7 @@ describe('fixed BTC 1H execution', () => {
     db = new Database(':memory:');
     dbModule.initializeDb(db);
     vi.spyOn(dbModule, 'getDb').mockReturnValue(db);
-    vi.spyOn(geo, 'getPolymarketGeoStatus').mockResolvedValue({ checked: true, blocked: false, country: 'US', region: null });
+    vi.spyOn(geo, 'getPolymarketGeoStatus').mockResolvedValue({ checked: true, blocked: false, apiBlocked: false, country: 'SE', region: null });
     initializeBotTables();
     vi.useFakeTimers({ toFake: ['setTimeout'] });
     vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => new Response(JSON.stringify([{ slug: buildHourlyEtSlug('btc'), title: 'BTC', markets: [{
@@ -55,6 +55,19 @@ describe('fixed BTC 1H execution', () => {
   it('does no network work while disabled', async () => {
     expect((await run()).error).toMatch(/disabled/);
     expect(fetch).not.toHaveBeenCalled();
+  });
+  it('allows an Irish API order despite the frontend geoblock', async () => {
+    enable(true);
+    vi.mocked(geo.getPolymarketGeoStatus).mockResolvedValue({ checked: true, blocked: true, apiBlocked: false, country: 'IE', region: 'L' });
+    expect((await run()).success).toBe(true);
+    expect(postOrder).toHaveBeenCalledTimes(1);
+  });
+  it('blocks UK buys before signing and releases the reservation', async () => {
+    enable(true);
+    vi.mocked(geo.getPolymarketGeoStatus).mockResolvedValue({ checked: true, blocked: true, apiBlocked: true, country: 'GB', region: 'ENG' });
+    expect((await run()).status).toBe('FAILED');
+    expect(createMarketOrder).not.toHaveBeenCalled();
+    expect(reservedBudget(false)).toBe(0);
   });
   it('rejects another coin/timeframe and missing identity', async () => {
     enable();

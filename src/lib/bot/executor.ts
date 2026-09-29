@@ -278,7 +278,7 @@ export async function executeSignal(signal: SignalRequest): Promise<TradeResult>
     }
     const geo = await getPolymarketGeoStatus(true);
     if (!geo.checked) throw new Error('بررسی محدودیت جغرافیایی Polymarket ناموفق بود؛ برای ایمنی سفارش ارسال نشد.');
-    if (geo.blocked) throw new Error(`معامله از موقعیت ${geo.country || 'فعلی'} توسط Polymarket مسدود است؛ سفارش ارسال نشد.`);
+    if (geo.apiBlocked) throw new Error(`خرید جدید از موقعیت ${geo.country || 'فعلی'} در API پلی‌مارکت محدود است؛ سفارش ارسال نشد.`);
     if (getBotWalletConfig().walletType === 'DEPOSIT_WALLET') {
       const { client } = await createDepositWalletClient({ provisionBuilder: true });
       await ensureDepositTradingApprovals(client);
